@@ -2,6 +2,7 @@ import joblib
 import pandas as pd
 import numpy as np
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, Any, List
 
@@ -13,9 +14,7 @@ app = FastAPI(title="Bipolar AI Engine", version="2.0")
 # --- BLOCO DE CONFIGURAÇÃO CORS ---
 # Você precisa de uma lista de ORIGENS (os domínios que podem ligar para sua API)
 origins = [
-    # Adicione aqui o DOMÍNIO REAL do seu Vercel (Ex: https://seu-app-vercel.app)
-    # Use "*" temporariamente, mas substitua pelo domínio do Vercel na produção!
-    "*", 
+    "https://previso-fe.vercel.app",
     "http://localhost:3000",        
     "http://localhost:5173",        
 ]
