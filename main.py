@@ -13,6 +13,12 @@ from analysis.treatment_optimization import TreatmentOptimizer
 from analysis.engagement import EngagementAnalyzer
 from features.engineering import prepare_model_input
 
+# Import API routers
+from api.clinical import router as clinical_router
+from api.insights import router as insights_router
+from api.behavior import router as behavior_router
+from api.models import load_models
+
 # --- CONFIGURAÇÕES ---
 MODEL_FILE = 'lightgbm_crisis_binary_v1.pkl'
 
@@ -39,6 +45,11 @@ app.add_middleware(
 )
 # --- FIM DO BLOCO CORS ---
 
+# Register API routers
+app.include_router(clinical_router)
+app.include_router(insights_router)
+app.include_router(behavior_router)
+
 # Variáveis Globais (armazenam o modelo na memória)
 model = None
 expected_features: List[str] = []
@@ -53,6 +64,9 @@ engagement_analyzer = None
 def load_model_and_features():
     global model, expected_features
     global clinical_predictor, self_knowledge_analyzer, treatment_optimizer, engagement_analyzer
+    
+    # Load API models first
+    load_models()
     
     try:
         print(f"🔄 Carregando modelo {MODEL_FILE}...")

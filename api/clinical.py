@@ -1,10 +1,11 @@
 # api/clinical.py
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from typing import Dict
 from .models import MODELS  # Importa o dicionário de modelos carregados
 from .schemas import PatientDataInput  # Importa o schema Pydantic
 import pandas as pd
 import numpy as np
+import shap
 
 router = APIRouter(
     prefix="/predict",
@@ -20,7 +21,7 @@ STATE_MAP = {
 }
 
 @router.post("/state", summary="Prevê o estado clínico multiclasse em T+3 dias")
-def predict_state(data: PatientDataInput):
+def predict_state(data: PatientDataInput, explain: bool = Query(False, description="Se true, inclui a explicação SHAP da predição.")):
     """
     Recebe os dados de um paciente, aplica o modelo multiclasse e retorna
     a previsão do estado clínico (Eutimia, Mania, Depressão, Misto)
@@ -60,10 +61,39 @@ def predict_state(data: PatientDataInput):
     # 4. Formatar a resposta
     probabilities = {STATE_MAP[i]: float(prob) for i, prob in enumerate(prediction_proba)}
 
-    return {
+    # 5. (Opcional) Calcular a explicação SHAP
+    response = {
         "patient_id": data.patient_id,
         "prediction_horizon_days": 3,
         "predicted_state_code": predicted_class_index,
         "predicted_state_label": STATE_MAP.get(predicted_class_index, "Desconhecido"),
         "probabilities": probabilities
     }
+
+    if explain:
+        explainer = MODELS.get('shap_explainer_v1')
+        if explainer:
+            # Calcula os valores SHAP para a instância fornecida
+            shap_values = explainer.shap_values(input_df)
+            
+            # Foco na classe que foi prevista
+            class_shap_values = shap_values[predicted_class_index][0]
+            
+            # Obtém as 3 features mais impactantes
+            feature_names = input_df.columns
+            contrib = sorted(zip(feature_names, class_shap_values), key=lambda x: abs(x[1]), reverse=True)
+            
+            top_contributors = []
+            for feature, impact in contrib[:3]:
+                top_contributors.append({
+                    "feature": feature,
+                    "value": data.features.get(feature),
+                    "impact": float(impact)
+                })
+
+            response["explanation"] = {
+                "base_value": float(explainer.expected_value[predicted_class_index]),
+                "top_contributors": top_contributors
+            }
+
+    return response
