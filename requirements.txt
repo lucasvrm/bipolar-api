@@ -6,3 +6,7 @@ scikit-learn
 lightgbm
 joblib
 pydantic
+shap
+lifelines
+nltk
+scipy
