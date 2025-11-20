@@ -1,11 +1,11 @@
 # em api/dependencies.py
 import os
 from fastapi import HTTPException
-from supabase import create_client, Client
+from supabase import acreate_client, AsyncClient
 
-def get_supabase_client() -> Client:
+async def get_supabase_client() -> AsyncClient:
     """
-    Dependency function para criar e retornar um cliente Supabase.
+    Dependency function assíncrona para criar e retornar um cliente Supabase.
     Isso garante que as variáveis de ambiente sejam lidas apenas quando
     a função é chamada, não na inicialização do módulo.
     """
@@ -18,4 +18,4 @@ def get_supabase_client() -> Client:
         raise HTTPException(status_code=500, detail="Variáveis de ambiente do Supabase não configuradas no servidor.")
 
     supabase_options = {"persist_session": False}
-    return create_client(url, key, options=supabase_options)
+    return await acreate_client(url, key, options=supabase_options)
