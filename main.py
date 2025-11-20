@@ -10,6 +10,25 @@ MODEL_FILE = 'lightgbm_crisis_binary_v1.pkl'
 
 app = FastAPI(title="Bipolar AI Engine", version="2.0")
 
+# --- BLOCO DE CONFIGURAÇÃO CORS ---
+# Você precisa de uma lista de ORIGENS (os domínios que podem ligar para sua API)
+origins = [
+    # Adicione aqui o DOMÍNIO REAL do seu Vercel (Ex: https://seu-app-vercel.app)
+    # Use "*" temporariamente, mas substitua pelo domínio do Vercel na produção!
+    "*", 
+    "http://localhost:3000",        
+    "http://localhost:5173",        
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,          # Permite as origens listadas
+    allow_credentials=True,         
+    allow_methods=["*"],            # Permite todos os métodos (POST, GET)
+    allow_headers=["*"],            # Permite todos os cabeçalhos
+)
+# --- FIM DO BLOCO CORS ---
+
 # Variáveis Globais (armazenam o modelo na memória)
 model = None
 expected_features: List[str] = []
