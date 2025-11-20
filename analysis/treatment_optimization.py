@@ -76,13 +76,13 @@ class TreatmentOptimizer:
         """Heuristic-based adherence prediction."""
         # Check if medicationAdherence feature exists
         if 'medicationAdherence' in features_df.columns:
-            current_adherence = features_df['medicationAdherence'].iloc[0]
+            current_adherence = float(features_df['medicationAdherence'].iloc[0])
             # Convert to risk (inverse of adherence)
             prob = (10 - current_adherence) / 10.0
         else:
             # Use mood instability as proxy
-            mood = features_df['mood'].iloc[0] if 'mood' in features_df else 5.0
-            anxiety = features_df['anxiety'].iloc[0] if 'anxiety' in features_df else 5.0
+            mood = float(features_df['mood'].iloc[0]) if 'mood' in features_df else 5.0
+            anxiety = float(features_df['anxiety'].iloc[0]) if 'anxiety' in features_df else 5.0
             # Higher anxiety and extreme mood suggest higher non-adherence risk
             prob = (abs(mood - 5) + anxiety) / 15.0
         

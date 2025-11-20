@@ -79,13 +79,25 @@ class ClinicalPredictor:
             Dictionary with prediction results
         """
         if self.crisis_model_7d is None:
-            # Fallback to 3-day model with adjusted threshold
-            if self.crisis_model_3d is None:
-                raise ValueError("No crisis prediction model available")
+            # Use heuristic for 7-day prediction
+            # Extract key indicators
+            mood = float(features_df['mood'].iloc[0]) if 'mood' in features_df else 5.0
+            energy = float(features_df['energyLevel'].iloc[0]) if 'energyLevel' in features_df else 5.0
+            sleep = float(features_df['hoursSlept'].iloc[0]) if 'hoursSlept' in features_df else 7.0
+            anxiety = float(features_df['anxiety'].iloc[0]) if 'anxiety' in features_df else 5.0
             
-            prob = float(self.crisis_model_3d.predict_proba(features_df)[0][1])
-            # Adjust probability for longer timeframe (slightly lower risk)
-            prob_7d = prob * 0.85
+            # Heuristic scoring for 7-day risk
+            risk_score = 0.0
+            if sleep < 5:
+                risk_score += 0.3
+            if mood < 4 or mood > 7:
+                risk_score += 0.2
+            if anxiety > 6:
+                risk_score += 0.2
+            if energy < 3:
+                risk_score += 0.15
+                
+            prob_7d = min(risk_score, 0.95)
         else:
             prob_7d = float(self.crisis_model_7d.predict_proba(features_df)[0][1])
         
@@ -100,7 +112,8 @@ class ClinicalPredictor:
             "probability": round(prob_7d, 4),
             "risk_level": risk,
             "alert": prob_7d > 0.5,
-            "timeframe_days": 7
+            "timeframe_days": 7,
+            "note": "Heuristic prediction (7-day model not trained yet)" if self.crisis_model_7d is None else None
         }
     
     def predict_state_transition(self, features_df: pd.DataFrame) -> Dict[str, Any]:
@@ -135,10 +148,10 @@ class ClinicalPredictor:
     
     def _heuristic_state_prediction(self, features_df: pd.DataFrame) -> Dict[str, Any]:
         """Heuristic-based state prediction when model is not available."""
-        # Extract key features
-        mood = features_df['mood'].iloc[0] if 'mood' in features_df else 5.0
-        activation = features_df['activation'].iloc[0] if 'activation' in features_df else 5.0
-        anxiety = features_df['anxiety'].iloc[0] if 'anxiety' in features_df else 5.0
+        # Extract key features and convert to float
+        mood = float(features_df['mood'].iloc[0]) if 'mood' in features_df else 5.0
+        activation = float(features_df['activation'].iloc[0]) if 'activation' in features_df else 5.0
+        anxiety = float(features_df['anxiety'].iloc[0]) if 'anxiety' in features_df else 5.0
         
         # Simple rules
         if activation > 7 and mood > 6:
@@ -193,9 +206,9 @@ class ClinicalPredictor:
     
     def _heuristic_impulsive_prediction(self, features_df: pd.DataFrame) -> Dict[str, Any]:
         """Heuristic-based impulsive behavior prediction."""
-        activation = features_df['activation'].iloc[0] if 'activation' in features_df else 5.0
-        libido = features_df['libido'].iloc[0] if 'libido' in features_df else 5.0
-        irritability = features_df['irritability'].iloc[0] if 'irritability' in features_df else 5.0
+        activation = float(features_df['activation'].iloc[0]) if 'activation' in features_df else 5.0
+        libido = float(features_df['libido'].iloc[0]) if 'libido' in features_df else 5.0
+        irritability = float(features_df['irritability'].iloc[0]) if 'irritability' in features_df else 5.0
         
         # Simple scoring
         score = (activation * 0.4 + libido * 0.3 + irritability * 0.3) / 10.0

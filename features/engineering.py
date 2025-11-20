@@ -123,32 +123,43 @@ def prepare_model_input(
     Returns:
         DataFrame ready for model prediction
     """
-    # Compute basic features
-    features = compute_basic_features(raw_data)
+    # Define known categorical features
+    categorical_features = ['sex', 'diagnosis_state_ground_truth']
     
-    # Compute time-series features if history is provided
-    if patient_history:
-        ts_features = compute_time_series_features(patient_history)
-        features.update(ts_features)
-    
-    # Fill in any missing expected features
+    # If expected_features is provided, only use those features
     if expected_features:
+        features = {}
         for feature in expected_features:
-            if feature not in features:
+            if feature in raw_data:
+                features[feature] = raw_data[feature]
+            else:
                 # Smart defaults
-                if 'diagnosis' in feature or 'medication' in feature:
+                if feature in categorical_features:
                     features[feature] = 'EUTHYMIC'
                 else:
                     features[feature] = 0.0
+    else:
+        # Compute basic features
+        features = compute_basic_features(raw_data)
+        
+        # Compute time-series features if history is provided
+        if patient_history:
+            ts_features = compute_time_series_features(patient_history)
+            features.update(ts_features)
     
     # Create DataFrame
     df = pd.DataFrame([features])
     
-    # Convert types appropriately
+    # Convert types appropriately - only mark specific features as categorical
     for col in df.columns:
-        if df[col].dtype == 'object':
+        if col in categorical_features:
             df[col] = df[col].astype('category')
         else:
-            df[col] = df[col].astype(np.float32)
+            # Ensure all other columns are float32
+            try:
+                df[col] = df[col].astype(np.float32)
+            except (ValueError, TypeError):
+                # If conversion fails, keep as is
+                pass
     
     return df

@@ -59,7 +59,7 @@ class SelfKnowledgeAnalyzer:
                 {
                     "feature": name,
                     "shap_value": float(val),
-                    "feature_value": float(features_df[name].iloc[0]),
+                    "feature_value": str(features_df[name].iloc[0]),  # Convert to string to handle categorical
                     "impact": "increases_risk" if val > 0 else "decreases_risk"
                 }
                 for name, val in zip(feature_names, shap_vals)
