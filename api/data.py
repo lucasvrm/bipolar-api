@@ -1,10 +1,11 @@
-# em api/data.py (Refatorado)
-import logging
+# em api/data.py (Refatorado para Logging)
+import logging # Importa o módulo de logging
 from fastapi import APIRouter, Depends, HTTPException
 from supabase import Client
 from .dependencies import get_supabase_client
 
-# Configurar logger para este módulo
+# Configura um logger básico
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/data", tags=["Data Access"])
@@ -12,25 +13,28 @@ router = APIRouter(prefix="/data", tags=["Data Access"])
 @router.get("/latest_checkin/{user_id}")
 def get_latest_checkin_for_user(user_id: str, supabase: Client = Depends(get_supabase_client)):
     """
-    Busca o check-in mais recente para um ID de usuário específico.
-    Esta rota age como um proxy seguro, usando o poder de admin da API.
+    Busca o check-in mais recente usando um cliente Supabase injetado
+    e registra exceções detalhadas em caso de falha.
     """
-    # Validação básica do user_id
-    if not user_id or not user_id.strip():
-        raise HTTPException(status_code=400, detail="user_id não pode estar vazio.")
-    
     try:
-        # Busca dados da tabela 'check_ins' selecionando apenas campos necessários
-        response = supabase.table('check_ins').select('id, user_id, checkin_date, mood, energy, sleep_hours, medication_taken, notes').eq('user_id', user_id).order('checkin_date', ascending=False).limit(1).execute()
+        logger.info(f"Buscando check-in para user_id: {user_id}")
+        response = supabase.table('check_ins').select('*').eq('user_id', user_id).order('checkin_date', ascending=False).limit(1).execute()
+        
+        # Checagem de erro pós-requisição (se a API do Supabase retornar erro)
+        # if hasattr(response, 'error') and response.error:
+        #     raise Exception(response.error.message)
+
+        logger.info(f"Resposta do Supabase para user_id {user_id}: {'Dados encontrados' if response.data else 'Nenhum dado encontrado'}")
         
         if response.data:
             return response.data[0]
         else:
-            # Retorna um 200 OK com corpo nulo se não houver check-ins,
-            # o frontend está preparado para isso.
             return None
+
     except Exception as e:
-        # Log completo do erro no servidor
-        logger.error(f"Erro ao buscar check-in para user_id {user_id}: {str(e)}", exc_info=True)
-        # Retorna mensagem genérica ao cliente
-        raise HTTPException(status_code=500, detail="Erro interno ao buscar dados.")
+        # ESTA É A MUDANÇA CRUCIAL:
+        # Loga o traceback completo da exceção no console do Render.
+        logger.exception(f"Falha crítica ao buscar dados para user_id {user_id}: {e}")
+        
+        # Levanta o erro HTTP para notificar o frontend.
+        raise HTTPException(status_code=500, detail="Ocorreu um erro interno no servidor ao processar sua solicitação.")
