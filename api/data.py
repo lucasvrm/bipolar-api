@@ -1,7 +1,11 @@
 # api/data.py
 import os
+import logging
 from fastapi import APIRouter, HTTPException
 from supabase import create_client, Client, ClientOptions
+
+# Configurar logger para este módulo
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/data", tags=["Data Access"])
 
@@ -25,9 +29,13 @@ def get_latest_checkin_for_user(user_id: str):
     if not supabase:
         raise HTTPException(status_code=503, detail="Serviço de banco de dados não está disponível. Configure SUPABASE_URL e SUPABASE_SERVICE_KEY.")
     
+    # Validação básica do user_id
+    if not user_id or not user_id.strip():
+        raise HTTPException(status_code=400, detail="user_id não pode estar vazio.")
+    
     try:
-        # Garante que estamos buscando dados da tabela 'check_ins'
-        response = supabase.table('check_ins').select('*').eq('user_id', user_id).order('checkin_date', ascending=False).limit(1).execute()
+        # Busca dados da tabela 'check_ins' selecionando apenas campos necessários
+        response = supabase.table('check_ins').select('id, user_id, checkin_date, mood, energy, sleep_hours, medication_taken, notes').eq('user_id', user_id).order('checkin_date', ascending=False).limit(1).execute()
         
         if response.data:
             return response.data[0]
@@ -36,5 +44,7 @@ def get_latest_checkin_for_user(user_id: str):
             # o frontend está preparado para isso.
             return None
     except Exception as e:
-        # Em caso de erro na consulta, levanta um erro 500.
-        raise HTTPException(status_code=500, detail=f"Erro interno ao buscar dados: {str(e)}")
+        # Log completo do erro no servidor
+        logger.error(f"Erro ao buscar check-in para user_id {user_id}: {str(e)}", exc_info=True)
+        # Retorna mensagem genérica ao cliente
+        raise HTTPException(status_code=500, detail="Erro interno ao buscar dados.")
