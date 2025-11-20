@@ -20,8 +20,8 @@ def get_latest_checkin_for_user(user_id: str, supabase: Client = Depends(get_sup
         raise HTTPException(status_code=400, detail="user_id não pode estar vazio.")
     
     try:
-        # Busca dados da tabela 'check_ins' selecionando todos os campos
-        response = supabase.table('check_ins').select('*').eq('user_id', user_id).order('checkin_date', ascending=False).limit(1).execute()
+        # Busca dados da tabela 'check_ins' selecionando apenas campos necessários
+        response = supabase.table('check_ins').select('id, user_id, checkin_date, mood, energy, sleep_hours, medication_taken, notes').eq('user_id', user_id).order('checkin_date', ascending=False).limit(1).execute()
         
         if response.data:
             return response.data[0]
