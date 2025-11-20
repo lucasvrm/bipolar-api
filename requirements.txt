@@ -10,3 +10,4 @@ shap
 lifelines
 nltk
 scipy
+supabase
