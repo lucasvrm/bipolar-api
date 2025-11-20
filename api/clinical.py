@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException, Query
 from typing import Dict
 from .models import MODELS  # Importa o dicionário de modelos carregados
 from .schemas import PatientDataInput  # Importa o schema Pydantic
+from feature_engineering import create_features_for_prediction
 import pandas as pd
 import numpy as np
 import shap
@@ -32,27 +33,11 @@ def predict_state(data: PatientDataInput, explain: bool = Query(False, descripti
     if not model:
         raise HTTPException(status_code=503, detail="Modelo de classificação multiclasse não está disponível.")
 
-    # 2. Preparar os dados para o modelo
-    # O modelo espera um DataFrame do pandas com as features na ordem correta.
+    # 2. Preparar os dados para o modelo usando o módulo de feature engineering
     try:
-        # Supondo que as features em data.features já estão prontas
-        # Em um caso real, aqui entraria o feature engineering
-        input_df = pd.DataFrame([data.features])
-        
-        # Garantir que a ordem das colunas bate com o treino
-        if hasattr(model, 'feature_name_'):
-            input_df = input_df[model.feature_name_]
-        
-        # Correção de Tipos (Essencial para LightGBM)
-        # Converte colunas de texto para 'category' e números para 'float'
-        for col in input_df.columns:
-            if input_df[col].dtype == 'object':
-                input_df[col] = input_df[col].astype('category')
-            else:
-                input_df[col] = input_df[col].astype('float32')
-
+        input_df = create_features_for_prediction(data.features)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Erro ao preparar os dados para o modelo: {e}")
+        raise HTTPException(status_code=400, detail=f"Erro ao processar features: {e}")
 
     # 3. Fazer a predição
     prediction_proba = model.predict_proba(input_df)[0]
