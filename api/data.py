@@ -26,8 +26,8 @@ async def get_latest_checkin_for_user(user_id: str, supabase: Client = Depends(g
         
         print("PASSO 4: Prestes a chamar o Supabase...", flush=True)
         
-        # Esta linha está causando o erro - usando await em operação síncrona
-        response = await supabase.table('check_ins').select('*').eq('user_id', user_id).order('checkin_date', ascending=False).limit(1).execute()
+        # FIX: Use desc=True instead of ascending=False (correct parameter name)
+        response = await supabase.table('check_ins').select('*').eq('user_id', user_id).order('checkin_date', desc=True).limit(1).execute()
         
         print("PASSO 5: Chamada ao Supabase executada.", flush=True)
         

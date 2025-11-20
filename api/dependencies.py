@@ -3,6 +3,7 @@ import os
 import logging
 from fastapi import HTTPException
 from supabase import acreate_client, AsyncClient
+from supabase.lib.client_options import AsyncClientOptions
 
 logger = logging.getLogger("bipolar-api.dependencies")
 
@@ -27,7 +28,8 @@ async def get_supabase_client() -> AsyncClient:
     print(f"[DEPENDENCY] URL encontrada: {url[:30]}...", flush=True)
     print(f"[DEPENDENCY] Key encontrada: {'*' * 10}", flush=True)
     
-    supabase_options = {"persist_session": False}
+    # FIX: Use AsyncClientOptions object instead of dict
+    supabase_options = AsyncClientOptions(persist_session=False)
     client = await acreate_client(url, key, options=supabase_options)
     
     print(f"[DEPENDENCY] Cliente criado com sucesso. Tipo: {type(client)}", flush=True)
