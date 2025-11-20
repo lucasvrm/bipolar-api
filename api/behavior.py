@@ -2,6 +2,7 @@
 from fastapi import APIRouter, HTTPException
 from .models import MODELS
 from .schemas import PatientDataInput
+from feature_engineering import create_features_for_prediction
 import pandas as pd
 
 router = APIRouter(
@@ -20,24 +21,11 @@ def predict_adherence(data: PatientDataInput):
     if not model:
         raise HTTPException(status_code=503, detail="Modelo de adesão não está disponível.")
 
-    # 2. Preparar os dados
+    # 2. Preparar os dados usando o módulo de feature engineering
     try:
-        input_df = pd.DataFrame([data.features])
-        
-        # Garantir que a ordem das colunas bate com o treino
-        if hasattr(model, 'feature_name_'):
-            input_df = input_df[model.feature_name_]
-        
-        # Correção de Tipos (Essencial para LightGBM)
-        # Converte colunas de texto para 'category' e números para 'float'
-        for col in input_df.columns:
-            if input_df[col].dtype == 'object':
-                input_df[col] = input_df[col].astype('category')
-            else:
-                input_df[col] = input_df[col].astype('float32')
-                
+        input_df = create_features_for_prediction(data.features)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Erro ao preparar dados para o modelo de adesão: {e}")
+        raise HTTPException(status_code=400, detail=f"Erro ao processar features: {e}")
 
     # 3. Fazer a predição de probabilidade da classe '1' (risco)
     # predict_proba retorna [[prob_classe_0, prob_classe_1]]
