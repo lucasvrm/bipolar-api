@@ -1,5 +1,4 @@
 # em api/data.py (Modificado para depuração com print)
-import logging
 import sys # Importa o módulo sys para flush
 from fastapi import APIRouter, Depends, HTTPException
 from supabase import Client
