@@ -1,7 +1,7 @@
-# em api/data.py (Refatorado para Logging)
+# em api/data.py (Refatorado para async/await)
 import logging # Importa o módulo de logging
 from fastapi import APIRouter, Depends, HTTPException
-from supabase import Client
+from supabase import AsyncClient
 from .dependencies import get_supabase_client
 
 # Configura um logger básico
@@ -11,19 +11,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/data", tags=["Data Access"])
 
 @router.get("/latest_checkin/{user_id}")
-def get_latest_checkin_for_user(user_id: str, supabase: Client = Depends(get_supabase_client)):
+async def get_latest_checkin_for_user(user_id: str, supabase: AsyncClient = Depends(get_supabase_client)):
     """
-    Busca o check-in mais recente usando um cliente Supabase injetado
-    e registra exceções detalhadas em caso de falha.
+    Busca o check-in mais recente de forma assíncrona.
     """
     try:
         logger.info(f"Buscando check-in para user_id: {user_id}")
-        response = supabase.table('check_ins').select('*').eq('user_id', user_id).order('checkin_date', ascending=False).limit(1).execute()
+        response = await supabase.table('check_ins').select('*').eq('user_id', user_id).order('checkin_date', ascending=False).limit(1).execute()
         
-        # Checagem de erro pós-requisição (se a API do Supabase retornar erro)
-        # if hasattr(response, 'error') and response.error:
-        #     raise Exception(response.error.message)
-
         logger.info(f"Resposta do Supabase para user_id {user_id}: {'Dados encontrados' if response.data else 'Nenhum dado encontrado'}")
         
         if response.data:
@@ -32,7 +27,6 @@ def get_latest_checkin_for_user(user_id: str, supabase: Client = Depends(get_sup
             return None
 
     except Exception as e:
-        # ESTA É A MUDANÇA CRUCIAL:
         # Loga o traceback completo da exceção no console do Render.
         logger.exception(f"Falha crítica ao buscar dados para user_id {user_id}: {e}")
         
