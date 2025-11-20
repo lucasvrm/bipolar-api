@@ -2,7 +2,7 @@
 import sys
 import logging
 from fastapi import APIRouter, Depends, HTTPException
-from supabase import Client
+from supabase import AsyncClient
 from .dependencies import get_supabase_client
 
 # Logger específico para este módulo
@@ -11,7 +11,7 @@ logger = logging.getLogger("bipolar-api.data")
 router = APIRouter(prefix="/data", tags=["Data Access"])
 
 @router.get("/latest_checkin/{user_id}")
-async def get_latest_checkin_for_user(user_id: str, supabase: Client = Depends(get_supabase_client)):
+async def get_latest_checkin_for_user(user_id: str, supabase: AsyncClient = Depends(get_supabase_client)):
     """
     Busca o check-in mais recente com depuração máxima via print.
     """

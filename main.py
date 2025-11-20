@@ -10,6 +10,8 @@ from api import clinical, behavior, insights, data
 from api.models import load_models
 
 # Configurar logging para capturar exceções
+# NOTE: DEBUG level enabled for diagnostic purposes during initial deployment
+# Consider changing to logging.INFO for production after issue is resolved
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("bipolar-api")
 
