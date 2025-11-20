@@ -1,34 +1,43 @@
-# em api/data.py (Refatorado para async/await)
-import logging # Importa o módulo de logging
+# em api/data.py (Modificado para depuração com print)
+import sys # Importa o módulo sys para flush
 from fastapi import APIRouter, Depends, HTTPException
-from supabase import AsyncClient
+from supabase import Client
 from .dependencies import get_supabase_client
-
-# Configura um logger básico
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/data", tags=["Data Access"])
 
 @router.get("/latest_checkin/{user_id}")
-async def get_latest_checkin_for_user(user_id: str, supabase: AsyncClient = Depends(get_supabase_client)):
+async def get_latest_checkin_for_user(user_id: str, supabase: Client = Depends(get_supabase_client)):
     """
-    Busca o check-in mais recente de forma assíncrona.
+    Busca o check-in mais recente com depuração máxima via print.
     """
+    print("--- [INÍCIO DA REQUISIÇÃO] ---", file=sys.stderr)
+    sys.stderr.flush()
+    
     try:
-        logger.info(f"Buscando check-in para user_id: {user_id}")
+        print(f"PASSO 1: Função iniciada para user_id: {user_id}", file=sys.stderr)
+        sys.stderr.flush()
+
+        print("PASSO 2: Prestes a chamar o Supabase...", file=sys.stderr)
+        sys.stderr.flush()
+        
         response = await supabase.table('check_ins').select('*').eq('user_id', user_id).order('checkin_date', ascending=False).limit(1).execute()
         
-        logger.info(f"Resposta do Supabase para user_id {user_id}: {'Dados encontrados' if response.data else 'Nenhum dado encontrado'}")
+        print("PASSO 3: Chamada ao Supabase executada.", file=sys.stderr)
+        sys.stderr.flush()
         
         if response.data:
+            print("PASSO 4: Dados encontrados na resposta.", file=sys.stderr)
+            sys.stderr.flush()
             return response.data[0]
         else:
+            print("PASSO 4: Nenhum dado encontrado na resposta.", file=sys.stderr)
+            sys.stderr.flush()
             return None
 
     except Exception as e:
-        # Loga o traceback completo da exceção no console do Render.
-        logger.exception(f"Falha crítica ao buscar dados para user_id {user_id}: {e}")
-        
-        # Levanta o erro HTTP para notificar o frontend.
-        raise HTTPException(status_code=500, detail="Ocorreu um erro interno no servidor ao processar sua solicitação.")
+        print(f"--- [ERRO CRÍTICO] ---", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr) # Força a impressão do traceback
+        sys.stderr.flush()
+        raise HTTPException(status_code=500, detail="Erro interno. Verifique os logs do servidor.")
