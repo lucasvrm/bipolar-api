@@ -1,34 +1,20 @@
-# api/data.py
-import os
+# em api/data.py (Refatorado)
 import logging
-from fastapi import APIRouter, HTTPException
-from supabase import create_client, Client, ClientOptions
+from fastapi import APIRouter, Depends, HTTPException
+from supabase import Client
+from .dependencies import get_supabase_client
 
 # Configurar logger para este módulo
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/data", tags=["Data Access"])
 
-# Inicializa o cliente Supabase com bypass de RLS
-url: str = os.environ.get("SUPABASE_URL")
-key: str = os.environ.get("SUPABASE_SERVICE_KEY")
-
-# Apenas cria o cliente se as variáveis de ambiente estiverem configuradas
-if url and key:
-    supabase_options = ClientOptions(persist_session=False)
-    supabase: Client = create_client(url, key, options=supabase_options)
-else:
-    supabase = None
-
 @router.get("/latest_checkin/{user_id}")
-def get_latest_checkin_for_user(user_id: str):
+def get_latest_checkin_for_user(user_id: str, supabase: Client = Depends(get_supabase_client)):
     """
     Busca o check-in mais recente para um ID de usuário específico.
     Esta rota age como um proxy seguro, usando o poder de admin da API.
     """
-    if not supabase:
-        raise HTTPException(status_code=503, detail="Serviço de banco de dados não está disponível. Configure SUPABASE_URL e SUPABASE_SERVICE_KEY.")
-    
     # Validação básica do user_id
     if not user_id or not user_id.strip():
         raise HTTPException(status_code=400, detail="user_id não pode estar vazio.")
@@ -40,7 +26,7 @@ def get_latest_checkin_for_user(user_id: str):
         if response.data:
             return response.data[0]
         else:
-            # Retorna um 200 OK com corpo nulo se não houver check-ins, 
+            # Retorna um 200 OK com corpo nulo se não houver check-ins,
             # o frontend está preparado para isso.
             return None
     except Exception as e:
