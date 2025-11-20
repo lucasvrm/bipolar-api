@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # Importa nossos módulos da API
-from api import clinical, behavior, insights
+from api import clinical, behavior, insights, data
 from api.models import load_models
 
 # Cria a instância principal da aplicação
@@ -37,6 +37,7 @@ app.add_middleware(
 app.include_router(clinical.router)
 app.include_router(behavior.router)
 app.include_router(insights.router)
+app.include_router(data.router)
 
 
 # --- Endpoint Raiz para Health Check ---
