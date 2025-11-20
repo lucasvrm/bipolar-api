@@ -1,43 +1,49 @@
 # em api/data.py (Modificado para depuração com print)
-import sys # Importa o módulo sys para flush
+import sys
+import logging
 from fastapi import APIRouter, Depends, HTTPException
-from supabase import Client
+from supabase import AsyncClient
 from .dependencies import get_supabase_client
+
+# Logger específico para este módulo
+logger = logging.getLogger("bipolar-api.data")
 
 router = APIRouter(prefix="/data", tags=["Data Access"])
 
 @router.get("/latest_checkin/{user_id}")
-async def get_latest_checkin_for_user(user_id: str, supabase: Client = Depends(get_supabase_client)):
+async def get_latest_checkin_for_user(user_id: str, supabase: AsyncClient = Depends(get_supabase_client)):
     """
     Busca o check-in mais recente com depuração máxima via print.
     """
-    print("--- [INÍCIO DA REQUISIÇÃO] ---", file=sys.stderr)
-    sys.stderr.flush()
+    print("=" * 80, flush=True)
+    print(f"[TENTATIVA 1 - DIAGNOSTIC] /data/latest_checkin/{user_id}", flush=True)
+    print("=" * 80, flush=True)
     
     try:
-        print(f"PASSO 1: Função iniciada para user_id: {user_id}", file=sys.stderr)
-        sys.stderr.flush()
-
-        print("PASSO 2: Prestes a chamar o Supabase...", file=sys.stderr)
-        sys.stderr.flush()
+        print(f"PASSO 1: Função iniciada para user_id: {user_id}", flush=True)
+        print(f"PASSO 2: Tipo do cliente Supabase: {type(supabase)}", flush=True)
+        print(f"PASSO 3: Métodos disponíveis: {[m for m in dir(supabase) if not m.startswith('_')][:10]}", flush=True)
         
-        response = await supabase.table('check_ins').select('*').eq('user_id', user_id).order('checkin_date', ascending=False).limit(1).execute()
+        print("PASSO 4: Prestes a chamar o Supabase...", flush=True)
         
-        print("PASSO 3: Chamada ao Supabase executada.", file=sys.stderr)
-        sys.stderr.flush()
+        # FIX: Use desc=True instead of ascending=False (correct parameter name)
+        response = await supabase.table('check_ins').select('*').eq('user_id', user_id).order('checkin_date', desc=True).limit(1).execute()
+        
+        print("PASSO 5: Chamada ao Supabase executada.", flush=True)
         
         if response.data:
-            print("PASSO 4: Dados encontrados na resposta.", file=sys.stderr)
-            sys.stderr.flush()
+            print(f"PASSO 6: Dados encontrados: {len(response.data)} registro(s)", flush=True)
             return response.data[0]
         else:
-            print("PASSO 4: Nenhum dado encontrado na resposta.", file=sys.stderr)
-            sys.stderr.flush()
+            print("PASSO 6: Nenhum dado encontrado na resposta.", flush=True)
             return None
 
     except Exception as e:
-        print(f"--- [ERRO CRÍTICO] ---", file=sys.stderr)
-        import traceback
-        traceback.print_exc(file=sys.stderr) # Força a impressão do traceback
-        sys.stderr.flush()
-        raise HTTPException(status_code=500, detail="Erro interno. Verifique os logs do servidor.")
+        print("=" * 80, flush=True)
+        print(f"[ERRO CAPTURADO EM DATA.PY]", flush=True)
+        print(f"Tipo de erro: {type(e).__name__}", flush=True)
+        print(f"Mensagem: {str(e)}", flush=True)
+        print("=" * 80, flush=True)
+        
+        # Re-raise para que o handler global capture com traceback completo
+        raise
