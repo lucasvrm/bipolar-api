@@ -39,6 +39,15 @@ def calculate_heuristic_probability(checkin_data: Dict[str, Any], prediction_typ
     """
     Calcula probabilidade baseada em heurísticas quando modelo específico não está disponível.
     
+    Heurísticas clínicas:
+    - relapse_risk: Combina fatores de sono (<8h = risco), humor depressivo, 
+      energia extrema (muito alta/baixa), e ansiedade. Valores esperados: 0-10 para mood/anxiety/energy, horas para sono.
+    - suicidality_risk: Conservador, peso maior para depressão (50%), ansiedade (30%), impulsividade (20%).
+      Escalas esperadas: 0-10.
+    - medication_adherence_risk: Inverso da adesão reportada. Valores esperados: 0-1.
+    - sleep_disturbance_risk: Alto risco se <6h ou >10h (60%), qualidade ruim (40%). 
+      Escalas: horas de sono, qualidade 0-10.
+    
     Args:
         checkin_data: Dados do check-in
         prediction_type: Tipo de predição
@@ -55,7 +64,7 @@ def calculate_heuristic_probability(checkin_data: Dict[str, Any], prediction_typ
             anxiety = checkin_data.get("anxietyStress", 3)
             
             # Normalizar valores (assumindo escalas 0-10)
-            sleep_risk = max(0, 1 - (sleep / 8))  # Menos de 8h = risco
+            sleep_risk = max(0, 1 - (sleep / 8)) if sleep > 0 else 1.0  # Prevent division by zero
             mood_risk = mood / 10
             energy_risk = abs(energy - 5) / 5  # Muito alta ou baixa = risco
             anxiety_risk = anxiety / 10
