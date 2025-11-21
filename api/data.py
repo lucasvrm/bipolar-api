@@ -29,6 +29,8 @@ async def get_latest_checkin_for_user(user_id: str, supabase: AsyncClient = Depe
     logger.debug(f"Fetching latest check-in for user_id: {user_id}")
     
     try:
+        # Note: Using select('*') to retrieve all columns for flexibility
+        # The prediction models may require different fields depending on the analysis type
         response = await supabase.table('check_ins')\
             .select('*')\
             .eq('user_id', user_id)\

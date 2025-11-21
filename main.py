@@ -83,8 +83,22 @@ default_origins = [
 # Allow override via environment variable
 cors_origins_env = os.getenv("CORS_ORIGINS")
 if cors_origins_env:
-    origins = [origin.strip() for origin in cors_origins_env.split(",")]
-    logger.info(f"Using CORS origins from environment: {origins}")
+    # Parse and validate origins
+    parsed_origins = []
+    for origin in cors_origins_env.split(","):
+        origin = origin.strip()
+        # Basic validation: must start with http:// or https://
+        if origin.startswith(("http://", "https://")):
+            parsed_origins.append(origin)
+        else:
+            logger.warning(f"Invalid CORS origin '{origin}' - must start with http:// or https://")
+    
+    if parsed_origins:
+        origins = parsed_origins
+        logger.info(f"Using CORS origins from environment: {origins}")
+    else:
+        logger.warning("No valid CORS origins found in CORS_ORIGINS, using defaults")
+        origins = default_origins
 else:
     origins = default_origins
     logger.info(f"Using default CORS origins: {origins}")
