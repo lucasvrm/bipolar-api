@@ -7,12 +7,13 @@ import os
 import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from supabase import AsyncClient
 from postgrest.exceptions import APIError
 
 from api.dependencies import get_supabase_client
 from api.utils import validate_uuid_or_400, handle_postgrest_error, hash_user_id_for_logging
+from api.rate_limiter import limiter, DATA_ACCESS_RATE_LIMIT
 
 logger = logging.getLogger("bipolar-api.privacy")
 
@@ -64,7 +65,9 @@ def verify_authorization(user_id: str, authorization: Optional[str] = Header(Non
 
 
 @router.get("/{user_id}/profile")
+@limiter.limit(DATA_ACCESS_RATE_LIMIT)
 async def get_user_profile(
+    request: Request,
     user_id: str,
     supabase: AsyncClient = Depends(get_supabase_client)
 ):
@@ -81,20 +84,22 @@ async def get_user_profile(
     Security Note: This endpoint currently does not require authorization, matching
     the pattern of other data endpoints (/data/predictions, /data/latest_checkin).
     The security model assumes the frontend authenticates users via Supabase Auth
-    and only requests data for the authenticated user.
+    and only requests data for the authenticated user. Rate limiting (30/min) helps
+    prevent abuse.
     
     TODO: Implement JWT token validation to ensure users can only access their own
     profile data, or add proper RLS by using user-scoped Supabase clients instead
     of the service key.
     
     Args:
+        request: FastAPI request object (for rate limiting)
         user_id: UUID of the user
         
     Returns:
         User profile object with id, email, full_name, is_admin, created_at
         
     Raises:
-        HTTPException: 400 for invalid UUID, 404 if user not found, 500 for errors
+        HTTPException: 400 for invalid UUID, 404 if user not found, 429 for rate limit, 500 for errors
     """
     # Validate UUID
     validate_uuid_or_400(user_id, "user_id")
@@ -109,7 +114,7 @@ async def get_user_profile(
             .execute()
         
         if not response.data or len(response.data) == 0:
-            logger.warning(f"User profile not found for user_id={user_id}")
+            logger.warning(f"User profile not found for user {hash_user_id_for_logging(user_id)}")
             raise HTTPException(
                 status_code=404,
                 detail=f"User profile not found for user_id: {user_id}"
@@ -127,7 +132,7 @@ async def get_user_profile(
         # Handle PostgREST errors using centralized utility
         handle_postgrest_error(e, user_id)
     except Exception as e:
-        logger.exception(f"Error fetching profile for user_id={user_id}")
+        logger.exception(f"Error fetching profile for user {hash_user_id_for_logging(user_id)}: {e}")
         raise HTTPException(
             status_code=500,
             detail=f"Error fetching user profile: {str(e)}"

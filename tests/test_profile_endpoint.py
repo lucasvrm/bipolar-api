@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from unittest.mock import MagicMock, AsyncMock
 from main import app
 from api.dependencies import get_supabase_client
+from api.rate_limiter import limiter
 
 
 class MockSupabaseTable:
@@ -38,6 +39,16 @@ class MockSupabase:
         if table_name == 'profiles':
             return MockSupabaseTable(self.profile_data)
         return MockSupabaseTable([])
+
+
+@pytest.fixture(autouse=True)
+def clear_rate_limits():
+    """Clear rate limiter counters before each test."""
+    # Clear rate limiter counters to ensure tests don't interfere with each other
+    limiter._storage.storage.clear()
+    yield
+    # Clean up after test
+    limiter._storage.storage.clear()
 
 
 @pytest.fixture
