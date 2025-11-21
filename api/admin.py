@@ -262,22 +262,20 @@ async def get_admin_stats(
         all_profiles_response = await supabase.table('profiles').select('id, email, is_test_patient, role').execute()
         all_profiles = all_profiles_response.data if all_profiles_response.data else []
 
-        # Count synthetic vs real patients
-        synthetic_patients = [
-            p for p in all_profiles
-            if (p.get('role') == 'patient' and (
-                p.get('is_test_patient') is True or
-                (p.get('email') and any(domain in p['email'] for domain in SYNTHETIC_DOMAINS))
-            ))
-        ]
+        # Count synthetic vs real patients - use sets for O(1) lookup
+        synthetic_patient_ids = set()
+        real_patient_ids = set()
         
-        real_patients = [
-            p for p in all_profiles
-            if p.get('role') == 'patient' and p not in synthetic_patients
-        ]
+        for p in all_profiles:
+            if p.get('role') == 'patient':
+                if (p.get('is_test_patient') is True or
+                    (p.get('email') and any(domain in p['email'] for domain in SYNTHETIC_DOMAINS))):
+                    synthetic_patient_ids.add(p['id'])
+                else:
+                    real_patient_ids.add(p['id'])
 
-        real_patients_count = len(real_patients)
-        synthetic_patients_count = len(synthetic_patients)
+        real_patients_count = len(real_patient_ids)
+        synthetic_patients_count = len(synthetic_patient_ids)
 
         # Check-ins today
         checkins_today_response = await supabase.table('check_ins').select(
@@ -634,7 +632,6 @@ async def clean_synthetic_data(
     Actions:
     - delete_all: Delete all synthetic patients
     - delete_last_n: Delete the last N synthetic patients (by creation date)
-    - delete_by_mood: Delete synthetic patients with specific mood pattern
     - delete_before_date: Delete synthetic patients created before a specific date
 
     Args:
@@ -656,11 +653,6 @@ async def clean_synthetic_data(
             raise HTTPException(
                 status_code=400,
                 detail="quantity parameter is required for delete_last_n action"
-            )
-        if clean_request.action == "delete_by_mood" and not clean_request.mood_pattern:
-            raise HTTPException(
-                status_code=400,
-                detail="mood_pattern parameter is required for delete_by_mood action"
             )
         if clean_request.action == "delete_before_date" and not clean_request.before_date:
             raise HTTPException(
@@ -712,11 +704,16 @@ async def clean_synthetic_data(
             users_to_delete = users_to_delete[:clean_request.quantity]
 
         elif clean_request.action == "delete_by_mood":
-            # Note: mood_pattern is stored in check-ins, not profiles
-            # We need to find users with specific mood patterns in their check-ins
-            # For simplicity, we'll skip this filtering here since it requires complex joins
-            # This would need to be implemented by querying check-ins and grouping by user
-            logger.warning("delete_by_mood action not fully implemented - deleting all synthetic patients instead")
+            # Note: Filtering by mood pattern requires querying check-ins and grouping by user
+            # This is a complex operation that would need to:
+            # 1. Fetch all check-ins for synthetic users
+            # 2. Analyze mood patterns per user
+            # 3. Filter users matching the specified pattern
+            # For now, this action is not implemented
+            raise HTTPException(
+                status_code=501,
+                detail="delete_by_mood action is not yet implemented. Use delete_all, delete_last_n, or delete_before_date instead."
+            )
 
         elif clean_request.action == "delete_before_date":
             # Parse the date
@@ -805,7 +802,7 @@ async def export_synthetic_data(
     **Rate Limit**: 5 requests per hour per IP
 
     Query Parameters:
-    - format: "csv", "json", or "excel" (default: "json")
+    - format: "csv" or "json" (default: "json")
     - scope: "all", "last_n", "by_mood", "by_period" (default: "all")
     - quantity: Number of patients (required for last_n)
     - mood_pattern: Mood pattern filter (for by_mood)
@@ -826,10 +823,10 @@ async def export_synthetic_data(
 
     try:
         # Validate parameters
-        if format not in ["csv", "json", "excel"]:
+        if format not in ["csv", "json"]:
             raise HTTPException(
                 status_code=400,
-                detail="Invalid format. Must be csv, json, or excel"
+                detail="Invalid format. Must be csv or json (Excel support coming soon)"
             )
 
         if scope not in ["all", "last_n", "by_mood", "by_period"]:
@@ -966,14 +963,7 @@ async def export_synthetic_data(
                 }
             )
 
-        elif format == "excel":
-            # For Excel, we'd need openpyxl or xlsxwriter
-            # For now, return CSV with .xlsx extension as placeholder
-            # This should be implemented with proper Excel library
-            raise HTTPException(
-                status_code=501,
-                detail="Excel export not yet implemented. Use csv or json format."
-            )
+        # Note: Excel export removed - will be added when openpyxl is available
 
     except HTTPException:
         raise

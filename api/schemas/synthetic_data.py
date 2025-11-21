@@ -28,7 +28,7 @@ class CleanDataRequest(BaseModel):
         ]
     }}
 
-    action: Literal["delete_all", "delete_last_n", "delete_by_mood", "delete_before_date"] = Field(
+    action: Literal["delete_all", "delete_last_n", "delete_before_date"] = Field(
         description="Type of deletion action to perform"
     )
     quantity: Optional[int] = Field(

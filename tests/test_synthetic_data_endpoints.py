@@ -31,11 +31,8 @@ class TestSyntheticDataSchemas:
         req2 = CleanDataRequest(action="delete_last_n", quantity=10)
         assert req2.quantity == 10
         
-        req3 = CleanDataRequest(action="delete_by_mood", mood_pattern="stable")
-        assert req3.mood_pattern == "stable"
-        
-        req4 = CleanDataRequest(action="delete_before_date", before_date="2024-01-01T00:00:00Z")
-        assert req4.before_date == "2024-01-01T00:00:00Z"
+        req3 = CleanDataRequest(action="delete_before_date", before_date="2024-01-01T00:00:00Z")
+        assert req3.before_date == "2024-01-01T00:00:00Z"
 
     def test_clean_data_response_structure(self):
         """Test CleanDataResponse structure."""
@@ -121,7 +118,7 @@ class TestToggleTestFlag:
         
         mock_client.table = MagicMock(side_effect=table_side_effect)
         
-        result = await toggle_test_patient_flag(patient_id, mock_client, True)
+        result = await toggle_test_patient_flag(patient_id, mock_client)
         
         assert result.id == patient_id
         assert result.is_test_patient is True
@@ -146,7 +143,7 @@ class TestToggleTestFlag:
         mock_client.table = MagicMock(return_value=mock_chain)
         
         with pytest.raises(HTTPException) as exc_info:
-            await toggle_test_patient_flag(patient_id, mock_client, True)
+            await toggle_test_patient_flag(patient_id, mock_client)
         
         assert exc_info.value.status_code == 404
 
@@ -197,7 +194,7 @@ class TestEnhancedStats:
         
         mock_client.table = MagicMock(return_value=mock_chain)
         
-        result = await get_admin_stats(mock_client, True)
+        result = await get_admin_stats(mock_client)
         
         # Verify all required fields are present
         assert hasattr(result, 'total_users')
