@@ -1,4 +1,3 @@
-# api/middleware.py
 """
 Custom middleware for observability and request tracking.
 """
@@ -9,7 +8,6 @@ import logging
 from typing import Callable
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.types import ASGIApp
 
 logger = logging.getLogger("bipolar-api.middleware")
 

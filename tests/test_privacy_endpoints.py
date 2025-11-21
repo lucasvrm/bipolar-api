@@ -124,6 +124,25 @@ def test_consent_endpoint_invalid_uuid():
         assert "Invalid UUID format" in response.json()["detail"]
 
 
+def test_consent_endpoint_wrong_token():
+    """Test consent endpoint with wrong authorization token"""
+    test_user_id = "123e4567-e89b-12d3-a456-426614174000"
+    
+    with patch.dict(os.environ, {
+        "SUPABASE_URL": "https://test.supabase.co",
+        "SUPABASE_SERVICE_KEY": "correct-service-key"
+    }):
+        response = client.post(
+            f"/user/{test_user_id}/consent",
+            json={"analytics": True},
+            headers={"Authorization": "Bearer wrong-token"}
+        )
+        
+        # Should reject invalid tokens
+        assert response.status_code == 401
+        assert "Invalid authorization token" in response.json()["detail"]
+
+
 def test_export_endpoint_requires_auth():
     """Test that export endpoint requires authorization"""
     test_user_id = "223e4567-e89b-12d3-a456-426614174001"

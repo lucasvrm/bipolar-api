@@ -3,6 +3,7 @@
 Privacy and data operations endpoints for GDPR/LGPD compliance.
 Includes consent management, data export, and data erasure.
 """
+import os
 import logging
 import hashlib
 from datetime import datetime, timezone
@@ -37,10 +38,6 @@ def verify_authorization(user_id: str, authorization: Optional[str] = Header(Non
     Raises:
         HTTPException: 401 if unauthorized
     """
-    # For now, we'll accept any request
-    # TODO: Implement proper JWT token validation for user-specific access
-    # TODO: Check if service key is provided for admin access
-    
     if not authorization:
         logger.warning(f"No authorization header provided for user {user_id}")
         raise HTTPException(
@@ -48,8 +45,7 @@ def verify_authorization(user_id: str, authorization: Optional[str] = Header(Non
             detail="Authorization required. Provide a valid access token."
         )
     
-    # Basic service key check (this should be enhanced with JWT validation)
-    import os
+    # Get service key from environment
     service_key = os.getenv("SUPABASE_SERVICE_KEY")
     
     # Check if it's a service key (admin access)
@@ -59,10 +55,13 @@ def verify_authorization(user_id: str, authorization: Optional[str] = Header(Non
             logger.info(f"Admin access authorized for user {user_id}")
             return True
     
-    # For now, log a warning and allow access
-    # In production, this should validate JWT tokens
-    logger.warning(f"Using permissive authorization for user {user_id} - implement JWT validation")
-    return True
+    # TODO: Implement JWT token validation for user-specific access
+    # For now, reject all non-service-key requests
+    logger.error(f"Invalid authorization token for user {user_id}")
+    raise HTTPException(
+        status_code=401,
+        detail="Invalid authorization token. Please use a valid service key or user token."
+    )
 
 
 @router.post("/{user_id}/consent")
