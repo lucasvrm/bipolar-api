@@ -82,6 +82,120 @@ Retorna documentação completa de todos os endpoints disponíveis.
 
 ---
 
+### Multi-Type Predictions Endpoint
+
+#### GET /data/predictions/{user_id}
+
+Endpoint que retorna predições multi-tipo para análise de transtorno bipolar.
+
+**Tipos de Predições Suportadas:**
+1. **mood_state** - Estado de humor previsto (Eutimia, Depressão, Mania, Estado Misto)
+2. **relapse_risk** - Probabilidade de recorrência de episódio significativo
+3. **suicidality_risk** - Risco suicida (com disclaimer e recursos de apoio)
+4. **medication_adherence_risk** - Risco de baixa adesão medicamentosa
+5. **sleep_disturbance_risk** - Risco de perturbação do sono
+
+**Query Parameters:**
+- `types` (opcional): Lista separada por vírgulas de tipos de predição. Default: todos os 5 tipos.
+  - Exemplo: `types=mood_state,relapse_risk`
+- `window_days` (opcional): Janela temporal em dias (1-30). Default: 3.
+- `limit_checkins` (opcional): Número de check-ins recentes para análise individual (0-10). Default: 0.
+
+**Exemplo de Request:**
+```bash
+# Todas as predições com configuração padrão
+curl "http://localhost:8000/data/predictions/{user_id}"
+
+# Apenas mood_state e relapse_risk com janela de 7 dias
+curl "http://localhost:8000/data/predictions/{user_id}?types=mood_state,relapse_risk&window_days=7"
+
+# Com análise por check-in individual
+curl "http://localhost:8000/data/predictions/{user_id}?limit_checkins=3"
+```
+
+**Response (200 OK):**
+```json
+{
+  "user_id": "uuid-string",
+  "window_days": 3,
+  "generated_at": "2024-01-15T10:30:00Z",
+  "predictions": [
+    {
+      "type": "mood_state",
+      "label": "Eutimia",
+      "probability": 0.61,
+      "details": {
+        "class_probs": {
+          "Eutimia": 0.61,
+          "Depressão": 0.20,
+          "Mania": 0.10,
+          "Estado Misto": 0.09
+        }
+      },
+      "model_version": "lgbm_multiclass_v1",
+      "explanation": "SHAP top features: hoursSlept=6.5 (impact: 0.234), energyLevel=5 (impact: 0.123), depressedMood=4 (impact: -0.089)",
+      "source": "aggregated_last_checkin"
+    },
+    {
+      "type": "suicidality_risk",
+      "label": "Risco baixo",
+      "probability": 0.23,
+      "details": {},
+      "model_version": "heuristic_v1",
+      "explanation": "Based on mood and distress indicators. SEEK PROFESSIONAL HELP.",
+      "source": "aggregated_last_checkin",
+      "sensitive": true,
+      "disclaimer": "Esta predição NÃO substitui avaliação clínica profissional. Se você está pensando em suicídio, procure ajuda imediatamente.",
+      "resources": {
+        "CVV": "188 (24h, gratuito)",
+        "CAPS": "Centros de Atenção Psicossocial",
+        "emergency": "SAMU 192 ou UPA/Emergência hospitalar"
+      }
+    }
+  ],
+  "per_checkin": [
+    {
+      "checkin_id": "checkin-uuid",
+      "checkin_date": "2024-01-15T10:30:00Z",
+      "predictions": [...]
+    }
+  ]
+}
+```
+
+**Caso sem dados (usuário sem check-ins):**
+```json
+{
+  "user_id": "uuid-string",
+  "window_days": 3,
+  "generated_at": "2024-01-15T10:30:00Z",
+  "predictions": [
+    {
+      "type": "mood_state",
+      "label": "Dados insuficientes",
+      "probability": 0.0,
+      "details": {},
+      "model_version": null,
+      "explanation": "No check-in data available for this user",
+      "source": "aggregated_last_checkin"
+    }
+  ]
+}
+```
+
+**Códigos de Status:**
+- `200 OK` - Predições geradas com sucesso
+- `400 Bad Request` - Parâmetros inválidos (tipos desconhecidos)
+- `500 Internal Server Error` - Erro ao processar predições ou variáveis de ambiente não configuradas
+
+**Notas Importantes:**
+- O endpoint valida a presença de `SUPABASE_URL` e `SUPABASE_SERVICE_KEY` e retorna erro 500 se ausentes
+- Predições de `suicidality_risk` incluem disclaimer e recursos de emergência
+- Logs são gerados para facilitar debug no Render
+- Quando modelos específicos não estão disponíveis, heurísticas clínicas são usadas como fallback
+
+---
+
 ### Grupo I: Previsão Clínica
 
 #### 1. Previsão de Crise T+3 (Original)
