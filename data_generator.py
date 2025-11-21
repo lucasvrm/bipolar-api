@@ -121,153 +121,160 @@ def generate_realistic_checkin(
     
     social_connection = max(0, min(10, 10 - anxiety_stress // 2 + random.randint(-2, 2)))
     contextual_stressors = random.randint(0, 1)
-    social_rhythm_event = 1 if random.random() < 0.15 else 0 # Ex: travel, shift change
+    social_rhythm_event = 1 if random.random() < 0.15 else 0 # Ex: travel, shift work
     
-    # Exercise logic
-    exercise_duration = 0
-    exercise_feeling = 0
-    if energy_level >= 4 and random.random() < 0.4:
-        exercise_duration = random.randint(15, 90)
-        exercise_feeling = random.randint(5, 10)
-
-    # Substance use logic
-    substance_usage = 0
-    substance_units = 0
-    caffeine_doses = random.randint(0, 4)
-    if mood_state in ['MANIC', 'MIXED'] and random.random() < 0.3:
-        substance_usage = 1
-        substance_units = random.randint(1, 5)
-
-    # Sleep details
-    sleep_hygiene = random.randint(4, 9) if sleep_quality > 5 else random.randint(1, 5)
-    perceived_sleep_need = round(random.uniform(7.0, 9.0), 1)
-    has_napped = 1 if (energy_level < 5 and random.random() < 0.4) else 0
-    napping_duration = random.randint(20, 90) if has_napped else 0
-
-    # Diet / Cognitive
-    general_appetite = max(0, min(10, energy_level + random.randint(-2, 2)))
-    skip_meals = 1 if (mood_state == 'DEPRESSED' and random.random() < 0.4) else 0
-    diet_tracking = random.choice([0, 1])
-    memory_concentration = max(0, min(10, 10 - distractibility))
-    rumination_axis = max(0, min(10, depressed_mood + random.randint(-1, 2)))
-    sexual_risk = 1 if (mood_state == 'MANIC' and random.random() < 0.25) else 0
-
-    # --- 2. Map Raw Values to JSONB Schema Structure with Pydantic validation ---
+    # Risk factors with correlations
+    suicidal_ideation = random.randint(0, 3) if mood_state == 'DEPRESSED' else 0
+    suicide_risk = random.randint(0, 2) if suicidal_ideation > 0 else 0
+    self_harm = random.randint(0, 1) if mood_state in ['DEPRESSED', 'MIXED'] else 0
+    routine_disruption = 1 if social_rhythm_event else random.randint(0, 1)
+    substance_use = random.randint(0, 2) if mood_state == 'MANIC' else 0
+    risky_behavior = random.randint(0, 1) if mood_state == 'MANIC' else 0
     
+    # Appetite and impulse
+    appetite = random.randint(3, 7)
+    impulse_control = random.randint(4, 8)
+    impulse_spending = random.randint(0, 1) if mood_state == 'MANIC' else 0
+    impulse_food = random.randint(0, 1) if mood_state in ['DEPRESSED', 'MANIC'] else 0
+    impulse_sex = random.randint(0, 1) if mood_state == 'MANIC' else 0
+    impulse_drugs = random.randint(0, 1) if mood_state == 'MANIC' else 0
+    impulse_alcohol = random.randint(0, 1) if mood_state in ['DEPRESSED', 'MANIC'] else 0
+    
+    # --- 2. Structure Data into JSONB Columns ---
+    
+    # sleep_data JSONB
     sleep_data = SleepData(
-        hoursSlept=sleep_hours,
-        sleepQuality=sleep_quality,
-        perceivedSleepNeed=perceived_sleep_need,
-        sleepHygiene=sleep_hygiene,
-        hasNapped=has_napped,
-        nappingDurationMin=napping_duration
-    )
-
+        sleep_hours=sleep_hours,
+        sleep_quality=sleep_quality,
+        sleep_disrupted=random.randint(0, 1),
+        sleep_aids_used=random.randint(0, 1)
+    ).model_dump()
+    
+    # mood_data JSONB
     mood_data = MoodData(
-        energyLevel=energy_level,
-        depressedMood=depressed_mood,
-        anxietyStress=anxiety_stress,
-        elevation=elevation,
+        energy_level=energy_level,
+        depressed_mood=depressed_mood,
+        anxiety_stress=anxiety_stress,
         activation=activation,
-        motivationToStart=motivation
-    )
-
+        elevation=elevation,
+        social_connection=social_connection,
+        contextual_stressors=contextual_stressors,
+        social_rhythm_event=social_rhythm_event
+    ).model_dump()
+    
+    # symptoms_data JSONB
     symptoms_data = SymptomsData(
-        thoughtSpeed=thought_speed,
+        thought_speed=thought_speed,
         distractibility=distractibility,
-        memoryConcentration=memory_concentration,
-        ruminationAxis=rumination_axis
-    )
-
+        libido=libido,
+        compulsion_episode=compulsion_episode,
+        compulsion_intensity=compulsion_intensity,
+        motivation=motivation,
+        tasks_planned=tasks_planned,
+        tasks_completed=tasks_completed
+    ).model_dump()
+    
+    # risk_routine_data JSONB
     risk_routine_data = RiskRoutineData(
-        socialConnection=social_connection,
-        socialRhythmEvent=social_rhythm_event,
-        exerciseDurationMin=exercise_duration,
-        exerciseFeeling=exercise_feeling,
-        sexualRiskBehavior=sexual_risk,
-        tasksPlanned=tasks_planned,
-        tasksCompleted=tasks_completed
-    )
-
+        suicidal_ideation=suicidal_ideation,
+        suicide_risk=suicide_risk,
+        self_harm=self_harm,
+        routine_disruption=routine_disruption,
+        substance_use=substance_use,
+        risky_behavior=risky_behavior
+    ).model_dump()
+    
+    # appetite_impulse_data JSONB
     appetite_impulse_data = AppetiteImpulseData(
-        generalAppetite=general_appetite,
-        dietTracking=diet_tracking,
-        skipMeals=skip_meals,
-        compulsionEpisode=compulsion_episode,
-        compulsionIntensity=compulsion_intensity,
-        substanceUsage=substance_usage,
-        substanceUnits=substance_units,
-        caffeineDoses=caffeine_doses,
-        libido=libido
-    )
-
+        appetite=appetite,
+        impulse_control=impulse_control,
+        impulse_spending=impulse_spending,
+        impulse_food=impulse_food,
+        impulse_sex=impulse_sex,
+        impulse_drugs=impulse_drugs,
+        impulse_alcohol=impulse_alcohol
+    ).model_dump()
+    
+    # meds_context_data JSONB
     meds_context_data = MedsContextData(
-        medicationAdherence=medication_adherence,
-        medicationTiming=medication_timing,
-        medicationChangeRecent=medication_change_recent,
-        contextualStressors=contextual_stressors
-    )
-
+        medication_adherence=medication_adherence,
+        medication_timing=medication_timing,
+        medication_change_recent=medication_change_recent
+    ).model_dump()
+    
+    # --- 3. Assemble Full Check-in Dict ---
     return {
         "user_id": user_id,
-        "checkin_date": checkin_date.strftime('%Y-%m-%d'), # Date type in DB
-        "sleep_data": sleep_data.model_dump(),
-        "mood_data": mood_data.model_dump(),
-        "symptoms_data": symptoms_data.model_dump(),
-        "risk_routine_data": risk_routine_data.model_dump(),
-        "appetite_impulse_data": appetite_impulse_data.model_dump(),
-        "meds_context_data": meds_context_data.model_dump(),
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "updated_at": datetime.now(timezone.utc).isoformat()
+        "checkin_date": checkin_date.isoformat(),
+        "sleep_data": sleep_data,
+        "mood_data": mood_data,
+        "symptoms_data": symptoms_data,
+        "risk_routine_data": risk_routine_data,
+        "appetite_impulse_data": appetite_impulse_data,
+        "meds_context_data": meds_context_data
     }
 
 
 def generate_user_checkin_history(
     user_id: str,
     num_checkins: int = 30,
-    start_date: Optional[datetime] = None,
-    mood_pattern: Optional[str] = None
+    mood_pattern: str = 'stable',
+    start_date: datetime = None
 ) -> List[Dict[str, Any]]:
     """
-    Generate a realistic history of check-ins for a user.
+    Generate a history of check-ins for a user with specified mood pattern.
+    
+    Args:
+        user_id: User UUID
+        num_checkins: Number of check-ins to generate
+        mood_pattern: 'stable' (mostly euthymic), 'cycling' (cycles every 7-14 days), or 'random'
+        start_date: Optional start date (defaults to today - num_checkins days)
+        
+    Returns:
+        List of check-in dictionaries
     """
     if start_date is None:
         start_date = datetime.now(timezone.utc) - timedelta(days=num_checkins)
     
     checkins = []
-    current_mood = 'EUTHYMIC'
-    mood_duration = 0
     
+    # Generate mood sequence based on pattern
+    mood_sequence = []
+    
+    if mood_pattern == 'cycling':
+        # Bipolar cycling: 7-14 day episodes
+        episode_length = random.randint(7, 14)
+        moods = ['EUTHYMIC', 'MANIC', 'DEPRESSED', 'MIXED']
+        current_mood = random.choice(moods)
+        
+        for i in range(num_checkins):
+            if i % episode_length == 0:
+                current_mood = random.choice([m for m in moods if m != current_mood])
+            mood_sequence.append(current_mood)
+            
+    elif mood_pattern == 'stable':
+        # Mostly euthymic with occasional deviations
+        for _ in range(num_checkins):
+            mood_sequence.append(random.choices(
+                ['EUTHYMIC', 'DEPRESSED', 'MANIC', 'MIXED'],
+                weights=[0.8, 0.1, 0.05, 0.05]
+            )[0])
+            
+    else:  # random
+        for _ in range(num_checkins):
+            mood_sequence.append(random.choices(
+                ['EUTHYMIC', 'DEPRESSED', 'MANIC', 'MIXED'],
+                weights=[0.5, 0.25, 0.15, 0.10]
+            )[0])
+    
+    # Generate check-ins
     for i in range(num_checkins):
         checkin_date = start_date + timedelta(days=i)
-        
-        # Determine mood state based on pattern
-        if mood_pattern == 'stable':
-            if mood_duration == 0:
-                if random.random() < 0.15:
-                    current_mood = random.choice(['DEPRESSED', 'MANIC', 'MIXED'])
-                    mood_duration = random.randint(3, 10)
-                else:
-                    current_mood = 'EUTHYMIC'
-                    mood_duration = random.randint(5, 20)
-            else:
-                mood_duration -= 1
-                
-        elif mood_pattern == 'cycling':
-            cycle_day = i % 28
-            if cycle_day < 7: current_mood = 'EUTHYMIC'
-            elif cycle_day < 14: current_mood = 'MANIC'
-            elif cycle_day < 21: current_mood = 'EUTHYMIC'
-            else: current_mood = 'DEPRESSED'
-        else:
-            # Random
-            if mood_duration == 0:
-                current_mood = random.choice(['EUTHYMIC', 'DEPRESSED', 'MANIC', 'MIXED'])
-                mood_duration = random.randint(3, 7)
-            else:
-                mood_duration -= 1
-        
-        checkin = generate_realistic_checkin(user_id, checkin_date, current_mood)
+        checkin = generate_realistic_checkin(
+            user_id=user_id,
+            checkin_date=checkin_date,
+            mood_state=mood_sequence[i]
+        )
         checkins.append(checkin)
     
     return checkins
@@ -275,9 +282,9 @@ def generate_user_checkin_history(
 
 async def generate_and_populate_data(
     supabase: AsyncClient,
-    num_users: int = 5,
     checkins_per_user: int = 30,
     mood_pattern: str = 'stable',
+    num_users: Optional[int] = None,  # Legacy
     patients_count: Optional[int] = None,
     therapists_count: Optional[int] = None
 ) -> Dict[str, Any]:
@@ -286,7 +293,6 @@ async def generate_and_populate_data(
     
     Args:
         supabase: Supabase async client
-        num_users: DEPRECATED - Total number of users (for backward compatibility)
         checkins_per_user: Number of check-ins to generate per user
         mood_pattern: Mood pattern ('stable', 'cycling', or 'random')
         patients_count: Number of patient profiles to create
@@ -297,12 +303,10 @@ async def generate_and_populate_data(
     """
     # Handle new parameters vs legacy parameter
     if patients_count is not None or therapists_count is not None:
-        # New parametrized approach - use provided values
         patients_count = patients_count if patients_count is not None else 0
         therapists_count = therapists_count if therapists_count is not None else 0
         total_users = patients_count + therapists_count
     else:
-        # Legacy approach - create all as patients by default
         total_users = num_users
         patients_count = num_users
         therapists_count = 0
@@ -321,10 +325,25 @@ async def generate_and_populate_data(
         # Generate patient profiles
         for i in range(patients_count):
             user_id = fake.uuid4()
-            user_ids.append(user_id)
+            email = fake.unique.email()  # Email sintético único
+            password = fake.password()   # Senha temporária para auth (não usada em prod)
             
-            # Generate profile data for this patient
-            email = fake.unique.email()
+            # 1. Criar usuário no Supabase Auth (obrigatório para FK)
+            logger.debug(f"Criando auth user para patient {i+1}/{patients_count} com email {email}")
+            try:
+                auth_user = await supabase.auth.admin.create_user({
+                    "email": email,
+                    "password": password,
+                    "email_confirm": True  # Confirma email automaticamente para testes
+                })
+                # Use o ID retornado pelo auth (deve ser o mesmo que geramos, mas confirme)
+                if auth_user.user.id != user_id:
+                    raise ValueError("ID gerado no auth não coincide com UUID fake")
+            except Exception as auth_err:
+                logger.error(f"Erro ao criar auth user: {auth_err}")
+                raise HTTPException(status_code=500, detail=f"Erro ao criar usuário auth: {str(auth_err)}")
+            
+            # 2. Agora inserir profile com o ID válido
             profile_data = {
                 "id": user_id,
                 "email": email,
@@ -332,10 +351,10 @@ async def generate_and_populate_data(
                 "updated_at": datetime.now(timezone.utc).isoformat()
             }
             
-            # Insert profile into profiles table BEFORE generating check-ins
             logger.debug(f"Inserting patient profile {i+1}/{patients_count} with email {email}")
             await supabase.table('profiles').insert(profile_data).execute()
             patients_created += 1
+            user_ids.append(user_id)
             
             # Generate check-in history for this patient
             checkins = generate_user_checkin_history(
@@ -347,30 +366,42 @@ async def generate_and_populate_data(
             all_checkins.extend(checkins)
             logger.debug(f"Generated {len(checkins)} check-ins for patient {i+1}/{patients_count}")
         
-        # Generate therapist profiles
+        # Generate therapist profiles (similar, mas sem check-ins)
         for i in range(therapists_count):
             user_id = fake.uuid4()
-            user_ids.append(user_id)
-            
-            # Generate profile data for this therapist
             email = fake.unique.email()
+            password = fake.password()
+            
+            # 1. Criar auth user
+            logger.debug(f"Criando auth user para therapist {i+1}/{therapists_count} com email {email}")
+            try:
+                auth_user = await supabase.auth.admin.create_user({
+                    "email": email,
+                    "password": password,
+                    "email_confirm": True
+                })
+                if auth_user.user.id != user_id:
+                    raise ValueError("ID gerado no auth não coincide")
+            except Exception as auth_err:
+                logger.error(f"Erro ao criar auth user: {auth_err}")
+                raise HTTPException(status_code=500, detail=f"Erro ao criar usuário auth: {str(auth_err)}")
+            
+            # 2. Inserir profile
             profile_data = {
                 "id": user_id,
                 "email": email,
-                "role": "therapist",  # Valid role per profiles_role_check constraint
+                "role": "therapist",
                 "updated_at": datetime.now(timezone.utc).isoformat()
             }
             
-            # Insert profile into profiles table
             logger.debug(f"Inserting therapist profile {i+1}/{therapists_count} with email {email}")
             await supabase.table('profiles').insert(profile_data).execute()
             therapists_created += 1
+            user_ids.append(user_id)
             
-            # Therapists don't have check-ins in this model
             logger.debug(f"Created therapist {i+1}/{therapists_count} (no check-ins)")
         
         # Insert all check-ins into database
-        # Supabase/PostgREST handles JSONB serialization automatically from dicts
         if all_checkins:
             logger.info(f"Inserting {len(all_checkins)} check-ins into database...")
             response = await supabase.table('check_ins').insert(all_checkins).execute()
@@ -396,5 +427,8 @@ async def generate_and_populate_data(
         }
         
     except Exception as e:
-        logger.exception("Error generating and populating data")
+        logger.exception(f"Error generating and populating data: {e}")
+        # Opcional: Rollback parcial (delete profiles criados se falhar)
+        for uid in user_ids:
+            await supabase.table('profiles').delete().eq('id', uid).execute()
         raise
