@@ -10,6 +10,7 @@ from faker import Faker
 from typing import List, Dict, Any, Optional
 from supabase import AsyncClient
 import logging
+from fastapi import HTTPException
 from api.schemas.checkin_jsonb import (
     SleepData,
     MoodData,
@@ -284,151 +285,102 @@ async def generate_and_populate_data(
     supabase: AsyncClient,
     checkins_per_user: int = 30,
     mood_pattern: str = 'stable',
-    num_users: Optional[int] = None,  # Legacy
+    num_users: Optional[int] = None,
     patients_count: Optional[int] = None,
     therapists_count: Optional[int] = None
 ) -> Dict[str, Any]:
-    """
-    Generate synthetic data for multiple users and insert into database.
-    
-    Args:
-        supabase: Supabase async client
-        checkins_per_user: Number of check-ins to generate per user
-        mood_pattern: Mood pattern ('stable', 'cycling', or 'random')
-        patients_count: Number of patient profiles to create
-        therapists_count: Number of therapist profiles to create
-        
-    Returns:
-        Dictionary with generation statistics
-    """
-    # Handle new parameters vs legacy parameter
+    # Compatibilidade com parâmetros antigos e novos
     if patients_count is not None or therapists_count is not None:
-        patients_count = patients_count if patients_count is not None else 0
-        therapists_count = therapists_count if therapists_count is not None else 0
-        total_users = patients_count + therapists_count
+        patients_count = patients_count or 0
+        therapists_count = therapists_count or 0
     else:
-        total_users = num_users
-        patients_count = num_users
+        patients_count = num_users or 0
         therapists_count = 0
-    
-    logger.info(
-        f"Starting data generation: {patients_count} patients, {therapists_count} therapists, "
-        f"{checkins_per_user} check-ins each"
-    )
-    
-    all_checkins = []
-    user_ids = []
+
+    total_users = patients_count + therapists_count
+    logger.info(f"Iniciando geração de dados: {patients_count} pacientes + {therapists_count} terapeutas")
+
+    all_checkins: List[Dict[str, Any]] = []
+    user_ids: List[str] = []
     patients_created = 0
     therapists_created = 0
-    
+
     try:
-        # Generate patient profiles
-        for i in range(patients_count):
-            user_id = fake.uuid4()
-            email = fake.unique.email()  # Email sintético único
-            password = fake.password()   # Senha temporária para auth (não usada em prod)
-            
-            # 1. Criar usuário no Supabase Auth (obrigatório para FK)
-            logger.debug(f"Criando auth user para patient {i+1}/{patients_count} com email {email}")
-            try:
-                auth_user = await supabase.auth.admin.create_user({
-                    "email": email,
-                    "password": password,
-                    "email_confirm": True  # Confirma email automaticamente para testes
-                })
-                # Use o ID retornado pelo auth (deve ser o mesmo que geramos, mas confirme)
-                if auth_user.user.id != user_id:
-                    raise ValueError("ID gerado no auth não coincide com UUID fake")
-            except Exception as auth_err:
-                logger.error(f"Erro ao criar auth user: {auth_err}")
-                raise HTTPException(status_code=500, detail=f"Erro ao criar usuário auth: {str(auth_err)}")
-            
-            # 2. Agora inserir profile com o ID válido
-            profile_data = {
+        # === PACIENTES ===
+        for _ in range(patients_count):
+            email = fake.unique.email()
+            password = fake.password(length=20)
+
+            # 1. Criar no Auth primeiro → Supabase gera o ID real
+            auth_resp = await supabase.auth.admin.create_user({
+                "email": email,
+                "password": password,
+                "email_confirm": True
+            })
+            user_id = auth_resp.user.id
+
+            # 2. Criar profile usando o ID real do Auth
+            await supabase.table('profiles').insert({
                 "id": user_id,
                 "email": email,
-                "role": "patient",  # Valid role per profiles_role_check constraint
+                "role": "patient",
                 "updated_at": datetime.now(timezone.utc).isoformat()
-            }
-            
-            logger.debug(f"Inserting patient profile {i+1}/{patients_count} with email {email}")
-            await supabase.table('profiles').insert(profile_data).execute()
+            }).execute()
+
             patients_created += 1
             user_ids.append(user_id)
-            
-            # Generate check-in history for this patient
+
+            # 3. Gerar check-ins
             checkins = generate_user_checkin_history(
                 user_id=user_id,
                 num_checkins=checkins_per_user,
                 mood_pattern=mood_pattern
             )
-            
             all_checkins.extend(checkins)
-            logger.debug(f"Generated {len(checkins)} check-ins for patient {i+1}/{patients_count}")
-        
-        # Generate therapist profiles (similar, mas sem check-ins)
-        for i in range(therapists_count):
-            user_id = fake.uuid4()
+
+        # === TERAPEUTAS ===
+        for _ in range(therapists_count):
             email = fake.unique.email()
-            password = fake.password()
-            
-            # 1. Criar auth user
-            logger.debug(f"Criando auth user para therapist {i+1}/{therapists_count} com email {email}")
-            try:
-                auth_user = await supabase.auth.admin.create_user({
-                    "email": email,
-                    "password": password,
-                    "email_confirm": True
-                })
-                if auth_user.user.id != user_id:
-                    raise ValueError("ID gerado no auth não coincide")
-            except Exception as auth_err:
-                logger.error(f"Erro ao criar auth user: {auth_err}")
-                raise HTTPException(status_code=500, detail=f"Erro ao criar usuário auth: {str(auth_err)}")
-            
-            # 2. Inserir profile
-            profile_data = {
+            password = fake.password(length=20)
+
+            auth_resp = await supabase.auth.admin.create_user({
+                "email": email,
+                "password": password,
+                "email_confirm": True
+            })
+            user_id = auth_resp.user.id
+
+            await supabase.table('profiles').insert({
                 "id": user_id,
                 "email": email,
                 "role": "therapist",
                 "updated_at": datetime.now(timezone.utc).isoformat()
-            }
-            
-            logger.debug(f"Inserting therapist profile {i+1}/{therapists_count} with email {email}")
-            await supabase.table('profiles').insert(profile_data).execute()
+            }).execute()
+
             therapists_created += 1
             user_ids.append(user_id)
-            
-            logger.debug(f"Created therapist {i+1}/{therapists_count} (no check-ins)")
-        
-        # Insert all check-ins into database
+
+        # === Inserir todos os check-ins de uma vez ===
+        inserted_count = 0
         if all_checkins:
-            logger.info(f"Inserting {len(all_checkins)} check-ins into database...")
-            response = await supabase.table('check_ins').insert(all_checkins).execute()
-            inserted_count = len(response.data) if response.data else 0
-            logger.info(f"Successfully inserted {inserted_count} check-ins")
-        else:
-            inserted_count = 0
-            logger.info("No check-ins to insert (therapists only)")
-        
+            resp = await supabase.table('check_ins').insert(all_checkins).execute()
+            inserted_count = len(resp.data) if resp.data else 0
+
         return {
             "status": "success",
-            "message": f"Generated {patients_created} patients and {therapists_created} therapists with {inserted_count} check-ins",
+            "message": f"Gerados {patients_created} pacientes e {therapists_created} terapeutas com {inserted_count} check-ins",
             "statistics": {
-                "users_created": total_users,
                 "patients_created": patients_created,
                 "therapists_created": therapists_created,
-                "user_ids": user_ids,
-                "checkins_per_user": checkins_per_user,
                 "total_checkins": inserted_count,
+                "user_ids": user_ids,
+                "users_created": total_users,
+                "checkins_per_user": checkins_per_user,
                 "mood_pattern": mood_pattern,
                 "generated_at": datetime.now(timezone.utc).isoformat()
             }
         }
-        
+
     except Exception as e:
-        logger.exception(f"Error generating and populating data: {e}")
-        # Opcional: Rollback parcial (delete profiles criados se falhar)
-        for uid in user_ids:
-            await supabase.table('profiles').delete().eq('id', uid).execute()
-        raise
+        logger.exception("Falha crítica na geração de dados sintéticos")
+        raise HTTPException(status_code=500, detail="Erro ao gerar dados sintéticos. Veja os logs do servidor.")
