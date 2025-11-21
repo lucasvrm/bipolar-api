@@ -116,7 +116,7 @@ async def verify_admin_authorization(
         # Method 1: Check against ADMIN_EMAILS environment variable (cached as set for O(1) lookup)
         admin_emails = get_admin_emails()
         
-        if user_email and admin_emails and user_email in admin_emails:
+        if user_email and user_email in admin_emails:
             logger.info(f"Admin access granted - email in ADMIN_EMAILS: {user_email}")
             return True
         
