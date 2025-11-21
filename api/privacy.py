@@ -77,7 +77,6 @@ async def get_user_profile(
     This endpoint returns basic profile information for a user including:
     - User ID
     - Email
-    - Full name
     - Admin status (is_admin field)
     - Created timestamp
     
@@ -96,7 +95,7 @@ async def get_user_profile(
         user_id: UUID of the user
         
     Returns:
-        User profile object with id, email, full_name, is_admin, created_at
+        User profile object with id, email, is_admin, created_at
         
     Raises:
         HTTPException: 400 for invalid UUID, 404 if user not found, 429 for rate limit, 500 for errors
@@ -109,7 +108,7 @@ async def get_user_profile(
     try:
         # Fetch user profile from profiles table
         response = await supabase.table('profiles')\
-            .select('id, email, full_name, is_admin, created_at')\
+            .select('id, email, is_admin, created_at')\
             .eq('id', user_id)\
             .execute()
         
