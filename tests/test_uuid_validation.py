@@ -235,5 +235,66 @@ def test_uuid_edge_cases():
             assert response.status_code == 200
 
 
+# Test cases for /data/prediction_of_day/{user_id}
+def test_prediction_of_day_invalid_uuid_returns_400():
+    """Test that invalid UUID returns 400 Bad Request"""
+    with patch.dict(os.environ, {
+        "SUPABASE_URL": "https://test.supabase.co",
+        "SUPABASE_SERVICE_KEY": "test-key"
+    }):
+        # Test various invalid UUID formats
+        invalid_uuids = [
+            "not-a-uuid",
+            "12345",
+            "invalid-uuid-format",
+            "123e4567-e89b-12d3-a456", # incomplete UUID
+            "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx", # invalid characters
+        ]
+        
+        for invalid_uuid in invalid_uuids:
+            response = client.get(f"/data/prediction_of_day/{invalid_uuid}")
+            assert response.status_code == 400, f"Expected 400 for invalid UUID: {invalid_uuid}"
+            assert "Invalid UUID format" in response.json()["detail"]
+            assert "user_id" in response.json()["detail"]
+
+
+def test_prediction_of_day_valid_uuid_calls_supabase():
+    """Test that valid UUID successfully calls Supabase"""
+    valid_uuid = "123e4567-e89b-12d3-a456-426614174000"
+    
+    checkin_data = {
+        "id": "checkin-123",
+        "user_id": valid_uuid,
+        "checkin_date": "2024-01-15T10:30:00Z",
+        "hoursSlept": 6.5,
+        "sleepQuality": 6,
+        "energyLevel": 5,
+        "depressedMood": 4,
+        "anxietyStress": 6,
+        "medicationAdherence": 1,
+        "medicationTiming": 1,
+        "compulsionIntensity": 0
+    }
+    
+    mock_client = create_mock_supabase_client([checkin_data])
+    
+    async def mock_acreate_client(*args, **kwargs):
+        return mock_client
+    
+    with patch.dict(os.environ, {
+        "SUPABASE_URL": "https://test.supabase.co",
+        "SUPABASE_SERVICE_KEY": "test-key"
+    }):
+        with patch("api.dependencies.acreate_client", side_effect=mock_acreate_client):
+            response = client.get(f"/data/prediction_of_day/{valid_uuid}")
+            
+            # Should succeed
+            assert response.status_code == 200
+            data = response.json()
+            assert data["type"] == "mood_state"
+            assert "label" in data
+            assert "probability" in data
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

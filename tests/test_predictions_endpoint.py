@@ -265,6 +265,7 @@ def test_predictions_endpoint_missing_env_vars():
 
 def test_prediction_of_day_endpoint_no_checkins():
     """Test prediction_of_day endpoint with user that has no check-ins"""
+    valid_uuid = "123e4567-e89b-12d3-a456-426614174000"
     mock_client = create_mock_supabase_client([])
     
     async def mock_acreate_client(*args, **kwargs):
@@ -275,7 +276,7 @@ def test_prediction_of_day_endpoint_no_checkins():
         "SUPABASE_SERVICE_KEY": "test-key"
     }):
         with patch("api.dependencies.acreate_client", side_effect=mock_acreate_client):
-            response = client.get("/data/prediction_of_day/test-user-no-data")
+            response = client.get(f"/data/prediction_of_day/{valid_uuid}")
             
             assert response.status_code == 200
             data = response.json()
@@ -294,10 +295,11 @@ def test_prediction_of_day_endpoint_no_checkins():
 
 def test_prediction_of_day_endpoint_with_checkin():
     """Test prediction_of_day endpoint with user that has one check-in"""
+    valid_uuid = "223e4567-e89b-12d3-a456-426614174001"
     # Mock check-in data
     checkin_data = {
         "id": "test-checkin-123",
-        "user_id": "test-user-123",
+        "user_id": valid_uuid,
         "checkin_date": "2024-01-15T10:30:00Z",
         "hoursSlept": 6.5,
         "sleepQuality": 6,
@@ -319,7 +321,7 @@ def test_prediction_of_day_endpoint_with_checkin():
         "SUPABASE_SERVICE_KEY": "test-key"
     }):
         with patch("api.dependencies.acreate_client", side_effect=mock_acreate_client):
-            response = client.get("/data/prediction_of_day/test-user-123")
+            response = client.get(f"/data/prediction_of_day/{valid_uuid}")
             
             assert response.status_code == 200
             data = response.json()
@@ -346,10 +348,11 @@ def test_prediction_of_day_endpoint_with_checkin():
 
 def test_prediction_of_day_endpoint_probability_normalization():
     """Test that probabilities are properly normalized and subnormals handled"""
+    valid_uuid = "323e4567-e89b-12d3-a456-426614174002"
     # Mock check-in data with extreme values
     checkin_data = {
         "id": "test-checkin-extreme",
-        "user_id": "test-user-extreme",
+        "user_id": valid_uuid,
         "checkin_date": "2024-01-15T10:30:00Z",
         "hoursSlept": 10,
         "sleepQuality": 10,
@@ -371,7 +374,7 @@ def test_prediction_of_day_endpoint_probability_normalization():
         "SUPABASE_SERVICE_KEY": "test-key"
     }):
         with patch("api.dependencies.acreate_client", side_effect=mock_acreate_client):
-            response = client.get("/data/prediction_of_day/test-user-extreme")
+            response = client.get(f"/data/prediction_of_day/{valid_uuid}")
             
             assert response.status_code == 200
             data = response.json()
