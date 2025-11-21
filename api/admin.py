@@ -192,13 +192,13 @@ async def generate_synthetic_data(
         return result
 
     except APIError as e:
-        logger.exception(f"Database error during data generation: {e}")
+        logger.exception("Database error during data generation")
         raise HTTPException(
             status_code=500,
             detail=f"Database error: {str(e)}"
         )
     except Exception as e:
-        logger.exception(f"Error generating data: {e}")
+        logger.exception("Error generating data")
         raise HTTPException(
             status_code=500,
             detail=f"Error generating synthetic data: {str(e)}"
@@ -253,13 +253,13 @@ async def get_admin_stats(
         }
 
     except APIError as e:
-        logger.exception(f"Database error during stats retrieval: {e}")
+        logger.exception("Database error during stats retrieval")
         raise HTTPException(
             status_code=500,
             detail=f"Database error: {str(e)}"
         )
     except Exception as e:
-        logger.exception(f"Error retrieving stats: {e}")
+        logger.exception("Error retrieving stats")
         raise HTTPException(
             status_code=500,
             detail=f"Error retrieving statistics: {str(e)}"
@@ -308,13 +308,13 @@ async def get_admin_users(
         return users
 
     except APIError as e:
-        logger.exception(f"Database error during users retrieval: {e}")
+        logger.exception("Database error during users retrieval")
         raise HTTPException(
             status_code=500,
             detail=f"Database error: {str(e)}"
         )
     except Exception as e:
-        logger.exception(f"Error retrieving users: {e}")
+        logger.exception("Error retrieving users")
         raise HTTPException(
             status_code=500,
             detail=f"Error retrieving users: {str(e)}"
@@ -449,13 +449,13 @@ async def cleanup_synthetic_data(
         }
 
     except APIError as e:
-        logger.exception(f"Database error during cleanup: {e}")
+        logger.exception("Database error during cleanup")
         raise HTTPException(
             status_code=500,
             detail=f"Database error: {str(e)}"
         )
     except Exception as e:
-        logger.exception(f"Error cleaning up data: {e}")
+        logger.exception("Error cleaning up data")
         raise HTTPException(
             status_code=500,
             detail=f"Error cleaning up synthetic data: {str(e)}"
