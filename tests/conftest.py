@@ -50,6 +50,10 @@ class MockQueryBuilder:
     def eq(self, *args, **kwargs):
         return self
     
+    def is_(self, *args, **kwargs):
+        """Support for is_() method used in soft-delete filtering"""
+        return self
+    
     def order(self, *args, **kwargs):
         return self
     

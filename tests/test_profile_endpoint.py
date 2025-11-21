@@ -23,6 +23,10 @@ class MockSupabaseTable:
     def eq(self, *args, **kwargs):
         return self
     
+    def is_(self, *args, **kwargs):
+        """Support for is_() method used in soft-delete filtering"""
+        return self
+    
     async def execute(self):
         result = MagicMock()
         result.data = self.data

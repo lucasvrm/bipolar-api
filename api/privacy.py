@@ -114,20 +114,14 @@ async def get_user_profile(
             .is_('deleted_at', 'null')\
             .execute()
         
-        # Additional check for scheduled deletion
-        if response.data and len(response.data) > 0:
-            profile = response.data[0]
-            # Check if deletion is scheduled and not yet past
-            # (This is handled by the database filter, but we can add extra validation)
-        else:
-            profile = None
-        
-        if not profile:
+        if not response.data or len(response.data) == 0:
             logger.warning(f"User profile not found or deleted for user {hash_user_id_for_logging(user_id)}")
             raise HTTPException(
                 status_code=404,
                 detail="User profile not found"
             )
+        
+        profile = response.data[0]
         logger.info(f"Profile fetched successfully for user (admin={profile.get('is_admin', False)})")
         
         return profile
