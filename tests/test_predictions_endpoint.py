@@ -58,6 +58,7 @@ async def async_mock_client_factory(data):
 
 def test_predictions_endpoint_no_checkins():
     """Test endpoint with user that has no check-ins"""
+    test_user_id = "123e4567-e89b-12d3-a456-426614174000"
     mock_client = create_mock_supabase_client([])
     
     async def mock_acreate_client(*args, **kwargs):
@@ -68,14 +69,14 @@ def test_predictions_endpoint_no_checkins():
         "SUPABASE_SERVICE_KEY": "test-key"
     }):
         with patch("api.dependencies.acreate_client", side_effect=mock_acreate_client):
-            response = client.get("/data/predictions/test-user-no-data")
+            response = client.get(f"/data/predictions/{test_user_id}")
             
             assert response.status_code == 200
             data = response.json()
             
             # Verify structure
             assert "user_id" in data
-            assert data["user_id"] == "test-user-no-data"
+            assert data["user_id"] == test_user_id
             assert "window_days" in data
             assert data["window_days"] == 3
             assert "generated_at" in data
@@ -103,10 +104,11 @@ def test_predictions_endpoint_no_checkins():
 
 def test_predictions_endpoint_with_checkin():
     """Test endpoint with user that has one check-in"""
+    test_user_id = "223e4567-e89b-12d3-a456-426614174001"
     # Mock check-in data
     checkin_data = {
         "id": "test-checkin-123",
-        "user_id": "test-user-123",
+        "user_id": test_user_id,
         "checkin_date": "2024-01-15T10:30:00Z",
         "hoursSlept": 6.5,
         "sleepQuality": 6,
@@ -128,13 +130,13 @@ def test_predictions_endpoint_with_checkin():
         "SUPABASE_SERVICE_KEY": "test-key"
     }):
         with patch("api.dependencies.acreate_client", side_effect=mock_acreate_client):
-            response = client.get("/data/predictions/test-user-123")
+            response = client.get(f"/data/predictions/{test_user_id}")
             
             assert response.status_code == 200
             data = response.json()
             
             # Verify structure
-            assert data["user_id"] == "test-user-123"
+            assert data["user_id"] == test_user_id
             assert data["window_days"] == 3
             assert len(data["predictions"]) == 5
             
@@ -161,9 +163,10 @@ def test_predictions_endpoint_with_checkin():
 
 def test_predictions_endpoint_with_type_filter():
     """Test endpoint with specific prediction types"""
+    test_user_id = "323e4567-e89b-12d3-a456-426614174002"
     checkin_data = {
         "id": "test-checkin-123",
-        "user_id": "test-user-123",
+        "user_id": test_user_id,
         "checkin_date": "2024-01-15T10:30:00Z",
         "hoursSlept": 6.5,
         "sleepQuality": 6,
@@ -186,7 +189,7 @@ def test_predictions_endpoint_with_type_filter():
     }):
         with patch("api.dependencies.acreate_client", side_effect=mock_acreate_client):
             response = client.get(
-                "/data/predictions/test-user-123?types=mood_state,relapse_risk"
+                f"/data/predictions/{test_user_id}?types=mood_state,relapse_risk"
             )
             
             assert response.status_code == 200
@@ -201,9 +204,10 @@ def test_predictions_endpoint_with_type_filter():
 
 def test_predictions_endpoint_with_window_days():
     """Test endpoint with custom window_days parameter"""
+    test_user_id = "423e4567-e89b-12d3-a456-426614174003"
     checkin_data = {
         "id": "test-checkin-123",
-        "user_id": "test-user-123",
+        "user_id": test_user_id,
         "checkin_date": "2024-01-15T10:30:00Z",
         "hoursSlept": 6.5,
         "sleepQuality": 6,
@@ -225,7 +229,7 @@ def test_predictions_endpoint_with_window_days():
         "SUPABASE_SERVICE_KEY": "test-key"
     }):
         with patch("api.dependencies.acreate_client", side_effect=mock_acreate_client):
-            response = client.get("/data/predictions/test-user-123?window_days=7")
+            response = client.get(f"/data/predictions/{test_user_id}?window_days=7")
             
             assert response.status_code == 200
             data = response.json()
@@ -234,12 +238,13 @@ def test_predictions_endpoint_with_window_days():
 
 def test_predictions_endpoint_invalid_type():
     """Test endpoint with invalid prediction type"""
+    test_user_id = "523e4567-e89b-12d3-a456-426614174004"
     with patch.dict(os.environ, {
         "SUPABASE_URL": "https://test.supabase.co",
         "SUPABASE_SERVICE_KEY": "test-key"
     }):
         response = client.get(
-            "/data/predictions/test-user-123?types=invalid_type"
+            f"/data/predictions/{test_user_id}?types=invalid_type"
         )
         
         assert response.status_code == 400
@@ -248,8 +253,9 @@ def test_predictions_endpoint_invalid_type():
 
 def test_predictions_endpoint_missing_env_vars():
     """Test endpoint with missing environment variables"""
+    test_user_id = "623e4567-e89b-12d3-a456-426614174005"
     with patch.dict(os.environ, {}, clear=True):
-        response = client.get("/data/predictions/test-user-123")
+        response = client.get(f"/data/predictions/{test_user_id}")
         
         # Should return 500 with clear error message
         assert response.status_code == 500

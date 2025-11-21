@@ -3,7 +3,9 @@ import sys
 import logging
 from fastapi import APIRouter, Depends, HTTPException
 from supabase import AsyncClient
+from postgrest.exceptions import APIError
 from .dependencies import get_supabase_client
+from .utils import validate_uuid_or_400, handle_postgrest_error
 
 # Logger específico para este módulo
 logger = logging.getLogger("bipolar-api.data")
@@ -15,6 +17,9 @@ async def get_latest_checkin_for_user(user_id: str, supabase: AsyncClient = Depe
     """
     Busca o check-in mais recente com depuração máxima via print.
     """
+    # Validate UUID format
+    validate_uuid_or_400(user_id, "user_id")
+    
     print("=" * 80, flush=True)
     print(f"[TENTATIVA 1 - DIAGNOSTIC] /data/latest_checkin/{user_id}", flush=True)
     print("=" * 80, flush=True)
@@ -38,6 +43,9 @@ async def get_latest_checkin_for_user(user_id: str, supabase: AsyncClient = Depe
             print("PASSO 6: Nenhum dado encontrado na resposta.", flush=True)
             return None
 
+    except APIError as e:
+        # Handle PostgREST errors using centralized utility
+        handle_postgrest_error(e, user_id)
     except Exception as e:
         print("=" * 80, flush=True)
         print(f"[ERRO CAPTURADO EM DATA.PY]", flush=True)
