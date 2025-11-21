@@ -11,3 +11,5 @@ lifelines
 nltk
 scipy
 supabase>=2.0.0,<3.0.0
+pytest
+httpx
