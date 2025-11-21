@@ -55,6 +55,9 @@ def generate_test_checkin(user_id: str, days_ago: int) -> dict:
     The database schema may include additional optional fields beyond those
     shown in minimal test examples.
     
+    Note: Uses numeric values for all fields (matching test_predictions_endpoint.py).
+    The feature_engineering.py will handle any necessary type conversions.
+    
     Args:
         user_id: The user ID for the check-in
         days_ago: How many days ago this check-in occurred
@@ -65,10 +68,11 @@ def generate_test_checkin(user_id: str, days_ago: int) -> dict:
     checkin_date = datetime.now(timezone.utc) - timedelta(days=days_ago)
     
     # Generate realistic random values including core features used by prediction models
+    # All values are numeric, matching the pattern in test_predictions_endpoint.py
     return {
         "user_id": user_id,
         "checkin_date": checkin_date.isoformat(),
-        "hoursSlept": round(random.uniform(4.0, 10.0), 1),
+        "hoursSlept": round(random.uniform(4.0, 10.0), 1),  # Numeric, not categorical
         "sleepQuality": random.randint(1, 10),
         "energyLevel": random.randint(1, 10),
         "depressedMood": random.randint(0, 10),
