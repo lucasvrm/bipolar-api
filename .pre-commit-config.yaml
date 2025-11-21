@@ -31,5 +31,7 @@ repos:
     hooks:
       - id: detect-secrets
         name: Detect secrets
+        # To initialize baseline: detect-secrets scan > .secrets.baseline
+        # To update baseline: detect-secrets scan --baseline .secrets.baseline
         args: ['--baseline', '.secrets.baseline']
         exclude: package.lock.json

@@ -24,6 +24,10 @@ This project uses environment variables for sensitive configuration. Follow thes
    # Install pre-commit
    pip install pre-commit
    
+   # Initialize detect-secrets baseline (first time only)
+   pip install detect-secrets
+   detect-secrets scan > .secrets.baseline
+   
    # Setup hooks
    pre-commit install
    
