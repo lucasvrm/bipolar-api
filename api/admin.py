@@ -151,26 +151,26 @@ async def generate_synthetic_data(
         if data_request.clear_db:
             logger.info("Clearing synthetic data before generation...")
             
-            # Get all synthetic user profiles (identified by @example.com email or faker domains)
+            # Synthetic domains used by Faker with pt_BR locale
+            SYNTHETIC_DOMAINS = ['@example.com', '@example.org', '@example.net']
+            
+            # Get all synthetic user profiles (identified by example domains)
             profiles_response = await supabase.table('profiles').select('id, email').execute()
             
             if profiles_response.data:
-                synthetic_domains = ['@example.com', '@example.org', '@example.net']
                 synthetic_user_ids = [
                     profile['id'] for profile in profiles_response.data
-                    if profile.get('email') and any(domain in profile['email'] for domain in synthetic_domains)
+                    if profile.get('email') and any(domain in profile['email'] for domain in SYNTHETIC_DOMAINS)
                 ]
                 
                 if synthetic_user_ids:
                     logger.info(f"Found {len(synthetic_user_ids)} synthetic users to clear")
                     
-                    # Delete check-ins first (child records)
-                    for user_id in synthetic_user_ids:
-                        await supabase.table('check_ins').delete().eq('user_id', user_id).execute()
+                    # Bulk delete check-ins (child records) using in_ clause
+                    await supabase.table('check_ins').delete().in_('user_id', synthetic_user_ids).execute()
                     
-                    # Then delete profiles (parent records)
-                    for user_id in synthetic_user_ids:
-                        await supabase.table('profiles').delete().eq('id', user_id).execute()
+                    # Bulk delete profiles (parent records) using in_ clause
+                    await supabase.table('profiles').delete().in_('id', synthetic_user_ids).execute()
                     
                     logger.info(f"Cleared {len(synthetic_user_ids)} synthetic users and their check-ins")
         

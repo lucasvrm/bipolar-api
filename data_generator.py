@@ -297,9 +297,9 @@ async def generate_and_populate_data(
     """
     # Handle new parameters vs legacy parameter
     if patients_count is not None or therapists_count is not None:
-        # New parametrized approach
-        patients_count = patients_count or 0
-        therapists_count = therapists_count or 0
+        # New parametrized approach - use provided values
+        patients_count = patients_count if patients_count is not None else 0
+        therapists_count = therapists_count if therapists_count is not None else 0
         total_users = patients_count + therapists_count
     else:
         # Legacy approach - create all as patients by default
