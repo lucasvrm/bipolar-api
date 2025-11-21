@@ -542,6 +542,9 @@ async def get_prediction_of_day(
     Returns:
         JSON com predição única do tipo mood_state: { type, label, probability }
     """
+    # Validate UUID format
+    validate_uuid_or_400(user_id, "user_id")
+    
     logger.info("GET /data/prediction_of_day")
     
     # Validar variáveis de ambiente do Supabase
@@ -596,6 +599,9 @@ async def get_prediction_of_day(
     except HTTPException:
         # Re-raise HTTP exceptions
         raise
+    except APIError as e:
+        # Handle PostgREST errors using centralized utility
+        handle_postgrest_error(e, user_id)
     except Exception as e:
         logger.exception("Error processing prediction_of_day")
         raise HTTPException(

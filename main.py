@@ -1,6 +1,5 @@
 # main.py
 import logging
-import traceback
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -56,23 +55,18 @@ async def global_exception_handler(request: Request, exc: Exception):
     """
     Captura todas as exceções não tratadas e loga traceback completo.
     Isso garante que erros sejam visíveis nos logs do Render para diagnóstico.
+    Cliente recebe apenas mensagem genérica e segura.
     """
     logger.exception(
         "Unhandled exception occurred while handling request: %s %s",
         request.method,
-        request.url
+        request.url,
+        exc_info=True
     )
-    
-    # Força impressão do traceback completo para stderr (visível no Render)
-    tb = traceback.format_exc()
-    print("=" * 80, flush=True)
-    print("EXCEPTION TRACEBACK:", flush=True)
-    print(tb, flush=True)
-    print("=" * 80, flush=True)
     
     return JSONResponse(
         status_code=500,
-        content={"detail": "Internal Server Error - Check logs for details"}
+        content={"detail": "Internal Server Error"}
     )
 
 
