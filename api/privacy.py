@@ -5,7 +5,6 @@ Includes consent management, data export, and data erasure.
 """
 import os
 import logging
-import hashlib
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Header
@@ -13,7 +12,7 @@ from supabase import AsyncClient
 from postgrest.exceptions import APIError
 
 from api.dependencies import get_supabase_client
-from api.utils import validate_uuid_or_400, handle_postgrest_error
+from api.utils import validate_uuid_or_400, handle_postgrest_error, hash_user_id_for_logging
 
 logger = logging.getLogger("bipolar-api.privacy")
 
@@ -79,9 +78,14 @@ async def get_user_profile(
     - Admin status (is_admin field)
     - Created timestamp
     
-    Note: This endpoint does not require authorization to allow the frontend
-    to display user information. Row Level Security (RLS) policies in Supabase
-    control data access.
+    Security Note: This endpoint currently does not require authorization, matching
+    the pattern of other data endpoints (/data/predictions, /data/latest_checkin).
+    The security model assumes the frontend authenticates users via Supabase Auth
+    and only requests data for the authenticated user.
+    
+    TODO: Implement JWT token validation to ensure users can only access their own
+    profile data, or add proper RLS by using user-scoped Supabase clients instead
+    of the service key.
     
     Args:
         user_id: UUID of the user
@@ -95,7 +99,7 @@ async def get_user_profile(
     # Validate UUID
     validate_uuid_or_400(user_id, "user_id")
     
-    logger.info(f"Fetching profile for user {hashlib.sha256(user_id.encode()).hexdigest()[:8]}")
+    logger.info(f"Fetching profile for user {hash_user_id_for_logging(user_id)}")
     
     try:
         # Fetch user profile from profiles table
@@ -168,7 +172,7 @@ async def update_consent(
     # Verify authorization
     verify_authorization(user_id, authorization)
     
-    logger.info(f"Updating consent for user {hashlib.sha256(user_id.encode()).hexdigest()[:8]}")
+    logger.info(f"Updating consent for user {hash_user_id_for_logging(user_id)}")
     
     try:
         # Add timestamp
@@ -230,7 +234,7 @@ async def export_user_data(
     # Verify authorization
     verify_authorization(user_id, authorization)
     
-    logger.info(f"Exporting data for user {hashlib.sha256(user_id.encode()).hexdigest()[:8]}")
+    logger.info(f"Exporting data for user {hash_user_id_for_logging(user_id)}")
     
     try:
         export_data = {
@@ -318,7 +322,7 @@ async def erase_user_data(
     # Verify authorization
     verify_authorization(user_id, authorization)
     
-    logger.warning(f"ERASURE REQUEST for user {hashlib.sha256(user_id.encode()).hexdigest()[:8]}")
+    logger.warning(f"ERASURE REQUEST for user {hash_user_id_for_logging(user_id)}")
     
     try:
         deletion_summary = {
