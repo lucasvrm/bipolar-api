@@ -1,9 +1,11 @@
 # api/predictions.py
+import asyncio
 import logging
 import os
+import time
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from supabase import AsyncClient
 from postgrest.exceptions import APIError
 import pandas as pd
@@ -13,11 +15,18 @@ from .dependencies import get_supabase_client
 from .models import MODELS
 from .utils import validate_uuid_or_400, handle_postgrest_error
 from feature_engineering import create_features_for_prediction
+from services.prediction_cache import get_cache
 
 # Logger específico para este módulo
 logger = logging.getLogger("bipolar-api.predictions")
 
 router = APIRouter(prefix="/data", tags=["Predictions"])
+
+# Configuration constants
+MAX_LIMIT_CHECKINS = 10  # Maximum per_checkin processing to prevent OOM
+INFERENCE_TIMEOUT_SECONDS = int(os.getenv("INFERENCE_TIMEOUT_SECONDS", "30"))
+CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "300"))  # 5 minutes default
+USE_BACKGROUND_INFERENCE = os.getenv("USE_BACKGROUND_INFERENCE", "false").lower() == "true"
 
 # Mapeamento de classes de humor
 MOOD_STATE_MAP = {
@@ -138,6 +147,54 @@ def normalize_probability(prob: float) -> float:
     return normalized
 
 
+async def run_prediction_with_timeout(
+    checkin_data: Dict[str, Any],
+    prediction_type: str,
+    window_days: int = 3,
+    timeout_seconds: int = INFERENCE_TIMEOUT_SECONDS
+) -> Dict[str, Any]:
+    """
+    Wrapper around run_prediction with timeout protection.
+    
+    Args:
+        checkin_data: Check-in data
+        prediction_type: Type of prediction
+        window_days: Temporal window in days
+        timeout_seconds: Maximum time to wait for prediction
+        
+    Returns:
+        Prediction result dictionary
+        
+    Raises:
+        asyncio.TimeoutError: If prediction exceeds timeout
+    """
+    try:
+        # Run the synchronous prediction in a thread pool with timeout
+        loop = asyncio.get_event_loop()
+        result = await asyncio.wait_for(
+            loop.run_in_executor(
+                None,
+                run_prediction,
+                checkin_data,
+                prediction_type,
+                window_days
+            ),
+            timeout=timeout_seconds
+        )
+        return result
+    except asyncio.TimeoutError:
+        logger.error(f"Prediction timeout after {timeout_seconds}s for type={prediction_type}")
+        return {
+            "type": prediction_type,
+            "label": "Timeout",
+            "probability": None,
+            "details": {},
+            "model_version": None,
+            "explanation": f"Prediction timed out after {timeout_seconds} seconds",
+            "source": "error"
+        }
+
+
 def run_prediction(
     checkin_data: Dict[str, Any],
     prediction_type: str,
@@ -154,6 +211,7 @@ def run_prediction(
     Returns:
         Dicionário com resultado da predição
     """
+    start_time = time.time()
     logger.info(f"Running prediction: {prediction_type} for window_days={window_days}")
     
     result = {
@@ -286,7 +344,11 @@ def run_prediction(
         logger.exception(f"Error running prediction {prediction_type}: {e}")
         result["probability"] = None
         result["explanation"] = f"Prediction failed: {str(e)}"
-        
+    
+    # Log inference latency metrics
+    elapsed_time = time.time() - start_time
+    logger.info(f"Prediction {prediction_type} completed in {elapsed_time:.3f}s")
+    
     return result
 
 
@@ -295,7 +357,7 @@ async def get_predictions(
     user_id: str,
     types: Optional[str] = Query(None, description="Comma-separated list of prediction types"),
     window_days: int = Query(3, ge=1, le=30, description="Temporal window in days"),
-    limit_checkins: int = Query(0, ge=0, le=10, description="Number of recent check-ins to include"),
+    limit_checkins: int = Query(0, ge=0, le=MAX_LIMIT_CHECKINS, description="Number of recent check-ins to include"),
     supabase: AsyncClient = Depends(get_supabase_client)
 ):
     """
@@ -308,6 +370,11 @@ async def get_predictions(
     4. medication_adherence_risk - Risco de baixa adesão medicamentosa
     5. sleep_disturbance_risk - Risco de perturbação do sono
     
+    Features:
+    - Redis caching (TTL: 5-30 min configurable via CACHE_TTL_SECONDS)
+    - Timeout protection (configurable via INFERENCE_TIMEOUT_SECONDS)
+    - Payload size limits (max limit_checkins enforced)
+    
     Args:
         user_id: UUID do usuário
         types: Lista de tipos separados por vírgula (default: todos)
@@ -317,6 +384,8 @@ async def get_predictions(
     Returns:
         JSON com predições agregadas e opcionalmente por check-in
     """
+    request_start_time = time.time()
+    
     # Validate UUID format
     validate_uuid_or_400(user_id, "user_id")
     
@@ -345,6 +414,19 @@ async def get_predictions(
         requested_types = SUPPORTED_TYPES.copy()
     
     logger.info(f"Requested types: {requested_types}")
+    
+    # Try to get from cache first (only for aggregated predictions, not per_checkin)
+    cache = get_cache()
+    cached_result = None
+    if limit_checkins == 0:
+        cached_result = await cache.get(user_id, window_days, requested_types)
+        if cached_result:
+            logger.info(f"Cache HIT for user {user_id}")
+            elapsed_time = time.time() - request_start_time
+            logger.info(f"Request completed in {elapsed_time:.3f}s (from cache)")
+            return cached_result
+        else:
+            logger.info(f"Cache MISS for user {user_id}")
     
     try:
         # Buscar check-ins do usuário
@@ -376,10 +458,10 @@ async def get_predictions(
             latest_checkin = checkins[0]
             logger.info(f"Processing predictions for latest check-in: {latest_checkin.get('id')}")
             
-            # Executar predições para cada tipo solicitado
+            # Executar predições para cada tipo solicitado com timeout
             for pred_type in requested_types:
                 logger.info(f"Running prediction type: {pred_type}")
-                prediction = run_prediction(latest_checkin, pred_type, window_days)
+                prediction = await run_prediction_with_timeout(latest_checkin, pred_type, window_days)
                 response_data["predictions"].append(prediction)
             
             # Se limit_checkins > 0, incluir predições por check-in
@@ -394,7 +476,7 @@ async def get_predictions(
                     }
                     
                     for pred_type in requested_types:
-                        prediction = run_prediction(checkin, pred_type, window_days)
+                        prediction = await run_prediction_with_timeout(checkin, pred_type, window_days)
                         prediction["source"] = "per_checkin"
                         checkin_predictions["predictions"].append(prediction)
                     
@@ -417,6 +499,15 @@ async def get_predictions(
         
         logger.info(f"Successfully generated {len(response_data['predictions'])} predictions")
         print(f"[PREDICTIONS] Response ready with {len(response_data['predictions'])} predictions", flush=True)
+        
+        # Store in cache (only if no per_checkin data was requested)
+        if limit_checkins == 0 and checkins:
+            await cache.set(user_id, window_days, requested_types, response_data, CACHE_TTL_SECONDS)
+            logger.info(f"Cached predictions for user {user_id} (TTL: {CACHE_TTL_SECONDS}s)")
+        
+        # Log total request time
+        elapsed_time = time.time() - request_start_time
+        logger.info(f"Request completed in {elapsed_time:.3f}s")
         
         return response_data
         
@@ -480,8 +571,8 @@ async def get_prediction_of_day(
             latest_checkin = checkins[0]
             logger.info("Processing mood_state prediction for latest check-in")
             
-            # Executar predição de mood_state com janela de 3 dias
-            prediction = run_prediction(latest_checkin, "mood_state", window_days=3)
+            # Executar predição de mood_state com janela de 3 dias (com timeout)
+            prediction = await run_prediction_with_timeout(latest_checkin, "mood_state", window_days=3)
             
             # Retornar apenas os campos essenciais
             result = {
@@ -490,7 +581,7 @@ async def get_prediction_of_day(
                 "probability": prediction["probability"]
             }
             
-            logger.info(f"Prediction of day generated: {result['label']} ({result['probability']:.2f})")
+            logger.info(f"Prediction of day generated: {result['label']} ({result.get('probability', 'N/A')})")
             
             return result
         else:
