@@ -135,7 +135,7 @@ def generate_realistic_checkin(
     suicide_risk = random.randint(0, 2) if suicidal_ideation > 0 else 0
     self_harm = random.randint(0, 1) if mood_state in ['DEPRESSED', 'MIXED'] else 0
     routine_disruption = 1 if social_rhythm_event else random.randint(0, 1)
-    substance_use = random.randint(0, 2) if mood_state == 'MANIC' else 0
+    substance_use = random.randint(0, 1) if mood_state == 'MANIC' else 0  # Changed from 0-2 to 0-1
     risky_behavior = random.randint(0, 1) if mood_state == 'MANIC' else 0
     
     # Appetite and impulse
@@ -149,64 +149,64 @@ def generate_realistic_checkin(
     
     # --- 2. Structure Data into JSONB Columns ---
     
-    # sleep_data JSONB
+    # sleep_data JSONB - using correct camelCase field names from schema
     sleep_data = SleepData(
-        sleep_hours=sleep_hours,
-        sleep_quality=sleep_quality,
-        sleep_disrupted=random.randint(0, 1),
-        sleep_aids_used=random.randint(0, 1)
+        hoursSlept=sleep_hours,
+        sleepQuality=sleep_quality,
+        perceivedSleepNeed=round(random.uniform(6.0, 9.0), 1),
+        sleepHygiene=random.randint(3, 8),
+        hasNapped=random.randint(0, 1),
+        nappingDurationMin=random.randint(0, 90) if random.random() < 0.3 else 0
     ).model_dump()
     
-    # mood_data JSONB
+    # mood_data JSONB - using correct camelCase field names from schema
     mood_data = MoodData(
-        energy_level=energy_level,
-        depressed_mood=depressed_mood,
-        anxiety_stress=anxiety_stress,
-        activation=activation,
+        energyLevel=energy_level,
+        depressedMood=depressed_mood,
+        anxietyStress=anxiety_stress,
         elevation=elevation,
-        social_connection=social_connection,
-        contextual_stressors=contextual_stressors,
-        social_rhythm_event=social_rhythm_event
+        activation=activation,
+        motivationToStart=motivation
     ).model_dump()
     
-    # symptoms_data JSONB
+    # symptoms_data JSONB - using correct camelCase field names from schema
     symptoms_data = SymptomsData(
-        thought_speed=thought_speed,
+        thoughtSpeed=thought_speed,
         distractibility=distractibility,
-        libido=libido,
-        compulsion_episode=compulsion_episode,
-        compulsion_intensity=compulsion_intensity,
-        motivation=motivation,
-        tasks_planned=tasks_planned,
-        tasks_completed=tasks_completed
+        memoryConcentration=random.randint(3, 8),
+        ruminationAxis=random.randint(2, 7)
     ).model_dump()
     
-    # risk_routine_data JSONB
+    # risk_routine_data JSONB - using correct camelCase field names from schema
     risk_routine_data = RiskRoutineData(
-        suicidal_ideation=suicidal_ideation,
-        suicide_risk=suicide_risk,
-        self_harm=self_harm,
-        routine_disruption=routine_disruption,
-        substance_use=substance_use,
-        risky_behavior=risky_behavior
+        socialConnection=social_connection,
+        socialRhythmEvent=social_rhythm_event,
+        exerciseDurationMin=random.randint(0, 90),
+        exerciseFeeling=random.randint(3, 8),
+        sexualRiskBehavior=risky_behavior,
+        tasksPlanned=tasks_planned,
+        tasksCompleted=tasks_completed
     ).model_dump()
     
-    # appetite_impulse_data JSONB
+    # appetite_impulse_data JSONB - using correct camelCase field names from schema
     appetite_impulse_data = AppetiteImpulseData(
-        appetite=appetite,
-        impulse_control=impulse_control,
-        impulse_spending=impulse_spending,
-        impulse_food=impulse_food,
-        impulse_sex=impulse_sex,
-        impulse_drugs=impulse_drugs,
-        impulse_alcohol=impulse_alcohol
+        generalAppetite=appetite,
+        dietTracking=random.randint(0, 1),
+        skipMeals=random.randint(0, 1) if mood_state == 'DEPRESSED' else 0,
+        compulsionEpisode=compulsion_episode,
+        compulsionIntensity=compulsion_intensity,
+        substanceUsage=substance_use,
+        substanceUnits=random.randint(0, 5) if substance_use else 0,
+        caffeineDoses=random.randint(0, 4),
+        libido=libido
     ).model_dump()
     
-    # meds_context_data JSONB
+    # meds_context_data JSONB - using correct camelCase field names from schema
     meds_context_data = MedsContextData(
-        medication_adherence=medication_adherence,
-        medication_timing=medication_timing,
-        medication_change_recent=medication_change_recent
+        medicationAdherence=medication_adherence,
+        medicationTiming=medication_timing,
+        medicationChangeRecent=medication_change_recent,
+        contextualStressors=contextual_stressors
     ).model_dump()
     
     # --- 3. Assemble Full Check-in Dict ---

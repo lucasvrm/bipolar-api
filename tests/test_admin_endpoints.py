@@ -24,6 +24,14 @@ def client():
     app.state.limiter.enabled = True
 
 
+class MockAuthResponse:
+    """Mock response from Supabase auth.admin.create_user()"""
+    def __init__(self, user_id=None):
+        self.user = MockUser(email="test@example.com")
+        if user_id:
+            self.user.id = user_id
+
+
 class MockSupabaseResponse:
     """Mock response from Supabase"""
     def __init__(self, data):
@@ -61,7 +69,7 @@ def create_mock_supabase_client(return_data=None, num_records=30, mock_user=None
         mock_method = MagicMock()
 
         # Support various chain methods
-        for method in ['execute', 'insert', 'upsert', 'delete', 'eq', 'select', 'limit', 'order']:
+        for method in ['execute', 'insert', 'upsert', 'delete', 'eq', 'select', 'limit', 'order', 'in_', 'is_', 'gte', 'lt']:
             if method == 'execute':
                 setattr(mock_method, method, mock_execute)
             else:
@@ -77,8 +85,19 @@ def create_mock_supabase_client(return_data=None, num_records=30, mock_user=None
             return MockUserResponse(mock_user)
         return None
     
+    # Mock auth.admin.create_user() method
+    import uuid
+    async def mock_create_user(user_data):
+        # Generate a unique user ID for each call
+        user_id = str(uuid.uuid4())
+        return MockAuthResponse(user_id=user_id)
+    
+    mock_admin = MagicMock()
+    mock_admin.create_user = mock_create_user
+    
     mock_auth = MagicMock()
     mock_auth.get_user = mock_get_user
+    mock_auth.admin = mock_admin
     mock_client.auth = mock_auth
 
     return mock_client
