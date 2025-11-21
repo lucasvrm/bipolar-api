@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 # Importa nossos módulos da API
-from api import clinical, behavior, insights, data, predictions
+from api import clinical, behavior, insights, data, predictions, privacy
 from api.models import load_models
 
 # Configurar logging para capturar exceções
@@ -117,6 +117,7 @@ app.include_router(behavior.router)
 app.include_router(insights.router)
 app.include_router(data.router)
 app.include_router(predictions.router)
+app.include_router(privacy.router)
 
 
 # --- Endpoint Raiz para Health Check ---
