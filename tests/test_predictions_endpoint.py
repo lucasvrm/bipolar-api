@@ -263,6 +263,139 @@ def test_predictions_endpoint_missing_env_vars():
         assert "supabase" in detail or "ambiente" in detail
 
 
+def test_prediction_of_day_endpoint_no_checkins():
+    """Test prediction_of_day endpoint with user that has no check-ins"""
+    mock_client = create_mock_supabase_client([])
+    
+    async def mock_acreate_client(*args, **kwargs):
+        return mock_client
+    
+    with patch.dict(os.environ, {
+        "SUPABASE_URL": "https://test.supabase.co",
+        "SUPABASE_SERVICE_KEY": "test-key"
+    }):
+        with patch("api.dependencies.acreate_client", side_effect=mock_acreate_client):
+            response = client.get("/data/prediction_of_day/test-user-no-data")
+            
+            assert response.status_code == 200
+            data = response.json()
+            
+            # Verify structure - should only have 3 fields
+            assert "type" in data
+            assert "label" in data
+            assert "probability" in data
+            assert len(data) == 3
+            
+            # Verify content
+            assert data["type"] == "mood_state"
+            assert data["label"] == "Dados insuficientes"
+            assert data["probability"] == 0.0
+
+
+def test_prediction_of_day_endpoint_with_checkin():
+    """Test prediction_of_day endpoint with user that has one check-in"""
+    # Mock check-in data
+    checkin_data = {
+        "id": "test-checkin-123",
+        "user_id": "test-user-123",
+        "checkin_date": "2024-01-15T10:30:00Z",
+        "hoursSlept": 6.5,
+        "sleepQuality": 6,
+        "energyLevel": 5,
+        "depressedMood": 4,
+        "anxietyStress": 6,
+        "medicationAdherence": 1,
+        "medicationTiming": 1,
+        "compulsionIntensity": 0
+    }
+    
+    mock_client = create_mock_supabase_client([checkin_data])
+    
+    async def mock_acreate_client(*args, **kwargs):
+        return mock_client
+    
+    with patch.dict(os.environ, {
+        "SUPABASE_URL": "https://test.supabase.co",
+        "SUPABASE_SERVICE_KEY": "test-key"
+    }):
+        with patch("api.dependencies.acreate_client", side_effect=mock_acreate_client):
+            response = client.get("/data/prediction_of_day/test-user-123")
+            
+            assert response.status_code == 200
+            data = response.json()
+            
+            # Verify structure - should only have 3 fields
+            assert "type" in data
+            assert "label" in data
+            assert "probability" in data
+            assert len(data) == 3
+            
+            # Verify content
+            assert data["type"] == "mood_state"
+            assert data["label"] is not None
+            assert data["label"] != "Dados insuficientes"
+            
+            # Verify probability is valid and normalized
+            assert data["probability"] is not None
+            assert isinstance(data["probability"], (int, float))
+            assert 0 <= data["probability"] <= 1
+            
+            # Label should be one of the mood states
+            assert data["label"] in ["Eutimia", "Mania", "Depressão", "Estado Misto"]
+
+
+def test_prediction_of_day_endpoint_probability_normalization():
+    """Test that probabilities are properly normalized and subnormals handled"""
+    # Mock check-in data with extreme values
+    checkin_data = {
+        "id": "test-checkin-extreme",
+        "user_id": "test-user-extreme",
+        "checkin_date": "2024-01-15T10:30:00Z",
+        "hoursSlept": 10,
+        "sleepQuality": 10,
+        "energyLevel": 10,
+        "depressedMood": 0,
+        "anxietyStress": 0,
+        "medicationAdherence": 1,
+        "medicationTiming": 1,
+        "compulsionIntensity": 0
+    }
+    
+    mock_client = create_mock_supabase_client([checkin_data])
+    
+    async def mock_acreate_client(*args, **kwargs):
+        return mock_client
+    
+    with patch.dict(os.environ, {
+        "SUPABASE_URL": "https://test.supabase.co",
+        "SUPABASE_SERVICE_KEY": "test-key"
+    }):
+        with patch("api.dependencies.acreate_client", side_effect=mock_acreate_client):
+            response = client.get("/data/prediction_of_day/test-user-extreme")
+            
+            assert response.status_code == 200
+            data = response.json()
+            
+            # Probability must be in range [0, 1]
+            assert 0.0 <= data["probability"] <= 1.0
+            
+            # If probability is very small, it should be exactly 0
+            # (testing subnormal handling)
+            if data["probability"] < 1e-6:
+                assert data["probability"] == 0.0
+
+
+def test_prediction_of_day_endpoint_missing_env_vars():
+    """Test prediction_of_day endpoint with missing environment variables"""
+    with patch.dict(os.environ, {}, clear=True):
+        response = client.get("/data/prediction_of_day/test-user-123")
+        
+        # Should return 500 with clear error message
+        assert response.status_code == 500
+        detail = response.json()["detail"].lower()
+        assert "supabase" in detail
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
 
