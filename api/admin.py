@@ -25,15 +25,15 @@ router = APIRouter(prefix="/api/admin", tags=["Admin"])
 def verify_admin_authorization(authorization: Optional[str] = Header(None)) -> bool:
     """
     Verify that the request has admin authorization via service key.
-    
+
     Uses the same pattern as privacy.py for admin access.
-    
+
     Args:
         authorization: Authorization header
-        
+
     Returns:
         True if authorized as admin
-        
+
     Raises:
         HTTPException: 401 if unauthorized
     """
@@ -43,17 +43,17 @@ def verify_admin_authorization(authorization: Optional[str] = Header(None)) -> b
             status_code=401,
             detail="Admin authorization required. Provide a valid service key."
         )
-    
+
     # Get service key from environment
     service_key = os.getenv("SUPABASE_SERVICE_KEY")
-    
+
     # Check if it's a service key (admin access)
     if authorization.startswith("Bearer "):
         token = authorization[7:]
         if token == service_key:
             logger.info("Admin access authorized")
             return True
-    
+
     logger.error("Invalid admin authorization token")
     raise HTTPException(
         status_code=401,
@@ -70,7 +70,7 @@ class GenerateDataRequest(BaseModel):
             "mood_pattern": "stable"
         }
     }}
-    
+
     num_users: int = Field(default=5, ge=1, le=100, description="Number of users to generate (1-100)")
     checkins_per_user: int = Field(default=30, ge=1, le=365, description="Check-ins per user (1-365)")
     mood_pattern: str = Field(
@@ -89,31 +89,31 @@ async def generate_synthetic_data(
 ):
     """
     Generate and insert synthetic patient data into the database.
-    
+
     This admin-only endpoint creates realistic synthetic check-in data for testing
     and development purposes. It generates multiple users with complete check-in
     histories that include realistic correlations between mood states and other
     clinical markers.
-    
+
     **Authentication**: Requires service key in Authorization header
-    
+
     **Rate Limit**: 5 requests per hour per IP
-    
+
     Args:
         data_request: Configuration for data generation
         supabase: Supabase client (injected)
         authorization: Authorization header with service key
-        
+
     Returns:
         JSON with generation statistics including:
         - Number of users created
         - User IDs
         - Total check-ins inserted
         - Generation timestamp
-        
+
     Raises:
         HTTPException: 401 if unauthorized, 400 for invalid parameters, 500 for errors
-        
+
     Example:
         ```bash
         curl -X POST https://api.example.com/api/admin/generate-data \\
@@ -124,7 +124,7 @@ async def generate_synthetic_data(
     """
     # Verify admin authorization
     verify_admin_authorization(authorization)
-    
+
     # Validate mood_pattern
     valid_patterns = ['stable', 'cycling', 'random']
     if data_request.mood_pattern not in valid_patterns:
@@ -132,13 +132,13 @@ async def generate_synthetic_data(
             status_code=400,
             detail=f"Invalid mood_pattern. Must be one of: {', '.join(valid_patterns)}"
         )
-    
+
     logger.info(
         f"Admin data generation request: {data_request.num_users} users, "
         f"{data_request.checkins_per_user} check-ins per user, "
         f"pattern={data_request.mood_pattern}"
     )
-    
+
     try:
         # Generate and populate data
         result = await generate_and_populate_data(
@@ -147,11 +147,11 @@ async def generate_synthetic_data(
             checkins_per_user=data_request.checkins_per_user,
             mood_pattern=data_request.mood_pattern
         )
-        
+
         logger.info(f"Data generation completed: {result['statistics']['total_checkins']} check-ins inserted")
-        
+
         return result
-        
+
     except APIError as e:
         logger.exception(f"Database error during data generation: {e}")
         raise HTTPException(
@@ -173,20 +173,20 @@ async def get_admin_stats(
 ):
     """
     Get statistics about users and check-ins in the database.
-    
+
     This admin-only endpoint provides counts of total users and check-ins
     using the Supabase service role to bypass RLS policies.
-    
+
     **Authentication**: Requires service key in Authorization header
-    
+
     Returns:
         JSON with statistics:
         - total_users: Total number of user profiles
         - total_checkins: Total number of check-ins
-        
+
     Raises:
         HTTPException: 401 if unauthorized, 500 for errors
-        
+
     Example:
         ```bash
         curl -X GET https://api.example.com/api/admin/stats \\
@@ -195,25 +195,25 @@ async def get_admin_stats(
     """
     # Verify admin authorization
     verify_admin_authorization(authorization)
-    
+
     logger.info("Admin stats request received")
-    
+
     try:
         # Count total users using exact count with head=True (only returns count, no data)
         profiles_response = await supabase.table('profiles').select('*', count=CountMethod.exact, head=True).execute()
         total_users = profiles_response.count if profiles_response.count is not None else 0
-        
+
         # Count total check-ins using exact count with head=True
         checkins_response = await supabase.table('check_ins').select('*', count=CountMethod.exact, head=True).execute()
         total_checkins = checkins_response.count if checkins_response.count is not None else 0
-        
+
         logger.info(f"Stats retrieved: {total_users} users, {total_checkins} check-ins")
-        
+
         return {
             "total_users": total_users,
             "total_checkins": total_checkins
         }
-        
+
     except APIError as e:
         logger.exception(f"Database error during stats retrieval: {e}")
         raise HTTPException(
@@ -235,21 +235,21 @@ async def get_admin_users(
 ):
     """
     List the most recently created users in the database.
-    
+
     This admin-only endpoint provides a list of the last 50 users with their
     basic information, using the Supabase service role to bypass RLS policies.
-    
+
     **Authentication**: Requires service key in Authorization header
-    
+
     Returns:
         List of user objects with:
         - id: User UUID
         - email: User email
         - full_name: User's full name (if exists)
-        
+
     Raises:
         HTTPException: 401 if unauthorized, 500 for errors
-        
+
     Example:
         ```bash
         curl -X GET https://api.example.com/api/admin/users \\
@@ -258,19 +258,19 @@ async def get_admin_users(
     """
     # Verify admin authorization
     verify_admin_authorization(authorization)
-    
+
     logger.info("Admin users list request received")
-    
+
     try:
         # Get last 50 users ordered by created_at descending
         response = await supabase.table('profiles').select('id, email, full_name').order('created_at', desc=True).limit(50).execute()
-        
+
         users = response.data if response.data else []
-        
+
         logger.info(f"Retrieved {len(users)} users")
-        
+
         return users
-        
+
     except APIError as e:
         logger.exception(f"Database error during users retrieval: {e}")
         raise HTTPException(
@@ -292,7 +292,7 @@ class CleanupDataRequest(BaseModel):
             "confirm": True
         }
     }}
-    
+
     confirm: bool = Field(default=False, description="Confirmation to proceed with cleanup")
 
 
@@ -306,28 +306,28 @@ async def cleanup_synthetic_data(
 ):
     """
     Clean up synthetic patient data from the database.
-    
+
     This admin-only endpoint removes synthetic users and their associated check-ins.
     Synthetic users are identified by their email domain (@example.com).
-    
+
     **Authentication**: Requires service key in Authorization header
-    
+
     **Rate Limit**: 3 requests per hour per IP
-    
+
     Args:
         cleanup_request: Cleanup confirmation
         supabase: Supabase client (injected)
         authorization: Authorization header with service key
-        
+
     Returns:
         JSON with cleanup statistics including:
         - Number of profiles deleted
         - Number of check-ins deleted
         - Cleanup timestamp
-        
+
     Raises:
         HTTPException: 401 if unauthorized, 400 if not confirmed, 500 for errors
-        
+
     Example:
         ```bash
         curl -X POST https://api.example.com/api/admin/cleanup-data \\
@@ -338,20 +338,20 @@ async def cleanup_synthetic_data(
     """
     # Verify admin authorization
     verify_admin_authorization(authorization)
-    
+
     # Require explicit confirmation
     if not cleanup_request.confirm:
         raise HTTPException(
             status_code=400,
             detail="Cleanup requires explicit confirmation. Set 'confirm': true in the request."
         )
-    
+
     logger.info("Admin data cleanup request received")
-    
+
     try:
         # First, get all synthetic user profiles (identified by @example.com email)
         profiles_response = await supabase.table('profiles').select('id, email').execute()
-        
+
         if not profiles_response.data:
             logger.info("No profiles found in database")
             return {
@@ -363,14 +363,14 @@ async def cleanup_synthetic_data(
                     "cleaned_at": datetime.now(timezone.utc).isoformat()
                 }
             }
-        
+
         # Filter synthetic users (those with @example.com emails or typical faker domains)
         synthetic_domains = ['@example.com', '@example.org', '@example.net']
         synthetic_user_ids = [
             profile['id'] for profile in profiles_response.data
             if profile.get('email') and any(domain in profile['email'] for domain in synthetic_domains)
         ]
-        
+
         if not synthetic_user_ids:
             logger.info("No synthetic users found to cleanup")
             return {
@@ -382,27 +382,27 @@ async def cleanup_synthetic_data(
                     "cleaned_at": datetime.now(timezone.utc).isoformat()
                 }
             }
-        
+
         logger.info(f"Found {len(synthetic_user_ids)} synthetic users to cleanup")
-        
+
         # Delete check-ins first (child records)
         checkins_deleted = 0
         for user_id in synthetic_user_ids:
             checkins_response = await supabase.table('check_ins').delete().eq('user_id', user_id).execute()
             if checkins_response.data:
                 checkins_deleted += len(checkins_response.data)
-        
+
         logger.info(f"Deleted {checkins_deleted} check-ins")
-        
+
         # Then delete profiles (parent records)
         profiles_deleted = 0
         for user_id in synthetic_user_ids:
             profile_response = await supabase.table('profiles').delete().eq('id', user_id).execute()
             if profile_response.data:
                 profiles_deleted += len(profile_response.data)
-        
+
         logger.info(f"Deleted {profiles_deleted} profiles")
-        
+
         return {
             "status": "success",
             "message": f"Cleaned up {profiles_deleted} synthetic users and {checkins_deleted} check-ins",
@@ -412,7 +412,7 @@ async def cleanup_synthetic_data(
                 "cleaned_at": datetime.now(timezone.utc).isoformat()
             }
         }
-        
+
     except APIError as e:
         logger.exception(f"Database error during cleanup: {e}")
         raise HTTPException(
