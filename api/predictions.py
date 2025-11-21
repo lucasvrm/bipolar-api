@@ -443,7 +443,7 @@ async def get_prediction_of_day(
     Returns:
         JSON com predição única do tipo mood_state: { type, label, probability }
     """
-    logger.info(f"GET /data/prediction_of_day/{user_id}")
+    logger.info("GET /data/prediction_of_day")
     
     # Validar variáveis de ambiente do Supabase
     if not os.environ.get("SUPABASE_URL") or not os.environ.get("SUPABASE_SERVICE_KEY"):
@@ -455,7 +455,7 @@ async def get_prediction_of_day(
     
     try:
         # Buscar o check-in mais recente do usuário
-        logger.info(f"Fetching latest check-in for user_id={user_id}")
+        logger.info("Fetching latest check-in for user")
         
         response = await supabase.table('check_ins')\
             .select('*')\
@@ -465,12 +465,12 @@ async def get_prediction_of_day(
             .execute()
         
         checkins = response.data if response.data else []
-        logger.info(f"Found {len(checkins)} check-ins for user_id={user_id}")
+        logger.info(f"Found {len(checkins)} check-ins")
         
         # Se houver check-in, processar predição de mood_state
         if checkins:
             latest_checkin = checkins[0]
-            logger.info(f"Processing mood_state prediction for check-in: {latest_checkin.get('id')}")
+            logger.info("Processing mood_state prediction for latest check-in")
             
             # Executar predição de mood_state com janela de 3 dias
             prediction = run_prediction(latest_checkin, "mood_state", window_days=3)
@@ -498,7 +498,7 @@ async def get_prediction_of_day(
         # Re-raise HTTP exceptions
         raise
     except Exception as e:
-        logger.exception(f"Error processing prediction_of_day for user_id={user_id}: {e}")
+        logger.exception("Error processing prediction_of_day")
         raise HTTPException(
             status_code=500,
             detail=f"Error processing prediction of day: {str(e)}"
