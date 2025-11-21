@@ -944,3 +944,274 @@ class TestPydanticSchemas:
         assert isinstance(risk.model_dump(), dict)
         assert isinstance(appetite.model_dump(), dict)
         assert isinstance(meds.model_dump(), dict)
+
+
+class TestDangerZoneCleanup:
+    """Test the /api/admin/danger-zone-cleanup endpoint."""
+
+    def test_danger_zone_cleanup_without_auth_returns_401(self, client, mock_env):
+        """Test that request without authorization header is rejected."""
+        async def mock_create(*args, **kwargs):
+            return create_mock_supabase_client()
+        
+        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+            response = client.post(
+                "/api/admin/danger-zone-cleanup",
+                json={"action": "delete_all"}
+            )
+
+            assert response.status_code == 401
+            assert "authorization required" in response.json()["detail"].lower()
+
+    def test_danger_zone_cleanup_with_non_admin_returns_403(self, client, mock_env, non_admin_user):
+        """Test that non-admin user gets 403 Forbidden."""
+        async def mock_create(*args, **kwargs):
+            return create_mock_supabase_client(mock_user=non_admin_user)
+        
+        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+            response = client.post(
+                "/api/admin/danger-zone-cleanup",
+                headers={"Authorization": "Bearer valid-non-admin-token"},
+                json={"action": "delete_all"}
+            )
+
+            assert response.status_code == 403
+            assert "forbidden" in response.json()["detail"].lower()
+
+    def test_danger_zone_cleanup_invalid_action_returns_400(self, client, mock_env, admin_user):
+        """Test that invalid action returns 400."""
+        async def mock_create(*args, **kwargs):
+            return create_mock_supabase_client(mock_user=admin_user)
+        
+        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+            response = client.post(
+                "/api/admin/danger-zone-cleanup",
+                headers={"Authorization": "Bearer valid-admin-token"},
+                json={"action": "invalid_action"}
+            )
+
+            assert response.status_code == 400
+            assert "invalid action" in response.json()["detail"].lower()
+
+    def test_danger_zone_cleanup_delete_last_n_without_quantity_returns_400(self, client, mock_env, admin_user):
+        """Test that delete_last_n without quantity returns 400."""
+        async def mock_create(*args, **kwargs):
+            return create_mock_supabase_client(mock_user=admin_user)
+        
+        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+            response = client.post(
+                "/api/admin/danger-zone-cleanup",
+                headers={"Authorization": "Bearer valid-admin-token"},
+                json={"action": "delete_last_n"}
+            )
+
+            assert response.status_code == 400
+            assert "quantity" in response.json()["detail"].lower()
+
+    def test_danger_zone_cleanup_delete_by_mood_without_pattern_returns_400(self, client, mock_env, admin_user):
+        """Test that delete_by_mood without mood_pattern returns 400."""
+        async def mock_create(*args, **kwargs):
+            return create_mock_supabase_client(mock_user=admin_user)
+        
+        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+            response = client.post(
+                "/api/admin/danger-zone-cleanup",
+                headers={"Authorization": "Bearer valid-admin-token"},
+                json={"action": "delete_by_mood"}
+            )
+
+            assert response.status_code == 400
+            assert "mood_pattern" in response.json()["detail"].lower()
+
+    def test_danger_zone_cleanup_delete_before_date_without_date_returns_400(self, client, mock_env, admin_user):
+        """Test that delete_before_date without before_date returns 400."""
+        async def mock_create(*args, **kwargs):
+            return create_mock_supabase_client(mock_user=admin_user)
+        
+        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+            response = client.post(
+                "/api/admin/danger-zone-cleanup",
+                headers={"Authorization": "Bearer valid-admin-token"},
+                json={"action": "delete_before_date"}
+            )
+
+            assert response.status_code == 400
+            assert "before_date" in response.json()["detail"].lower()
+
+    def test_danger_zone_cleanup_delete_all_success(self, client, mock_env, admin_user):
+        """Test successful delete_all action."""
+        mock_client = MagicMock()
+        
+        # Mock test patients
+        test_patients = [
+            {"id": "test-1", "email": "test1@example.com", "is_test_patient": True, "deleted_at": None, "created_at": "2024-01-01T00:00:00Z"},
+            {"id": "test-2", "email": "test2@example.com", "is_test_patient": True, "deleted_at": None, "created_at": "2024-01-02T00:00:00Z"},
+        ]
+        
+        async def mock_select_execute():
+            return MockSupabaseResponse(test_patients)
+        
+        async def mock_delete_execute():
+            return MockSupabaseResponse([])
+        
+        async def mock_audit_execute():
+            return MockSupabaseResponse([{"id": "audit-1"}])
+        
+        # Setup mock chains
+        select_chain = MagicMock()
+        select_chain.select = MagicMock(return_value=select_chain)
+        select_chain.eq = MagicMock(return_value=select_chain)
+        select_chain.is_ = MagicMock(return_value=select_chain)
+        select_chain.execute = mock_select_execute
+        
+        delete_chain = MagicMock()
+        delete_chain.delete = MagicMock(return_value=delete_chain)
+        delete_chain.in_ = MagicMock(return_value=delete_chain)
+        delete_chain.eq = MagicMock(return_value=delete_chain)
+        delete_chain.execute = mock_delete_execute
+        
+        audit_chain = MagicMock()
+        audit_chain.insert = MagicMock(return_value=audit_chain)
+        audit_chain.execute = mock_audit_execute
+        
+        # Mock table method
+        def mock_table(table_name):
+            if table_name == 'profiles':
+                # First call for select, second for delete
+                return select_chain if not hasattr(mock_table, 'profile_calls') else delete_chain
+            elif table_name == 'audit_log':
+                return audit_chain
+            else:
+                return delete_chain
+        
+        mock_table.profile_calls = 0
+        mock_client.table = mock_table
+        
+        # Mock auth for admin
+        async def mock_get_user(jwt=None):
+            return MockUserResponse(admin_user)
+        
+        mock_auth = MagicMock()
+        mock_auth.get_user = mock_get_user
+        mock_client.auth = mock_auth
+        
+        async def mock_create(*args, **kwargs):
+            return mock_client
+        
+        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+            response = client.post(
+                "/api/admin/danger-zone-cleanup",
+                headers={"Authorization": "Bearer valid-admin-token"},
+                json={"action": "delete_all"}
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["deleted"] == 2
+            assert "successfully deleted" in data["message"].lower()
+
+    def test_danger_zone_cleanup_delete_last_n_success(self, client, mock_env, admin_user):
+        """Test successful delete_last_n action."""
+        mock_client = MagicMock()
+        
+        # Mock test patients (5 total, delete 2 most recent)
+        test_patients = [
+            {"id": f"test-{i}", "email": f"test{i}@example.com", "is_test_patient": True, 
+             "deleted_at": None, "created_at": f"2024-01-{i:02d}T00:00:00Z"} 
+            for i in range(1, 6)
+        ]
+        
+        async def mock_select_execute():
+            return MockSupabaseResponse(test_patients)
+        
+        async def mock_delete_execute():
+            return MockSupabaseResponse([])
+        
+        async def mock_audit_execute():
+            return MockSupabaseResponse([{"id": "audit-1"}])
+        
+        select_chain = MagicMock()
+        select_chain.select = MagicMock(return_value=select_chain)
+        select_chain.eq = MagicMock(return_value=select_chain)
+        select_chain.is_ = MagicMock(return_value=select_chain)
+        select_chain.execute = mock_select_execute
+        
+        delete_chain = MagicMock()
+        delete_chain.delete = MagicMock(return_value=delete_chain)
+        delete_chain.in_ = MagicMock(return_value=delete_chain)
+        delete_chain.eq = MagicMock(return_value=delete_chain)
+        delete_chain.execute = mock_delete_execute
+        
+        audit_chain = MagicMock()
+        audit_chain.insert = MagicMock(return_value=audit_chain)
+        audit_chain.execute = mock_audit_execute
+        
+        def mock_table(table_name):
+            if table_name == 'profiles':
+                return select_chain if not hasattr(mock_table, 'calls') else delete_chain
+            elif table_name == 'audit_log':
+                return audit_chain
+            else:
+                return delete_chain
+        
+        mock_table.calls = 0
+        mock_client.table = mock_table
+        
+        async def mock_get_user(jwt=None):
+            return MockUserResponse(admin_user)
+        
+        mock_auth = MagicMock()
+        mock_auth.get_user = mock_get_user
+        mock_client.auth = mock_auth
+        
+        async def mock_create(*args, **kwargs):
+            return mock_client
+        
+        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+            response = client.post(
+                "/api/admin/danger-zone-cleanup",
+                headers={"Authorization": "Bearer valid-admin-token"},
+                json={"action": "delete_last_n", "quantity": 2}
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            # Should delete the 2 most recent (by created_at DESC)
+            assert data["deleted"] == 2
+
+    def test_danger_zone_cleanup_no_test_patients_found(self, client, mock_env, admin_user):
+        """Test when no test patients are found."""
+        mock_client = MagicMock()
+        
+        async def mock_execute():
+            return MockSupabaseResponse([])
+        
+        chain_mock = MagicMock()
+        chain_mock.select = MagicMock(return_value=chain_mock)
+        chain_mock.eq = MagicMock(return_value=chain_mock)
+        chain_mock.is_ = MagicMock(return_value=chain_mock)
+        chain_mock.execute = mock_execute
+        
+        mock_client.table = MagicMock(return_value=chain_mock)
+        
+        async def mock_get_user(jwt=None):
+            return MockUserResponse(admin_user)
+        
+        mock_auth = MagicMock()
+        mock_auth.get_user = mock_get_user
+        mock_client.auth = mock_auth
+        
+        async def mock_create(*args, **kwargs):
+            return mock_client
+        
+        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+            response = client.post(
+                "/api/admin/danger-zone-cleanup",
+                headers={"Authorization": "Bearer valid-admin-token"},
+                json={"action": "delete_all"}
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["deleted"] == 0
+            assert "no test patients found" in data["message"].lower()

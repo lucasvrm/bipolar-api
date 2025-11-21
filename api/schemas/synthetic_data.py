@@ -78,3 +78,49 @@ class EnhancedStatsResponse(BaseModel):
     mood_distribution: dict
     critical_alerts_last_30d: int
     patients_with_recent_radar: int
+
+
+class DangerZoneCleanupRequest(BaseModel):
+    """Request body for danger zone cleanup endpoint."""
+    model_config = {"json_schema_extra": {
+        "examples": [
+            {
+                "action": "delete_all"
+            },
+            {
+                "action": "delete_last_n",
+                "quantity": 5
+            },
+            {
+                "action": "delete_by_mood",
+                "mood_pattern": "stable"
+            },
+            {
+                "action": "delete_before_date",
+                "before_date": "2024-01-01T00:00:00Z"
+            }
+        ]
+    }}
+
+    action: str = Field(
+        description="Type of deletion action: delete_all, delete_last_n, delete_by_mood, delete_before_date"
+    )
+    quantity: Optional[int] = Field(
+        default=None,
+        ge=1,
+        description="Number of test patients to delete (required for delete_last_n)"
+    )
+    mood_pattern: Optional[str] = Field(
+        default=None,
+        description="Mood pattern to filter by (required for delete_by_mood): stable, cycling, or random"
+    )
+    before_date: Optional[str] = Field(
+        default=None,
+        description="ISO datetime string - delete test patients created before this date (required for delete_before_date)"
+    )
+
+
+class DangerZoneCleanupResponse(BaseModel):
+    """Response body for danger zone cleanup endpoint."""
+    deleted: int
+    message: str
