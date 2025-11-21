@@ -1047,3 +1047,55 @@ async def toggle_test_patient_flag(
             status_code=500,
             detail=f"Error toggling test flag: {str(e)}"
         )
+
+
+@router.post("/run-deletion-job")
+@limiter.limit("5/hour")
+async def run_deletion_job_manually(
+    request: Request,
+    supabase: AsyncClient = Depends(get_supabase_client),
+    is_admin: bool = Depends(verify_admin_authorization)
+):
+    """
+    Manually trigger the scheduled deletion job.
+    
+    This endpoint runs the same logic as the daily scheduled job,
+    processing all accounts that have passed their 14-day grace period.
+    
+    **Use Cases:**
+    - Testing the deletion job before scheduling
+    - Manual intervention for urgent deletions
+    - Recovery from failed scheduled runs
+    
+    **Authentication**: Requires JWT token with admin role
+    **Rate Limit**: 5 requests per hour
+    
+    Returns:
+        JSON with job statistics including users processed, deleted, and any errors
+        
+    Raises:
+        HTTPException: 401 if unauthorized, 403 if not admin, 500 for errors
+    """
+    logger.info("Manual deletion job triggered by admin")
+    
+    try:
+        # Import the deletion job function
+        from jobs.scheduled_deletion import process_scheduled_deletions
+        
+        # Run the deletion job
+        stats = await process_scheduled_deletions()
+        
+        logger.info(f"Manual deletion job completed: {stats}")
+        
+        return {
+            "status": "success",
+            "message": "Deletion job completed successfully",
+            "statistics": stats
+        }
+        
+    except Exception as e:
+        logger.exception(f"Error running deletion job: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error running deletion job: {str(e)}"
+        )

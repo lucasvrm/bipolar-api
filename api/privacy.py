@@ -107,13 +107,15 @@ async def get_user_profile(
     
     try:
         # Fetch user profile from profiles table
+        # Filter out soft-deleted accounts
         response = await supabase.table('profiles')\
             .select('id, email, is_admin, created_at')\
             .eq('id', user_id)\
+            .is_('deleted_at', 'null')\
             .execute()
         
         if not response.data or len(response.data) == 0:
-            logger.warning(f"User profile not found for user {hash_user_id_for_logging(user_id)}")
+            logger.warning(f"User profile not found or deleted for user {hash_user_id_for_logging(user_id)}")
             raise HTTPException(
                 status_code=404,
                 detail="User profile not found"
