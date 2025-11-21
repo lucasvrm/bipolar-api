@@ -116,7 +116,7 @@ async def generate_synthetic_data(
     Example:
         ```bash
         curl -X POST https://api.example.com/api/admin/generate-data \\
-          -H "Authorization: Bearer YOUR_SERVICE_KEY" \\
+          -H "Authorization: Bearer <your-service-key>" \\
           -H "Content-Type: application/json" \\
           -d '{"num_users": 10, "checkins_per_user": 30, "mood_pattern": "stable"}'
         ```
