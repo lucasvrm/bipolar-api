@@ -144,3 +144,13 @@ def client(mock_supabase):
     
     # Clean up dependency overrides after the test so other tests can use their own mocks
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def mock_admin_auth():
+    """
+    Mock admin authorization for tests.
+    
+    Returns True to simulate successful admin authorization.
+    """
+    return True
