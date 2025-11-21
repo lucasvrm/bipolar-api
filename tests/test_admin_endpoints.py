@@ -567,7 +567,6 @@ class TestUsersEndpoint:
 class TestCleanupEndpoint:
     """Test the cleanup-data endpoint."""
 
-
     def test_cleanup_data_with_invalid_token_returns_401(self, client, mock_env):
         """Test that request with invalid token is rejected."""
         with patch("api.dependencies.acreate_client", side_effect=mock_acreate_client):
