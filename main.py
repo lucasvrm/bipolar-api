@@ -1,6 +1,7 @@
 # main.py
 import logging
 import traceback
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,11 +16,38 @@ from api.models import load_models
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("bipolar-api")
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Lifespan context manager for startup and shutdown events.
+    Models are loaded once at startup for efficient reuse across requests.
+    """
+    # Startup: Load models
+    logger.info("=== Application Startup ===")
+    load_models()
+    logger.info("=== Application Ready ===")
+    
+    yield
+    
+    # Shutdown: Cleanup resources
+    logger.info("=== Application Shutdown ===")
+    try:
+        from services.prediction_cache import get_cache
+        cache = get_cache()
+        await cache.close()
+        logger.info("Cache connection closed")
+    except Exception as e:
+        logger.warning(f"Error closing cache: {e}")
+    logger.info("=== Shutdown Complete ===")
+
+
 # Cria a instância principal da aplicação
 app = FastAPI(
     title="Bipolar Prediction & Insights API",
     description="Um ecossistema de IA para análise e previsão do transtorno bipolar.",
-    version="2.0.0"
+    version="2.0.0",
+    lifespan=lifespan
 )
 
 # Handler global de exceções para diagnóstico completo
@@ -47,11 +75,6 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"detail": "Internal Server Error - Check logs for details"}
     )
 
-# Evento que roda na inicialização da API
-@app.on_event("startup")
-def startup_event():
-    """Carrega os modelos de IA ao iniciar a API."""
-    load_models()
 
 # --- Configuração do CORS ---
 origins = [

@@ -30,6 +30,10 @@ Thumbs.db
 .coverage
 htmlcov/
 
+# Load testing results
+load_tests/results/
+*.har
+k6-*
 # Environment variables
 .env
 .env.local
