@@ -324,6 +324,7 @@ async def generate_and_populate_data(
                 "id": user_id,
                 "email": email,
                 "role": "patient",
+                "is_test_patient": True,
                 "updated_at": datetime.now(timezone.utc).isoformat()
             }).execute()
 
@@ -354,6 +355,7 @@ async def generate_and_populate_data(
                 "id": user_id,
                 "email": email,
                 "role": "therapist",
+                "is_test_patient": True,
                 "updated_at": datetime.now(timezone.utc).isoformat()
             }).execute()
 
