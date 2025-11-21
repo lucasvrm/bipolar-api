@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from supabase import AsyncClient
 from postgrest.exceptions import APIError
 from .dependencies import get_supabase_client
-from .utils import validate_uuid_or_400
+from .utils import validate_uuid_or_400, handle_postgrest_error
 
 # Logger específico para este módulo
 logger = logging.getLogger("bipolar-api.data")
@@ -44,14 +44,8 @@ async def get_latest_checkin_for_user(user_id: str, supabase: AsyncClient = Depe
             return None
 
     except APIError as e:
-        # Handle PostgREST syntax errors (invalid UUID in database query)
-        if hasattr(e, 'code') and e.code == '22P02':
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid UUID format in database query: {user_id}"
-            )
-        # Re-raise other APIErrors
-        raise
+        # Handle PostgREST errors using centralized utility
+        handle_postgrest_error(e, user_id)
     except Exception as e:
         print("=" * 80, flush=True)
         print(f"[ERRO CAPTURADO EM DATA.PY]", flush=True)

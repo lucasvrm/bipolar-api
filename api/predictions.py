@@ -11,7 +11,7 @@ import numpy as np
 
 from .dependencies import get_supabase_client
 from .models import MODELS
-from .utils import validate_uuid_or_400
+from .utils import validate_uuid_or_400, handle_postgrest_error
 from feature_engineering import create_features_for_prediction
 
 # Logger específico para este módulo
@@ -400,18 +400,8 @@ async def get_predictions(
         # Re-raise HTTP exceptions
         raise
     except APIError as e:
-        # Handle PostgREST syntax errors (invalid UUID in database query)
-        if hasattr(e, 'code') and e.code == '22P02':
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid UUID format in database query: {user_id}"
-            )
-        # Re-raise other APIErrors
-        logger.exception(f"PostgREST APIError for user_id={user_id}: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Database error: {str(e)}"
-        )
+        # Handle PostgREST errors using centralized utility
+        handle_postgrest_error(e, user_id)
     except Exception as e:
         logger.exception(f"Error processing predictions for user_id={user_id}: {e}")
         print(f"[PREDICTIONS ERROR] {type(e).__name__}: {str(e)}", flush=True)
