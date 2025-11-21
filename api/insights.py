@@ -1,9 +1,8 @@
 # api/insights.py
-from fastapi import APIRouter, HTTPException, Query
-from .models import MODELS
-from .schemas import PatientDataInput
+from fastapi import APIRouter, HTTPException
+from api.models import MODELS
+from api.schemas import PatientDataInput
 import pandas as pd
-import shap
 
 router = APIRouter(
     prefix="/insights",

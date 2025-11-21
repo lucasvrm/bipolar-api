@@ -4,16 +4,16 @@ import logging
 import os
 import time
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
+from typing import Dict, Any, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query
 from supabase import AsyncClient
 from postgrest.exceptions import APIError
 import pandas as pd
 import numpy as np
 
-from .dependencies import get_supabase_client
-from .models import MODELS
-from .utils import validate_uuid_or_400, handle_postgrest_error
+from api.dependencies import get_supabase_client
+from api.models import MODELS
+from api.utils import validate_uuid_or_400, handle_postgrest_error
 from feature_engineering import create_features_for_prediction
 from services.prediction_cache import get_cache
 
@@ -390,7 +390,6 @@ async def get_predictions(
     validate_uuid_or_400(user_id, "user_id")
     
     logger.info(f"GET /data/predictions/{user_id} - types={types}, window_days={window_days}, limit_checkins={limit_checkins}")
-    print(f"[PREDICTIONS] Request for user_id={user_id}", flush=True)
     
     # Validar variáveis de ambiente do Supabase
     if not os.environ.get("SUPABASE_URL") or not os.environ.get("SUPABASE_SERVICE_KEY"):
@@ -431,7 +430,6 @@ async def get_predictions(
     try:
         # Buscar check-ins do usuário
         logger.info(f"Fetching check-ins for user_id={user_id}")
-        print(f"[PREDICTIONS] Querying Supabase for check-ins...", flush=True)
         
         response = await supabase.table('check_ins')\
             .select('*')\
@@ -442,7 +440,6 @@ async def get_predictions(
         
         checkins = response.data if response.data else []
         logger.info(f"Found {len(checkins)} check-ins for user_id={user_id}")
-        print(f"[PREDICTIONS] Found {len(checkins)} check-ins", flush=True)
         
         # Preparar resposta
         response_data = {
@@ -498,7 +495,6 @@ async def get_predictions(
                 })
         
         logger.info(f"Successfully generated {len(response_data['predictions'])} predictions")
-        print(f"[PREDICTIONS] Response ready with {len(response_data['predictions'])} predictions", flush=True)
         
         # Store in cache (only if no per_checkin data was requested)
         if limit_checkins == 0 and checkins:
@@ -519,7 +515,6 @@ async def get_predictions(
         handle_postgrest_error(e, user_id)
     except Exception as e:
         logger.exception(f"Error processing predictions for user_id={user_id}: {e}")
-        print(f"[PREDICTIONS ERROR] {type(e).__name__}: {str(e)}", flush=True)
         raise HTTPException(
             status_code=500,
             detail=f"Error processing predictions: {str(e)}"

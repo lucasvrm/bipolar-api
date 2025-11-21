@@ -1,12 +1,8 @@
 # api/clinical.py
 from fastapi import APIRouter, HTTPException, Query
-from typing import Dict
-from .models import MODELS  # Importa o dicionário de modelos carregados
-from .schemas import PatientDataInput  # Importa o schema Pydantic
+from api.models import MODELS
+from api.schemas import PatientDataInput
 from feature_engineering import create_features_for_prediction
-import pandas as pd
-import numpy as np
-import shap
 
 router = APIRouter(
     prefix="/predict",

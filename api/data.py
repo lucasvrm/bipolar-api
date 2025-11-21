@@ -1,11 +1,10 @@
 # em api/data.py (Modificado para depuração com print)
-import sys
 import logging
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from supabase import AsyncClient
 from postgrest.exceptions import APIError
-from .dependencies import get_supabase_client
-from .utils import validate_uuid_or_400, handle_postgrest_error
+from api.dependencies import get_supabase_client
+from api.utils import validate_uuid_or_400, handle_postgrest_error
 
 # Logger específico para este módulo
 logger = logging.getLogger("bipolar-api.data")
@@ -15,43 +14,40 @@ router = APIRouter(prefix="/data", tags=["Data Access"])
 @router.get("/latest_checkin/{user_id}")
 async def get_latest_checkin_for_user(user_id: str, supabase: AsyncClient = Depends(get_supabase_client)):
     """
-    Busca o check-in mais recente com depuração máxima via print.
+    Busca o check-in mais recente para o usuário especificado.
+    
+    Args:
+        user_id: UUID do usuário
+        supabase: Cliente Supabase injetado
+        
+    Returns:
+        Dados do check-in mais recente ou None se não encontrado
     """
     # Validate UUID format
     validate_uuid_or_400(user_id, "user_id")
     
-    print("=" * 80, flush=True)
-    print(f"[TENTATIVA 1 - DIAGNOSTIC] /data/latest_checkin/{user_id}", flush=True)
-    print("=" * 80, flush=True)
+    logger.debug(f"Fetching latest check-in for user_id: {user_id}")
     
     try:
-        print(f"PASSO 1: Função iniciada para user_id: {user_id}", flush=True)
-        print(f"PASSO 2: Tipo do cliente Supabase: {type(supabase)}", flush=True)
-        print(f"PASSO 3: Métodos disponíveis: {[m for m in dir(supabase) if not m.startswith('_')][:10]}", flush=True)
-        
-        print("PASSO 4: Prestes a chamar o Supabase...", flush=True)
-        
-        # FIX: Use desc=True instead of ascending=False (correct parameter name)
-        response = await supabase.table('check_ins').select('*').eq('user_id', user_id).order('checkin_date', desc=True).limit(1).execute()
-        
-        print("PASSO 5: Chamada ao Supabase executada.", flush=True)
+        # Note: Using select('*') to retrieve all columns for flexibility
+        # The prediction models may require different fields depending on the analysis type
+        response = await supabase.table('check_ins')\
+            .select('*')\
+            .eq('user_id', user_id)\
+            .order('checkin_date', desc=True)\
+            .limit(1)\
+            .execute()
         
         if response.data:
-            print(f"PASSO 6: Dados encontrados: {len(response.data)} registro(s)", flush=True)
+            logger.debug(f"Found {len(response.data)} check-in(s) for user_id: {user_id}")
             return response.data[0]
         else:
-            print("PASSO 6: Nenhum dado encontrado na resposta.", flush=True)
+            logger.debug(f"No check-ins found for user_id: {user_id}")
             return None
 
     except APIError as e:
         # Handle PostgREST errors using centralized utility
         handle_postgrest_error(e, user_id)
     except Exception as e:
-        print("=" * 80, flush=True)
-        print(f"[ERRO CAPTURADO EM DATA.PY]", flush=True)
-        print(f"Tipo de erro: {type(e).__name__}", flush=True)
-        print(f"Mensagem: {str(e)}", flush=True)
-        print("=" * 80, flush=True)
-        
-        # Re-raise para que o handler global capture com traceback completo
+        logger.exception(f"Error fetching latest check-in for user_id={user_id}")
         raise

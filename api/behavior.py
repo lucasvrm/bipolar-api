@@ -1,9 +1,8 @@
 # api/behavior.py
 from fastapi import APIRouter, HTTPException
-from .models import MODELS
-from .schemas import PatientDataInput
+from api.models import MODELS
+from api.schemas import PatientDataInput
 from feature_engineering import create_features_for_prediction
-import pandas as pd
 
 router = APIRouter(
     prefix="/predict",
