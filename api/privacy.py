@@ -64,6 +64,72 @@ def verify_authorization(user_id: str, authorization: Optional[str] = Header(Non
     )
 
 
+@router.get("/{user_id}/profile")
+async def get_user_profile(
+    user_id: str,
+    supabase: AsyncClient = Depends(get_supabase_client)
+):
+    """
+    Get user profile information including admin status.
+    
+    This endpoint returns basic profile information for a user including:
+    - User ID
+    - Email
+    - Full name
+    - Admin status (is_admin field)
+    - Created timestamp
+    
+    Note: This endpoint does not require authorization to allow the frontend
+    to display user information. Row Level Security (RLS) policies in Supabase
+    control data access.
+    
+    Args:
+        user_id: UUID of the user
+        
+    Returns:
+        User profile object with id, email, full_name, is_admin, created_at
+        
+    Raises:
+        HTTPException: 400 for invalid UUID, 404 if user not found, 500 for errors
+    """
+    # Validate UUID
+    validate_uuid_or_400(user_id, "user_id")
+    
+    logger.info(f"Fetching profile for user {hashlib.sha256(user_id.encode()).hexdigest()[:8]}")
+    
+    try:
+        # Fetch user profile from profiles table
+        response = await supabase.table('profiles')\
+            .select('id, email, full_name, is_admin, created_at')\
+            .eq('id', user_id)\
+            .execute()
+        
+        if not response.data or len(response.data) == 0:
+            logger.warning(f"User profile not found for user_id={user_id}")
+            raise HTTPException(
+                status_code=404,
+                detail=f"User profile not found for user_id: {user_id}"
+            )
+        
+        profile = response.data[0]
+        logger.info(f"Profile fetched successfully for user (admin={profile.get('is_admin', False)})")
+        
+        return profile
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except APIError as e:
+        # Handle PostgREST errors using centralized utility
+        handle_postgrest_error(e, user_id)
+    except Exception as e:
+        logger.exception(f"Error fetching profile for user_id={user_id}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error fetching user profile: {str(e)}"
+        )
+
+
 @router.post("/{user_id}/consent")
 async def update_consent(
     user_id: str,
