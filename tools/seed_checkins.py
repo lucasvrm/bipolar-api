@@ -56,7 +56,10 @@ def generate_test_checkin(user_id: str, days_ago: int) -> dict:
     shown in minimal test examples.
     
     Note: Uses numeric values for all fields (matching test_predictions_endpoint.py).
-    The feature_engineering.py will handle any necessary type conversions.
+    While feature_engineering.py defines some fields as categorical in CATEGORICAL_FEATURES,
+    the actual test data and API code (predictions.py) use numeric values. The feature
+    engineering pipeline handles type conversions as needed (see lines 71-74 in 
+    feature_engineering.py which convert unexpected values to defaults).
     
     Args:
         user_id: The user ID for the check-in
@@ -72,8 +75,8 @@ def generate_test_checkin(user_id: str, days_ago: int) -> dict:
     return {
         "user_id": user_id,
         "checkin_date": checkin_date.isoformat(),
-        "hoursSlept": round(random.uniform(4.0, 10.0), 1),  # Numeric, not categorical
-        "sleepQuality": random.randint(1, 10),
+        "hoursSlept": round(random.uniform(4.0, 10.0), 1),  # Numeric (as in tests)
+        "sleepQuality": random.randint(1, 10),  # Numeric (as in tests)
         "energyLevel": random.randint(1, 10),
         "depressedMood": random.randint(0, 10),
         "anxietyStress": random.randint(0, 10),
