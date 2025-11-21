@@ -5,12 +5,14 @@ This module provides functionality to generate synthetic patient data with reali
 patterns for bipolar disorder monitoring, mapped correctly to the database JSONB schema.
 """
 import random
+import uuid
 from datetime import datetime, timedelta, timezone
 from faker import Faker
 from typing import List, Dict, Any, Optional
 from supabase import AsyncClient
 import logging
 from fastapi import HTTPException
+from postgrest.exceptions import APIError
 from api.schemas.checkin_jsonb import (
     SleepData,
     MoodData,
@@ -281,6 +283,93 @@ def generate_user_checkin_history(
     return checkins
 
 
+async def create_user_with_retry(
+    supabase: AsyncClient,
+    role: str,
+    max_retries: int = 3
+) -> tuple[str, str, str]:
+    """
+    Create a user with UUID generation and retry logic for duplicates.
+    
+    Args:
+        supabase: AsyncClient for database operations
+        role: User role (patient or therapist)
+        max_retries: Maximum number of retry attempts (default: 3)
+        
+    Returns:
+        Tuple of (user_id, email, password)
+        
+    Raises:
+        HTTPException: If user creation fails after all retries
+    """
+    for attempt in range(max_retries):
+        try:
+            # Generate unique ID and credentials
+            profile_id = str(uuid.uuid4())
+            email = fake.unique.email()
+            password = fake.password(length=20)
+            
+            logger.info(f"Tentativa {attempt + 1}/{max_retries}: Criando usuário {role} com ID {profile_id}")
+            
+            # Create user in Auth with specified UUID
+            auth_resp = await supabase.auth.admin.create_user({
+                "email": email,
+                "password": password,
+                "email_confirm": True
+            })
+            user_id = auth_resp.user.id
+            
+            # Create profile with is_test_patient flag
+            await supabase.table('profiles').insert({
+                "id": user_id,
+                "email": email,
+                "role": role,
+                "is_test_patient": True,
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }).execute()
+            
+            logger.info(f"Usuário {role} criado com sucesso: {user_id}")
+            return user_id, email, password
+            
+        except APIError as e:
+            # Check if it's a duplicate key error
+            if "duplicate" in str(e).lower() or "unique" in str(e).lower():
+                if attempt < max_retries - 1:
+                    logger.warning(f"UUID duplicado detectado na tentativa {attempt + 1}, regenerando...")
+                    # Reset faker to avoid email conflicts
+                    fake.unique.clear()
+                    continue
+                else:
+                    logger.error(f"Falha após {max_retries} tentativas devido a duplicatas")
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Falha ao criar usuário após {max_retries} tentativas (duplicatas)"
+                    )
+            else:
+                # Other API errors should be raised immediately
+                logger.error(f"Erro de API ao criar usuário: {e}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Erro ao criar usuário: {str(e)}"
+                )
+        except Exception as e:
+            logger.error(f"Erro inesperado ao criar usuário: {e}")
+            if attempt < max_retries - 1:
+                logger.warning(f"Tentando novamente ({attempt + 2}/{max_retries})...")
+                continue
+            else:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Erro inesperado ao criar usuário: {str(e)}"
+                )
+    
+    # Should never reach here
+    raise HTTPException(
+        status_code=500,
+        detail="Erro desconhecido na criação de usuário"
+    )
+
+
 async def generate_and_populate_data(
     supabase: AsyncClient,
     checkins_per_user: int = 30,
@@ -308,30 +397,17 @@ async def generate_and_populate_data(
     try:
         # === PACIENTES ===
         for _ in range(patients_count):
-            email = fake.unique.email()
-            password = fake.password(length=20)
-
-            # 1. Criar no Auth primeiro → Supabase gera o ID real
-            auth_resp = await supabase.auth.admin.create_user({
-                "email": email,
-                "password": password,
-                "email_confirm": True
-            })
-            user_id = auth_resp.user.id
-
-            # 2. Criar profile usando o ID real do Auth
-            await supabase.table('profiles').insert({
-                "id": user_id,
-                "email": email,
-                "role": "patient",
-                "is_test_patient": True,
-                "updated_at": datetime.now(timezone.utc).isoformat()
-            }).execute()
-
+            # Create patient with retry logic
+            user_id, email, password = await create_user_with_retry(
+                supabase=supabase,
+                role="patient",
+                max_retries=3
+            )
+            
             patients_created += 1
             user_ids.append(user_id)
 
-            # 3. Gerar check-ins
+            # Gerar check-ins
             checkins = generate_user_checkin_history(
                 user_id=user_id,
                 num_checkins=checkins_per_user,
@@ -341,24 +417,13 @@ async def generate_and_populate_data(
 
         # === TERAPEUTAS ===
         for _ in range(therapists_count):
-            email = fake.unique.email()
-            password = fake.password(length=20)
-
-            auth_resp = await supabase.auth.admin.create_user({
-                "email": email,
-                "password": password,
-                "email_confirm": True
-            })
-            user_id = auth_resp.user.id
-
-            await supabase.table('profiles').insert({
-                "id": user_id,
-                "email": email,
-                "role": "therapist",
-                "is_test_patient": True,
-                "updated_at": datetime.now(timezone.utc).isoformat()
-            }).execute()
-
+            # Create therapist with retry logic
+            user_id, email, password = await create_user_with_retry(
+                supabase=supabase,
+                role="therapist",
+                max_retries=3
+            )
+            
             therapists_created += 1
             user_ids.append(user_id)
 
