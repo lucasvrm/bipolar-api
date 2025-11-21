@@ -112,6 +112,30 @@ def calculate_heuristic_probability(checkin_data: Dict[str, Any], prediction_typ
         return 0.5
 
 
+def normalize_probability(prob: float) -> float:
+    """
+    Normaliza uma probabilidade para o intervalo [0, 1] e trata valores subnormais.
+    
+    Args:
+        prob: Probabilidade bruta
+        
+    Returns:
+        Probabilidade normalizada entre 0 e 1, com subnormais (<1e-6) convertidos para 0
+    """
+    # Converter para float e garantir que está no intervalo [0, 1]
+    normalized = float(np.clip(prob, 0.0, 1.0))
+    
+    # Tratar valores subnormais (muito próximos de zero)
+    if normalized < 1e-6:
+        normalized = 0.0
+    
+    # Tratar valores muito próximos de 1
+    if normalized > (1.0 - 1e-6):
+        normalized = 1.0
+        
+    return normalized
+
+
 def run_prediction(
     checkin_data: Dict[str, Any],
     prediction_type: str,
@@ -150,10 +174,10 @@ def run_prediction(
                 predicted_class = int(prediction_proba.argmax())
                 
                 result["label"] = MOOD_STATE_MAP.get(predicted_class, "Desconhecido")
-                result["probability"] = float(prediction_proba[predicted_class])
+                result["probability"] = normalize_probability(prediction_proba[predicted_class])
                 result["details"] = {
                     "class_probs": {
-                        MOOD_STATE_MAP[i]: float(prob) 
+                        MOOD_STATE_MAP[i]: normalize_probability(prob) 
                         for i, prob in enumerate(prediction_proba)
                     }
                 }
@@ -201,7 +225,7 @@ def run_prediction(
                     prob = 0.65
                     
                 result["label"] = label
-                result["probability"] = prob
+                result["probability"] = normalize_probability(prob)
                 result["model_version"] = "heuristic_v1"
                 result["explanation"] = f"Based on mood={mood}, energy={energy}"
                 
@@ -210,14 +234,14 @@ def run_prediction(
             model = MODELS.get('lgbm_adherence_v1')
             if model:
                 input_df = create_features_for_prediction(checkin_data)
-                probability = float(model.predict_proba(input_df)[0][1])
+                probability = normalize_probability(model.predict_proba(input_df)[0][1])
                 result["label"] = "Alto risco" if probability > 0.5 else "Baixo risco"
                 result["probability"] = probability
                 result["model_version"] = "lgbm_adherence_v1"
                 result["explanation"] = f"Probability of non-adherence: {probability:.2%}"
             else:
                 # Fallback heurístico
-                probability = calculate_heuristic_probability(checkin_data, prediction_type)
+                probability = normalize_probability(calculate_heuristic_probability(checkin_data, prediction_type))
                 result["label"] = "Alto risco" if probability > 0.5 else "Baixo risco"
                 result["probability"] = probability
                 result["model_version"] = "heuristic_v1"
@@ -225,7 +249,7 @@ def run_prediction(
                 
         elif prediction_type == "relapse_risk":
             # Usar heurística baseada em múltiplos fatores
-            probability = calculate_heuristic_probability(checkin_data, prediction_type)
+            probability = normalize_probability(calculate_heuristic_probability(checkin_data, prediction_type))
             result["label"] = "Alto risco" if probability > 0.6 else "Baixo risco"
             result["probability"] = probability
             result["model_version"] = "heuristic_v1"
@@ -233,7 +257,7 @@ def run_prediction(
             
         elif prediction_type == "suicidality_risk":
             # IMPORTANTE: Tipo sensível com disclaimer
-            probability = calculate_heuristic_probability(checkin_data, prediction_type)
+            probability = normalize_probability(calculate_heuristic_probability(checkin_data, prediction_type))
             result["label"] = "Risco detectado" if probability > 0.5 else "Risco baixo"
             result["probability"] = probability
             result["model_version"] = "heuristic_v1"
@@ -250,7 +274,7 @@ def run_prediction(
             result["explanation"] = "Based on mood and distress indicators. SEEK PROFESSIONAL HELP."
             
         elif prediction_type == "sleep_disturbance_risk":
-            probability = calculate_heuristic_probability(checkin_data, prediction_type)
+            probability = normalize_probability(calculate_heuristic_probability(checkin_data, prediction_type))
             result["label"] = "Distúrbio detectado" if probability > 0.5 else "Sono adequado"
             result["probability"] = probability
             result["model_version"] = "heuristic_v1"
@@ -400,4 +424,82 @@ async def get_predictions(
         raise HTTPException(
             status_code=500,
             detail=f"Error processing predictions: {str(e)}"
+        )
+
+
+@router.get("/prediction_of_day/{user_id}")
+async def get_prediction_of_day(
+    user_id: str,
+    supabase: AsyncClient = Depends(get_supabase_client)
+):
+    """
+    Endpoint para obter apenas a predição do estado de humor do dia (mood_state) para um usuário.
+    
+    Retorna apenas a predição de mood_state com janela de 3 dias, otimizado para uso no Dashboard.
+    
+    Args:
+        user_id: UUID do usuário
+        
+    Returns:
+        JSON com predição única do tipo mood_state: { type, label, probability }
+    """
+    logger.info(f"GET /data/prediction_of_day/{user_id}")
+    
+    # Validar variáveis de ambiente do Supabase
+    if not os.environ.get("SUPABASE_URL") or not os.environ.get("SUPABASE_SERVICE_KEY"):
+        logger.error("Supabase environment variables not configured")
+        raise HTTPException(
+            status_code=500,
+            detail="Supabase environment variables (SUPABASE_URL, SUPABASE_SERVICE_KEY) not configured"
+        )
+    
+    try:
+        # Buscar o check-in mais recente do usuário
+        logger.info(f"Fetching latest check-in for user_id={user_id}")
+        
+        response = await supabase.table('check_ins')\
+            .select('*')\
+            .eq('user_id', user_id)\
+            .order('checkin_date', desc=True)\
+            .limit(1)\
+            .execute()
+        
+        checkins = response.data if response.data else []
+        logger.info(f"Found {len(checkins)} check-ins for user_id={user_id}")
+        
+        # Se houver check-in, processar predição de mood_state
+        if checkins:
+            latest_checkin = checkins[0]
+            logger.info(f"Processing mood_state prediction for check-in: {latest_checkin.get('id')}")
+            
+            # Executar predição de mood_state com janela de 3 dias
+            prediction = run_prediction(latest_checkin, "mood_state", window_days=3)
+            
+            # Retornar apenas os campos essenciais
+            result = {
+                "type": prediction["type"],
+                "label": prediction["label"],
+                "probability": prediction["probability"]
+            }
+            
+            logger.info(f"Prediction of day generated: {result['label']} ({result['probability']:.2f})")
+            
+            return result
+        else:
+            # Sem check-ins: retornar predição com probability 0
+            logger.info("No check-ins found, returning default prediction")
+            return {
+                "type": "mood_state",
+                "label": "Dados insuficientes",
+                "probability": 0.0
+            }
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        logger.exception(f"Error processing prediction_of_day for user_id={user_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing prediction of day: {str(e)}"
         )
