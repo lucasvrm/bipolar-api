@@ -24,7 +24,22 @@ from main import app
 
 
 class MockQueryBuilder:
-    """Mock for the Supabase query builder that supports method chaining."""
+    """
+    Mock for the Supabase query builder that supports method chaining.
+    
+    This class simulates the Supabase query builder pattern, allowing tests to
+    chain methods like table().select().eq().order().limit().execute() without
+    making real database calls.
+    
+    Args:
+        data: List of dictionaries representing database records. For example:
+            [{"id": "1", "user_id": "uuid", "checkin_date": "2024-01-01T00:00:00Z"}]
+    
+    Example:
+        >>> builder = MockQueryBuilder(data=[{"id": "1", "name": "test"}])
+        >>> result = await builder.select("*").eq("id", "1").execute()
+        >>> assert result.data == [{"id": "1", "name": "test"}]
+    """
     
     def __init__(self, data=None):
         self.data = data or []
@@ -48,7 +63,15 @@ class MockQueryBuilder:
         return mock_response
     
     def __await__(self):
-        """Make the entire chain awaitable."""
+        """
+        Make the entire query builder chain awaitable.
+        
+        This special method allows the mock to be used with `await` syntax,
+        which is necessary because the real Supabase client returns awaitable
+        objects that can be used as: await supabase.table().select()...
+        
+        Without this, tests would fail with "object is not awaitable" errors.
+        """
         return self.execute().__await__()
 
 
@@ -99,6 +122,10 @@ def client(mock_supabase):
     
     # Clear rate limiter counters before each test
     # This ensures each test starts with a clean slate
+    # NOTE: Using private attribute _storage.storage is necessary because
+    # slowapi's MemoryStorage doesn't provide a public API to clear all counters.
+    # The .reset() method would clear the rate limit configuration itself.
+    # The .clear(key) method requires a specific key, but we need to clear all keys.
     limiter._storage.storage.clear()
     
     # Clear any previous dependency overrides
