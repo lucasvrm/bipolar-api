@@ -34,6 +34,10 @@ async def get_supabase_client() -> AsyncClient:
     Dependency function assíncrona para criar e retornar um cliente Supabase.
     Isso garante que as variáveis de ambiente sejam lidas apenas quando
     a função é chamada, não na inicialização do módulo.
+    
+    The client is created using SUPABASE_SERVICE_KEY which provides admin-level
+    privileges, bypassing Row Level Security (RLS) policies. This is necessary
+    for admin operations like creating users and managing data across all users.
     """
     logger.debug("Creating Supabase client...")
     
