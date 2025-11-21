@@ -5,7 +5,6 @@ This module provides functionality to generate synthetic patient data with reali
 patterns for bipolar disorder monitoring, mapped correctly to the database JSONB schema.
 """
 import random
-import uuid
 from datetime import datetime, timedelta, timezone
 from faker import Faker
 from typing import List, Dict, Any, Optional
@@ -304,14 +303,13 @@ async def create_user_with_retry(
     """
     for attempt in range(max_retries):
         try:
-            # Generate unique ID and credentials
-            profile_id = str(uuid.uuid4())
+            # Generate unique credentials (Auth system generates UUID)
             email = fake.unique.email()
             password = fake.password(length=20)
             
-            logger.info(f"Tentativa {attempt + 1}/{max_retries}: Criando usuário {role} com ID {profile_id}")
+            logger.info(f"Attempt {attempt + 1}/{max_retries}: Creating {role} user")
             
-            # Create user in Auth with specified UUID
+            # Create user in Auth (Auth system generates cryptographically secure UUID)
             auth_resp = await supabase.auth.admin.create_user({
                 "email": email,
                 "password": password,
@@ -328,45 +326,45 @@ async def create_user_with_retry(
                 "updated_at": datetime.now(timezone.utc).isoformat()
             }).execute()
             
-            logger.info(f"Usuário {role} criado com sucesso: {user_id}")
+            logger.info(f"User {role} created successfully: {user_id}")
             return user_id, email, password
             
         except APIError as e:
             # Check if it's a duplicate key error
             if "duplicate" in str(e).lower() or "unique" in str(e).lower():
                 if attempt < max_retries - 1:
-                    logger.warning(f"UUID duplicado detectado na tentativa {attempt + 1}, regenerando...")
+                    logger.warning(f"Duplicate UUID detected on attempt {attempt + 1}, regenerating...")
                     # Reset faker to avoid email conflicts
                     fake.unique.clear()
                     continue
                 else:
-                    logger.error(f"Falha após {max_retries} tentativas devido a duplicatas")
+                    logger.error(f"Failed after {max_retries} attempts due to duplicates")
                     raise HTTPException(
                         status_code=500,
-                        detail=f"Falha ao criar usuário após {max_retries} tentativas (duplicatas)"
+                        detail=f"Failed to create user after {max_retries} attempts (duplicate error)"
                     )
             else:
                 # Other API errors should be raised immediately
-                logger.error(f"Erro de API ao criar usuário: {e}")
+                logger.error(f"API error creating user: {e}")
                 raise HTTPException(
                     status_code=500,
-                    detail=f"Erro ao criar usuário: {str(e)}"
+                    detail=f"Error creating user: {str(e)}"
                 )
         except Exception as e:
-            logger.error(f"Erro inesperado ao criar usuário: {e}")
+            logger.error(f"Unexpected error creating user: {e}")
             if attempt < max_retries - 1:
-                logger.warning(f"Tentando novamente ({attempt + 2}/{max_retries})...")
+                logger.warning(f"Retrying ({attempt + 2}/{max_retries})...")
                 continue
             else:
                 raise HTTPException(
                     status_code=500,
-                    detail=f"Erro inesperado ao criar usuário: {str(e)}"
+                    detail=f"Unexpected error creating user: {str(e)}"
                 )
     
     # Should never reach here
     raise HTTPException(
         status_code=500,
-        detail="Erro desconhecido na criação de usuário"
+        detail="Unknown error in user creation"
     )
 
 

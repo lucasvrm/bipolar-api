@@ -147,7 +147,7 @@ class TestCreateUserWithRetry:
         
         # Verify it's a 500 error about duplicates
         assert exc_info.value.status_code == 500
-        assert "duplicatas" in exc_info.value.detail.lower()
+        assert "duplicate" in exc_info.value.detail.lower()
 
     @pytest.mark.asyncio
     async def test_non_duplicate_error_raised_immediately(self):
