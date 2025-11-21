@@ -277,34 +277,67 @@ async def generate_and_populate_data(
     supabase: AsyncClient,
     num_users: int = 5,
     checkins_per_user: int = 30,
-    mood_pattern: str = 'stable'
+    mood_pattern: str = 'stable',
+    patients_count: Optional[int] = None,
+    therapists_count: Optional[int] = None
 ) -> Dict[str, Any]:
     """
     Generate synthetic data for multiple users and insert into database.
+    
+    Args:
+        supabase: Supabase async client
+        num_users: DEPRECATED - Total number of users (for backward compatibility)
+        checkins_per_user: Number of check-ins to generate per user
+        mood_pattern: Mood pattern ('stable', 'cycling', or 'random')
+        patients_count: Number of patient profiles to create
+        therapists_count: Number of therapist profiles to create
+        
+    Returns:
+        Dictionary with generation statistics
     """
-    logger.info(f"Starting data generation: {num_users} users, {checkins_per_user} check-ins each")
+    # Handle new parameters vs legacy parameter
+    if patients_count is not None or therapists_count is not None:
+        # New parametrized approach - use provided values
+        patients_count = patients_count if patients_count is not None else 0
+        therapists_count = therapists_count if therapists_count is not None else 0
+        total_users = patients_count + therapists_count
+    else:
+        # Legacy approach - create all as patients by default
+        total_users = num_users
+        patients_count = num_users
+        therapists_count = 0
+    
+    logger.info(
+        f"Starting data generation: {patients_count} patients, {therapists_count} therapists, "
+        f"{checkins_per_user} check-ins each"
+    )
     
     all_checkins = []
     user_ids = []
+    patients_created = 0
+    therapists_created = 0
     
     try:
-        for i in range(num_users):
+        # Generate patient profiles
+        for i in range(patients_count):
             user_id = fake.uuid4()
             user_ids.append(user_id)
             
-            # Generate profile data for this user
+            # Generate profile data for this patient
             email = fake.unique.email()
             profile_data = {
                 "id": user_id,
                 "email": email,
+                "role": "patient",  # Valid role per profiles_role_check constraint
                 "updated_at": datetime.now(timezone.utc).isoformat()
             }
             
             # Insert profile into profiles table BEFORE generating check-ins
-            logger.debug(f"Inserting profile for user {i+1}/{num_users} with email {email}")
+            logger.debug(f"Inserting patient profile {i+1}/{patients_count} with email {email}")
             await supabase.table('profiles').insert(profile_data).execute()
+            patients_created += 1
             
-            # Generate check-in history for this user
+            # Generate check-in history for this patient
             checkins = generate_user_checkin_history(
                 user_id=user_id,
                 num_checkins=checkins_per_user,
@@ -312,21 +345,48 @@ async def generate_and_populate_data(
             )
             
             all_checkins.extend(checkins)
-            logger.debug(f"Generated {len(checkins)} check-ins for user {i+1}/{num_users}")
+            logger.debug(f"Generated {len(checkins)} check-ins for patient {i+1}/{patients_count}")
+        
+        # Generate therapist profiles
+        for i in range(therapists_count):
+            user_id = fake.uuid4()
+            user_ids.append(user_id)
+            
+            # Generate profile data for this therapist
+            email = fake.unique.email()
+            profile_data = {
+                "id": user_id,
+                "email": email,
+                "role": "therapist",  # Valid role per profiles_role_check constraint
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }
+            
+            # Insert profile into profiles table
+            logger.debug(f"Inserting therapist profile {i+1}/{therapists_count} with email {email}")
+            await supabase.table('profiles').insert(profile_data).execute()
+            therapists_created += 1
+            
+            # Therapists don't have check-ins in this model
+            logger.debug(f"Created therapist {i+1}/{therapists_count} (no check-ins)")
         
         # Insert all check-ins into database
         # Supabase/PostgREST handles JSONB serialization automatically from dicts
-        logger.info(f"Inserting {len(all_checkins)} check-ins into database...")
-        response = await supabase.table('check_ins').insert(all_checkins).execute()
-        
-        inserted_count = len(response.data) if response.data else 0
-        logger.info(f"Successfully inserted {inserted_count} check-ins")
+        if all_checkins:
+            logger.info(f"Inserting {len(all_checkins)} check-ins into database...")
+            response = await supabase.table('check_ins').insert(all_checkins).execute()
+            inserted_count = len(response.data) if response.data else 0
+            logger.info(f"Successfully inserted {inserted_count} check-ins")
+        else:
+            inserted_count = 0
+            logger.info("No check-ins to insert (therapists only)")
         
         return {
             "status": "success",
-            "message": f"Generated and inserted {inserted_count} check-ins for {num_users} users",
+            "message": f"Generated {patients_created} patients and {therapists_created} therapists with {inserted_count} check-ins",
             "statistics": {
-                "users_created": num_users,
+                "users_created": total_users,
+                "patients_created": patients_created,
+                "therapists_created": therapists_created,
                 "user_ids": user_ids,
                 "checkins_per_user": checkins_per_user,
                 "total_checkins": inserted_count,
