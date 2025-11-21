@@ -1,5 +1,6 @@
 # main.py
 import logging
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -71,11 +72,23 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 # --- Configuração do CORS ---
-origins = [
+# CORS origins can be configured via environment variable CORS_ORIGINS (comma-separated)
+# Default includes production frontend and common development ports
+default_origins = [
     "https://previso-fe.vercel.app",
     "http://localhost:3000",
     "http://localhost:5173",
 ]
+
+# Allow override via environment variable
+cors_origins_env = os.getenv("CORS_ORIGINS")
+if cors_origins_env:
+    origins = [origin.strip() for origin in cors_origins_env.split(",")]
+    logger.info(f"Using CORS origins from environment: {origins}")
+else:
+    origins = default_origins
+    logger.info(f"Using default CORS origins: {origins}")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
