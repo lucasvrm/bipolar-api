@@ -5,11 +5,13 @@ from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from supabase import AsyncClient
+from postgrest.exceptions import APIError
 import pandas as pd
 import numpy as np
 
 from .dependencies import get_supabase_client
 from .models import MODELS
+from .utils import validate_uuid_or_400
 from feature_engineering import create_features_for_prediction
 
 # Logger específico para este módulo
@@ -291,6 +293,9 @@ async def get_predictions(
     Returns:
         JSON com predições agregadas e opcionalmente por check-in
     """
+    # Validate UUID format
+    validate_uuid_or_400(user_id, "user_id")
+    
     logger.info(f"GET /data/predictions/{user_id} - types={types}, window_days={window_days}, limit_checkins={limit_checkins}")
     print(f"[PREDICTIONS] Request for user_id={user_id}", flush=True)
     
@@ -394,6 +399,19 @@ async def get_predictions(
     except HTTPException:
         # Re-raise HTTP exceptions
         raise
+    except APIError as e:
+        # Handle PostgREST syntax errors (invalid UUID in database query)
+        if hasattr(e, 'code') and e.code == '22P02':
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid UUID format in database query: {user_id}"
+            )
+        # Re-raise other APIErrors
+        logger.exception(f"PostgREST APIError for user_id={user_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database error: {str(e)}"
+        )
     except Exception as e:
         logger.exception(f"Error processing predictions for user_id={user_id}: {e}")
         print(f"[PREDICTIONS ERROR] {type(e).__name__}: {str(e)}", flush=True)
