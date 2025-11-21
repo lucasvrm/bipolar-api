@@ -5,7 +5,7 @@ import os
 import time
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from supabase import AsyncClient
 from postgrest.exceptions import APIError
 import pandas as pd
@@ -16,6 +16,7 @@ from api.models import MODELS
 from api.utils import validate_uuid_or_400, handle_postgrest_error
 from feature_engineering import create_features_for_prediction
 from services.prediction_cache import get_cache
+from api.rate_limiter import limiter, PREDICTIONS_RATE_LIMIT
 
 # Logger específico para este módulo
 logger = logging.getLogger("bipolar-api.predictions")
@@ -353,7 +354,9 @@ def run_prediction(
 
 
 @router.get("/predictions/{user_id}")
+@limiter.limit(PREDICTIONS_RATE_LIMIT)
 async def get_predictions(
+    request: Request,
     user_id: str,
     types: Optional[str] = Query(None, description="Comma-separated list of prediction types"),
     window_days: int = Query(3, ge=1, le=30, description="Temporal window in days"),
@@ -522,7 +525,9 @@ async def get_predictions(
 
 
 @router.get("/prediction_of_day/{user_id}")
+@limiter.limit(PREDICTIONS_RATE_LIMIT)
 async def get_prediction_of_day(
+    request: Request,
     user_id: str,
     supabase: AsyncClient = Depends(get_supabase_client)
 ):

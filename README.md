@@ -77,7 +77,34 @@ O projeto requer as seguintes variáveis de ambiente:
 - `SUPABASE_URL`: URL do projeto Supabase
 - `SUPABASE_SERVICE_KEY`: Service role key para acesso ao banco de dados
 
+**Variáveis Opcionais (Rate Limiting):**
+
+- `RATE_LIMIT_DEFAULT`: Limite padrão para todos os endpoints (default: `60/minute`)
+- `RATE_LIMIT_PREDICTIONS`: Limite para endpoints de predições (default: `10/minute`)
+- `RATE_LIMIT_DATA_ACCESS`: Limite para endpoints de acesso a dados (default: `30/minute`)
+- `RATE_LIMIT_STORAGE_URI`: URI do storage para rate limiting (default: `memory://`, use Redis em produção: `redis://host:port/db`)
+
 **Importante:** Nunca commite o arquivo `.env` com credenciais reais. Use o arquivo `.env.example` como template.
+
+## 🛡️ Rate Limiting
+
+A API implementa rate limiting para prevenir abuso e garantir uso justo dos recursos. Por padrão:
+
+- **Endpoints de Predições** (`/data/predictions/*`, `/data/prediction_of_day/*`): 10 requisições por minuto por usuário
+- **Endpoints de Dados** (`/data/latest_checkin/*`): 30 requisições por minuto por usuário
+- **Outros Endpoints**: 60 requisições por minuto por usuário
+
+Quando o limite é excedido, a API retorna HTTP 429 (Too Many Requests) com cabeçalho `Retry-After` indicando quando tentar novamente.
+
+**Exemplo de Resposta de Rate Limit:**
+```json
+{
+  "error": "rate_limit_exceeded",
+  "message": "Too many requests. Please slow down and try again later.",
+  "detail": "Rate limit exceeded",
+  "retry_after": 60
+}
+```
 
 ## 📚 Documentação da API
 

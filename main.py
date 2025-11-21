@@ -10,6 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from api import clinical, behavior, insights, data, predictions, privacy
 from api.models import load_models
 from api.middleware import ObservabilityMiddleware
+from api.rate_limiter import limiter, rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 # Configurar logging para capturar exceções
 # NOTE: DEBUG level enabled for diagnostic purposes during initial deployment
@@ -50,6 +52,14 @@ app = FastAPI(
     version="2.0.0",
     lifespan=lifespan
 )
+
+# Attach rate limiter to app state
+app.state.limiter = limiter
+
+# Add rate limit exceeded handler
+@app.exception_handler(RateLimitExceeded)
+async def _rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
+    return rate_limit_exceeded_handler(request, exc)
 
 # Handler global de exceções para diagnóstico completo
 @app.exception_handler(Exception)

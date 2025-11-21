@@ -1,10 +1,11 @@
 # em api/data.py (Modificado para depuração com print)
 import logging
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from supabase import AsyncClient
 from postgrest.exceptions import APIError
 from api.dependencies import get_supabase_client
 from api.utils import validate_uuid_or_400, handle_postgrest_error
+from api.rate_limiter import limiter, DATA_ACCESS_RATE_LIMIT
 
 # Logger específico para este módulo
 logger = logging.getLogger("bipolar-api.data")
@@ -12,7 +13,12 @@ logger = logging.getLogger("bipolar-api.data")
 router = APIRouter(prefix="/data", tags=["Data Access"])
 
 @router.get("/latest_checkin/{user_id}")
-async def get_latest_checkin_for_user(user_id: str, supabase: AsyncClient = Depends(get_supabase_client)):
+@limiter.limit(DATA_ACCESS_RATE_LIMIT)
+async def get_latest_checkin_for_user(
+    request: Request,
+    user_id: str,
+    supabase: AsyncClient = Depends(get_supabase_client)
+):
     """
     Busca o check-in mais recente para o usuário especificado.
     
