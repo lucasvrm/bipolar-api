@@ -355,6 +355,218 @@ class TestCleanupEndpoint:
             
             assert response.status_code == 401
             assert "authorization required" in response.json()["detail"].lower()
+
+
+class TestStatsEndpoint:
+    """Test the /api/admin/stats endpoint."""
+    
+    def test_stats_without_auth_returns_401(self, client, mock_env):
+        """Test that request without authorization header is rejected."""
+        with patch("api.dependencies.acreate_client", side_effect=mock_acreate_client):
+            response = client.get("/api/admin/stats")
+            
+            assert response.status_code == 401
+            assert "authorization required" in response.json()["detail"].lower()
+    
+    def test_stats_with_invalid_token_returns_401(self, client, mock_env):
+        """Test that request with invalid token is rejected."""
+        with patch("api.dependencies.acreate_client", side_effect=mock_acreate_client):
+            response = client.get(
+                "/api/admin/stats",
+                headers={"Authorization": "Bearer invalid-token"}
+            )
+            
+            assert response.status_code == 401
+            assert "invalid" in response.json()["detail"].lower()
+    
+    def test_stats_with_valid_service_key_returns_counts(self, client, mock_env, service_key):
+        """Test that stats endpoint returns correct counts."""
+        # Create mock that returns count data
+        mock_client = MagicMock()
+        
+        # Mock response with count attribute
+        class MockCountResponse:
+            def __init__(self, count_value):
+                self.count = count_value
+                self.data = []
+        
+        async def mock_profiles_execute():
+            return MockCountResponse(150)
+        
+        async def mock_checkins_execute():
+            return MockCountResponse(3500)
+        
+        # Create separate mocks for profiles and check_ins tables
+        profiles_mock = MagicMock()
+        profiles_mock.select = MagicMock(return_value=profiles_mock)
+        profiles_mock.execute = mock_profiles_execute
+        
+        checkins_mock = MagicMock()
+        checkins_mock.select = MagicMock(return_value=checkins_mock)
+        checkins_mock.execute = mock_checkins_execute
+        
+        # Mock table method to return appropriate mock based on table name
+        def mock_table(table_name):
+            if table_name == 'profiles':
+                return profiles_mock
+            elif table_name == 'check_ins':
+                return checkins_mock
+            return MagicMock()
+        
+        mock_client.table = mock_table
+        
+        async def mock_create_stats(*args, **kwargs):
+            return mock_client
+        
+        with patch("api.dependencies.acreate_client", side_effect=mock_create_stats):
+            response = client.get(
+                "/api/admin/stats",
+                headers={"Authorization": f"Bearer {service_key}"}
+            )
+            
+            assert response.status_code == 200
+            data = response.json()
+            assert "total_users" in data
+            assert "total_checkins" in data
+            assert data["total_users"] == 150
+            assert data["total_checkins"] == 3500
+    
+    def test_stats_handles_zero_counts(self, client, mock_env, service_key):
+        """Test that stats endpoint handles zero counts correctly."""
+        mock_client = MagicMock()
+        
+        class MockCountResponse:
+            def __init__(self, count_value):
+                self.count = count_value
+                self.data = []
+        
+        async def mock_execute():
+            return MockCountResponse(0)
+        
+        chain_mock = MagicMock()
+        chain_mock.select = MagicMock(return_value=chain_mock)
+        chain_mock.execute = mock_execute
+        
+        mock_client.table = MagicMock(return_value=chain_mock)
+        
+        async def mock_create_zero(*args, **kwargs):
+            return mock_client
+        
+        with patch("api.dependencies.acreate_client", side_effect=mock_create_zero):
+            response = client.get(
+                "/api/admin/stats",
+                headers={"Authorization": f"Bearer {service_key}"}
+            )
+            
+            assert response.status_code == 200
+            data = response.json()
+            assert data["total_users"] == 0
+            assert data["total_checkins"] == 0
+
+
+class TestUsersEndpoint:
+    """Test the /api/admin/users endpoint."""
+    
+    def test_users_without_auth_returns_401(self, client, mock_env):
+        """Test that request without authorization header is rejected."""
+        with patch("api.dependencies.acreate_client", side_effect=mock_acreate_client):
+            response = client.get("/api/admin/users")
+            
+            assert response.status_code == 401
+            assert "authorization required" in response.json()["detail"].lower()
+    
+    def test_users_with_invalid_token_returns_401(self, client, mock_env):
+        """Test that request with invalid token is rejected."""
+        with patch("api.dependencies.acreate_client", side_effect=mock_acreate_client):
+            response = client.get(
+                "/api/admin/users",
+                headers={"Authorization": "Bearer invalid-token"}
+            )
+            
+            assert response.status_code == 401
+            assert "invalid" in response.json()["detail"].lower()
+    
+    def test_users_with_valid_service_key_returns_users_list(self, client, mock_env, service_key):
+        """Test that users endpoint returns list of users."""
+        mock_client = MagicMock()
+        
+        # Mock users data
+        users_data = [
+            {"id": "user-1", "email": "user1@example.com", "full_name": "User One"},
+            {"id": "user-2", "email": "user2@example.com", "full_name": "User Two"},
+            {"id": "user-3", "email": "user3@example.com", "full_name": None},
+        ]
+        
+        async def mock_execute():
+            return MockSupabaseResponse(users_data)
+        
+        # Setup the mock chain
+        chain_mock = MagicMock()
+        chain_mock.select = MagicMock(return_value=chain_mock)
+        chain_mock.order = MagicMock(return_value=chain_mock)
+        chain_mock.limit = MagicMock(return_value=chain_mock)
+        chain_mock.execute = mock_execute
+        
+        mock_client.table = MagicMock(return_value=chain_mock)
+        
+        async def mock_create_users(*args, **kwargs):
+            return mock_client
+        
+        with patch("api.dependencies.acreate_client", side_effect=mock_create_users):
+            response = client.get(
+                "/api/admin/users",
+                headers={"Authorization": f"Bearer {service_key}"}
+            )
+            
+            assert response.status_code == 200
+            data = response.json()
+            assert isinstance(data, list)
+            assert len(data) == 3
+            
+            # Check first user structure
+            assert "id" in data[0]
+            assert "email" in data[0]
+            assert "full_name" in data[0]
+            assert data[0]["id"] == "user-1"
+            assert data[0]["email"] == "user1@example.com"
+            assert data[0]["full_name"] == "User One"
+            
+            # Check user with None full_name
+            assert data[2]["full_name"] is None
+    
+    def test_users_returns_empty_list_when_no_users(self, client, mock_env, service_key):
+        """Test that users endpoint returns empty list when no users exist."""
+        mock_client = MagicMock()
+        
+        async def mock_execute():
+            return MockSupabaseResponse([])
+        
+        chain_mock = MagicMock()
+        chain_mock.select = MagicMock(return_value=chain_mock)
+        chain_mock.order = MagicMock(return_value=chain_mock)
+        chain_mock.limit = MagicMock(return_value=chain_mock)
+        chain_mock.execute = mock_execute
+        
+        mock_client.table = MagicMock(return_value=chain_mock)
+        
+        async def mock_create_empty(*args, **kwargs):
+            return mock_client
+        
+        with patch("api.dependencies.acreate_client", side_effect=mock_create_empty):
+            response = client.get(
+                "/api/admin/users",
+                headers={"Authorization": f"Bearer {service_key}"}
+            )
+            
+            assert response.status_code == 200
+            data = response.json()
+            assert isinstance(data, list)
+            assert len(data) == 0
+
+
+class TestCleanupEndpoint:
+    """Test the cleanup-data endpoint."""
+    
     
     def test_cleanup_data_with_invalid_token_returns_401(self, client, mock_env):
         """Test that request with invalid token is rejected."""

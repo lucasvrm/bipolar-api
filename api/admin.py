@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from pydantic import BaseModel, Field
 from supabase import AsyncClient
 from postgrest.exceptions import APIError
+from postgrest.types import CountMethod
 
 from api.dependencies import get_supabase_client
 from api.rate_limiter import limiter
@@ -162,6 +163,125 @@ async def generate_synthetic_data(
         raise HTTPException(
             status_code=500,
             detail=f"Error generating synthetic data: {str(e)}"
+        )
+
+
+@router.get("/stats")
+async def get_admin_stats(
+    supabase: AsyncClient = Depends(get_supabase_client),
+    authorization: Optional[str] = Header(None)
+):
+    """
+    Get statistics about users and check-ins in the database.
+    
+    This admin-only endpoint provides counts of total users and check-ins
+    using the Supabase service role to bypass RLS policies.
+    
+    **Authentication**: Requires service key in Authorization header
+    
+    Returns:
+        JSON with statistics:
+        - total_users: Total number of user profiles
+        - total_checkins: Total number of check-ins
+        
+    Raises:
+        HTTPException: 401 if unauthorized, 500 for errors
+        
+    Example:
+        ```bash
+        curl -X GET https://api.example.com/api/admin/stats \\
+          -H "Authorization: Bearer <your-service-key>"
+        ```
+    """
+    # Verify admin authorization
+    verify_admin_authorization(authorization)
+    
+    logger.info("Admin stats request received")
+    
+    try:
+        # Count total users using exact count with head=True (only returns count, no data)
+        profiles_response = await supabase.table('profiles').select('*', count=CountMethod.exact, head=True).execute()
+        total_users = profiles_response.count if profiles_response.count is not None else 0
+        
+        # Count total check-ins using exact count with head=True
+        checkins_response = await supabase.table('check_ins').select('*', count=CountMethod.exact, head=True).execute()
+        total_checkins = checkins_response.count if checkins_response.count is not None else 0
+        
+        logger.info(f"Stats retrieved: {total_users} users, {total_checkins} check-ins")
+        
+        return {
+            "total_users": total_users,
+            "total_checkins": total_checkins
+        }
+        
+    except APIError as e:
+        logger.exception(f"Database error during stats retrieval: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database error: {str(e)}"
+        )
+    except Exception as e:
+        logger.exception(f"Error retrieving stats: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error retrieving statistics: {str(e)}"
+        )
+
+
+@router.get("/users")
+async def get_admin_users(
+    supabase: AsyncClient = Depends(get_supabase_client),
+    authorization: Optional[str] = Header(None)
+):
+    """
+    List the most recently created users in the database.
+    
+    This admin-only endpoint provides a list of the last 50 users with their
+    basic information, using the Supabase service role to bypass RLS policies.
+    
+    **Authentication**: Requires service key in Authorization header
+    
+    Returns:
+        List of user objects with:
+        - id: User UUID
+        - email: User email
+        - full_name: User's full name (if exists)
+        
+    Raises:
+        HTTPException: 401 if unauthorized, 500 for errors
+        
+    Example:
+        ```bash
+        curl -X GET https://api.example.com/api/admin/users \\
+          -H "Authorization: Bearer <your-service-key>"
+        ```
+    """
+    # Verify admin authorization
+    verify_admin_authorization(authorization)
+    
+    logger.info("Admin users list request received")
+    
+    try:
+        # Get last 50 users ordered by created_at descending
+        response = await supabase.table('profiles').select('id, email, full_name').order('created_at', desc=True).limit(50).execute()
+        
+        users = response.data if response.data else []
+        
+        logger.info(f"Retrieved {len(users)} users")
+        
+        return users
+        
+    except APIError as e:
+        logger.exception(f"Database error during users retrieval: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database error: {str(e)}"
+        )
+    except Exception as e:
+        logger.exception(f"Error retrieving users: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error retrieving users: {str(e)}"
         )
 
 
