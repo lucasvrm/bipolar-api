@@ -203,7 +203,6 @@ async def get_admin_users(
         List of user objects with:
         - id: User UUID
         - email: User email
-        - full_name: User's full name (if exists)
 
     Raises:
         HTTPException: 401 if unauthorized, 403 if not admin, 500 for errors
@@ -220,7 +219,7 @@ async def get_admin_users(
 
     try:
         # Get last 50 users ordered by created_at descending
-        response = await supabase.table('profiles').select('id, email, full_name').order('created_at', desc=True).limit(50).execute()
+        response = await supabase.table('profiles').select('id, email').order('created_at', desc=True).limit(50).execute()
 
         users = response.data if response.data else []
 

@@ -63,7 +63,6 @@ def mock_profile(test_user_id):
     return [{
         "id": test_user_id,
         "email": "test@example.com",
-        "full_name": "Test User",
         "is_admin": True,
         "created_at": "2023-01-01T00:00:00Z"
     }]
@@ -87,7 +86,6 @@ def test_get_user_profile_success(test_user_id, mock_profile):
     data = response.json()
     assert data["id"] == test_user_id
     assert data["email"] == "test@example.com"
-    assert data["full_name"] == "Test User"
     assert data["is_admin"] is True
     assert "created_at" in data
 
@@ -97,7 +95,6 @@ def test_get_user_profile_non_admin(test_user_id):
     mock_profile = [{
         "id": test_user_id,
         "email": "regular@example.com",
-        "full_name": "Regular User",
         "is_admin": False,
         "created_at": "2023-01-01T00:00:00Z"
     }]
@@ -233,6 +230,6 @@ def test_profile_endpoint_returns_expected_fields(test_user_id, mock_profile):
     data = response.json()
     
     # Check all expected fields are present
-    expected_fields = ["id", "email", "full_name", "is_admin", "created_at"]
+    expected_fields = ["id", "email", "is_admin", "created_at"]
     for field in expected_fields:
         assert field in data, f"Expected field '{field}' not found in response"

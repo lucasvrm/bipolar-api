@@ -629,9 +629,9 @@ class TestUsersEndpoint:
 
         # Mock users data
         users_data = [
-            {"id": "user-1", "email": "user1@example.com", "full_name": "User One"},
-            {"id": "user-2", "email": "user2@example.com", "full_name": "User Two"},
-            {"id": "user-3", "email": "user3@example.com", "full_name": None},
+            {"id": "user-1", "email": "user1@example.com"},
+            {"id": "user-2", "email": "user2@example.com"},
+            {"id": "user-3", "email": "user3@example.com"},
         ]
 
         async def mock_execute():
@@ -671,13 +671,8 @@ class TestUsersEndpoint:
             # Check first user structure
             assert "id" in data[0]
             assert "email" in data[0]
-            assert "full_name" in data[0]
             assert data[0]["id"] == "user-1"
             assert data[0]["email"] == "user1@example.com"
-            assert data[0]["full_name"] == "User One"
-
-            # Check user with None full_name
-            assert data[2]["full_name"] is None
 
     def test_users_with_non_admin_returns_403(self, client, mock_env, non_admin_user):
         """Test that non-admin user gets 403 Forbidden."""
