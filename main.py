@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 # Importa nossos módulos da API
-from api import clinical, behavior, insights, data, predictions, privacy, admin
+from api import clinical, behavior, insights, data, predictions, privacy, admin, account
 from api.models import load_models
 from api.middleware import ObservabilityMiddleware
 from api.rate_limiter import limiter, rate_limit_exceeded_handler
@@ -133,6 +133,7 @@ app.include_router(data.router)
 app.include_router(predictions.router)
 app.include_router(privacy.router)
 app.include_router(admin.router)
+app.include_router(account.router)
 
 
 # --- Endpoint Raiz para Health Check ---
