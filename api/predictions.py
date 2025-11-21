@@ -357,7 +357,7 @@ async def get_predictions(
     user_id: str,
     types: Optional[str] = Query(None, description="Comma-separated list of prediction types"),
     window_days: int = Query(3, ge=1, le=30, description="Temporal window in days"),
-    limit_checkins: int = Query(0, ge=0, le=MAX_LIMIT_CHECKINS, description="Number of recent check-ins to include"),
+    limit_checkins: int = Query(0, ge=0, le=MAX_LIMIT_CHECKINS, description=f"Number of recent check-ins to include (max {MAX_LIMIT_CHECKINS})"),
     supabase: AsyncClient = Depends(get_supabase_client)
 ):
     """
@@ -581,7 +581,7 @@ async def get_prediction_of_day(
                 "probability": prediction["probability"]
             }
             
-            logger.info(f"Prediction of day generated: {result['label']} ({result.get('probability', 'N/A')})")
+            logger.info(f"Prediction of day generated: {result['label']} (prob: {result.get('probability', 'N/A')})")
             
             return result
         else:

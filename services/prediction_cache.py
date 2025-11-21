@@ -93,8 +93,9 @@ class PredictionCache:
         # Create a deterministic key
         key_data = f"{user_id}:{window_days}:{types_str}"
         
-        # Use hash for shorter keys if needed
-        key_hash = hashlib.md5(key_data.encode()).hexdigest()[:16]
+        # Use SHA-256 for better hash quality (not security-critical, but better than MD5)
+        import hashlib
+        key_hash = hashlib.sha256(key_data.encode()).hexdigest()[:16]
         
         return f"prediction:{user_id}:{window_days}:{key_hash}"
     

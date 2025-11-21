@@ -71,7 +71,7 @@ async def test_cache_get_returns_none_on_miss(mock_redis_client):
 @pytest.mark.asyncio
 async def test_cache_get_returns_data_on_hit(mock_redis_client):
     """Test that cache.get returns cached data on cache hit."""
-    cached_data = {"predictions": [{"type": "mood_state", "label": "Eutimia"}]}
+    cached_data = {"predictions": [{"type": "mood_state", "label": "Euthymia"}]}
     
     with patch.dict('os.environ', {'REDIS_URL': 'redis://localhost:6379'}):
         with patch('services.prediction_cache.redis') as mock_redis:
