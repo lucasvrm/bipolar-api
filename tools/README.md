@@ -9,7 +9,7 @@ Before running any tools, ensure you have:
 1. Python 3.7 or higher installed
 2. Required dependencies installed:
    ```bash
-   pip install supabase
+   pip install 'supabase>=2.0.0,<3.0.0'
    ```
 
 3. Environment variables configured:
@@ -140,9 +140,9 @@ python tools/list_users_with_checkins.py
 ```
 ERROR: No module named 'supabase'
 ```
-**Solution:** Install the supabase library:
+**Solution:** Install the supabase library with the correct version:
 ```bash
-pip install supabase
+pip install 'supabase>=2.0.0,<3.0.0'
 ```
 
 ### Missing Environment Variables
@@ -158,10 +158,20 @@ If you encounter connection errors, verify:
 2. Your `SUPABASE_SERVICE_KEY` is valid and has the necessary permissions
 3. Your network allows connections to Supabase
 
+## Architecture Notes
+
+These CLI tools use the **synchronous** Supabase client (`create_client`, `Client`) instead of the async client (`acreate_client`, `AsyncClient`) used in the main API. This is an intentional design decision:
+
+- **CLI tools**: Simple, one-off operations that don't benefit from async/await overhead
+- **Main API**: Web service handling concurrent requests where async operations improve performance
+
+Both approaches use the same underlying Supabase REST API with the service role key for admin-level access.
+
 ## Contributing
 
 When adding new tools to this directory:
 1. Follow the same structure as existing tools
-2. Include clear docstrings and usage examples
-3. Add confirmation prompts for destructive operations
-4. Update this README with documentation for the new tool
+2. Use synchronous Supabase client for simplicity in CLI tools
+3. Include clear docstrings and usage examples
+4. Add confirmation prompts for destructive operations
+5. Update this README with documentation for the new tool
