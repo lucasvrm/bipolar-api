@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # Importa nossos módulos da API
 from api import clinical, behavior, insights, data, predictions, privacy
 from api.models import load_models
+from api.middleware import ObservabilityMiddleware
 
 # Configurar logging para capturar exceções
 # NOTE: DEBUG level enabled for diagnostic purposes during initial deployment
@@ -110,6 +111,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add observability middleware
+app.add_middleware(ObservabilityMiddleware)
 
 # --- Inclusão dos Routers Modulares ---
 app.include_router(clinical.router)
