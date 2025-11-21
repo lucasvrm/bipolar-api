@@ -1,9 +1,8 @@
 """
 Admin endpoints for privileged operations.
 
-These endpoints require admin authentication via service key.
+These endpoints require admin authentication via JWT token with admin role.
 """
-import os
 import logging
 from datetime import datetime, timezone
 from typing import Optional
@@ -13,52 +12,13 @@ from supabase import AsyncClient
 from postgrest.exceptions import APIError
 from postgrest.types import CountMethod
 
-from api.dependencies import get_supabase_client
+from api.dependencies import get_supabase_client, verify_admin_authorization
 from api.rate_limiter import limiter
 from data_generator import generate_and_populate_data
 
 logger = logging.getLogger("bipolar-api.admin")
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
-
-
-def verify_admin_authorization(authorization: Optional[str] = Header(None)) -> bool:
-    """
-    Verify that the request has admin authorization via service key.
-
-    Uses the same pattern as privacy.py for admin access.
-
-    Args:
-        authorization: Authorization header
-
-    Returns:
-        True if authorized as admin
-
-    Raises:
-        HTTPException: 401 if unauthorized
-    """
-    if not authorization:
-        logger.warning("No authorization header provided for admin endpoint")
-        raise HTTPException(
-            status_code=401,
-            detail="Admin authorization required. Provide a valid service key."
-        )
-
-    # Get service key from environment
-    service_key = os.getenv("SUPABASE_SERVICE_KEY")
-
-    # Check if it's a service key (admin access)
-    if authorization.startswith("Bearer "):
-        token = authorization[7:]
-        if token == service_key:
-            logger.info("Admin access authorized")
-            return True
-
-    logger.error("Invalid admin authorization token")
-    raise HTTPException(
-        status_code=401,
-        detail="Invalid authorization token. Admin access requires service key."
-    )
 
 
 class GenerateDataRequest(BaseModel):
@@ -85,7 +45,7 @@ async def generate_synthetic_data(
     request: Request,
     data_request: GenerateDataRequest,
     supabase: AsyncClient = Depends(get_supabase_client),
-    authorization: Optional[str] = Header(None)
+    is_admin: bool = Depends(verify_admin_authorization)
 ):
     """
     Generate and insert synthetic patient data into the database.
@@ -95,14 +55,14 @@ async def generate_synthetic_data(
     histories that include realistic correlations between mood states and other
     clinical markers.
 
-    **Authentication**: Requires service key in Authorization header
+    **Authentication**: Requires JWT token with admin role in Authorization header
 
     **Rate Limit**: 5 requests per hour per IP
 
     Args:
         data_request: Configuration for data generation
         supabase: Supabase client (injected)
-        authorization: Authorization header with service key
+        is_admin: Admin authorization check (injected)
 
     Returns:
         JSON with generation statistics including:
@@ -112,18 +72,17 @@ async def generate_synthetic_data(
         - Generation timestamp
 
     Raises:
-        HTTPException: 401 if unauthorized, 400 for invalid parameters, 500 for errors
+        HTTPException: 401 if unauthorized, 403 if not admin, 400 for invalid parameters, 500 for errors
 
     Example:
         ```bash
         curl -X POST https://api.example.com/api/admin/generate-data \\
-          -H "Authorization: Bearer <your-service-key>" \\
+          -H "Authorization: Bearer <your-jwt-token>" \\
           -H "Content-Type: application/json" \\
           -d '{"num_users": 10, "checkins_per_user": 30, "mood_pattern": "stable"}'
         ```
     """
-    # Verify admin authorization
-    verify_admin_authorization(authorization)
+    # Admin check is done by dependency - no need to verify again
 
     # Validate mood_pattern
     valid_patterns = ['stable', 'cycling', 'random']
@@ -169,7 +128,7 @@ async def generate_synthetic_data(
 @router.get("/stats")
 async def get_admin_stats(
     supabase: AsyncClient = Depends(get_supabase_client),
-    authorization: Optional[str] = Header(None)
+    is_admin: bool = Depends(verify_admin_authorization)
 ):
     """
     Get statistics about users and check-ins in the database.
@@ -177,7 +136,7 @@ async def get_admin_stats(
     This admin-only endpoint provides counts of total users and check-ins
     using the Supabase service role to bypass RLS policies.
 
-    **Authentication**: Requires service key in Authorization header
+    **Authentication**: Requires JWT token with admin role in Authorization header
 
     Returns:
         JSON with statistics:
@@ -185,16 +144,15 @@ async def get_admin_stats(
         - total_checkins: Total number of check-ins
 
     Raises:
-        HTTPException: 401 if unauthorized, 500 for errors
+        HTTPException: 401 if unauthorized, 403 if not admin, 500 for errors
 
     Example:
         ```bash
         curl -X GET https://api.example.com/api/admin/stats \\
-          -H "Authorization: Bearer <your-service-key>"
+          -H "Authorization: Bearer <your-jwt-token>"
         ```
     """
-    # Verify admin authorization
-    verify_admin_authorization(authorization)
+    # Admin check is done by dependency
 
     logger.info("Admin stats request received")
 
@@ -231,7 +189,7 @@ async def get_admin_stats(
 @router.get("/users")
 async def get_admin_users(
     supabase: AsyncClient = Depends(get_supabase_client),
-    authorization: Optional[str] = Header(None)
+    is_admin: bool = Depends(verify_admin_authorization)
 ):
     """
     List the most recently created users in the database.
@@ -239,7 +197,7 @@ async def get_admin_users(
     This admin-only endpoint provides a list of the last 50 users with their
     basic information, using the Supabase service role to bypass RLS policies.
 
-    **Authentication**: Requires service key in Authorization header
+    **Authentication**: Requires JWT token with admin role in Authorization header
 
     Returns:
         List of user objects with:
@@ -248,16 +206,15 @@ async def get_admin_users(
         - full_name: User's full name (if exists)
 
     Raises:
-        HTTPException: 401 if unauthorized, 500 for errors
+        HTTPException: 401 if unauthorized, 403 if not admin, 500 for errors
 
     Example:
         ```bash
         curl -X GET https://api.example.com/api/admin/users \\
-          -H "Authorization: Bearer <your-service-key>"
+          -H "Authorization: Bearer <your-jwt-token>"
         ```
     """
-    # Verify admin authorization
-    verify_admin_authorization(authorization)
+    # Admin check is done by dependency
 
     logger.info("Admin users list request received")
 
@@ -302,7 +259,7 @@ async def cleanup_synthetic_data(
     request: Request,
     cleanup_request: CleanupDataRequest,
     supabase: AsyncClient = Depends(get_supabase_client),
-    authorization: Optional[str] = Header(None)
+    is_admin: bool = Depends(verify_admin_authorization)
 ):
     """
     Clean up synthetic patient data from the database.
@@ -310,14 +267,14 @@ async def cleanup_synthetic_data(
     This admin-only endpoint removes synthetic users and their associated check-ins.
     Synthetic users are identified by their email domain (@example.com).
 
-    **Authentication**: Requires service key in Authorization header
+    **Authentication**: Requires JWT token with admin role in Authorization header
 
     **Rate Limit**: 3 requests per hour per IP
 
     Args:
         cleanup_request: Cleanup confirmation
         supabase: Supabase client (injected)
-        authorization: Authorization header with service key
+        is_admin: Admin authorization check (injected)
 
     Returns:
         JSON with cleanup statistics including:
@@ -326,18 +283,17 @@ async def cleanup_synthetic_data(
         - Cleanup timestamp
 
     Raises:
-        HTTPException: 401 if unauthorized, 400 if not confirmed, 500 for errors
+        HTTPException: 401 if unauthorized, 403 if not admin, 400 if not confirmed, 500 for errors
 
     Example:
         ```bash
         curl -X POST https://api.example.com/api/admin/cleanup-data \\
-          -H "Authorization: Bearer <your-service-key>" \\
+          -H "Authorization: Bearer <your-jwt-token>" \\
           -H "Content-Type: application/json" \\
           -d '{"confirm": true}'
         ```
     """
-    # Verify admin authorization
-    verify_admin_authorization(authorization)
+    # Admin check is done by dependency
 
     # Require explicit confirmation
     if not cleanup_request.confirm:
