@@ -117,7 +117,7 @@ async def get_user_profile(
             logger.warning(f"User profile not found for user {hash_user_id_for_logging(user_id)}")
             raise HTTPException(
                 status_code=404,
-                detail=f"User profile not found for user_id: {user_id}"
+                detail="User profile not found"
             )
         
         profile = response.data[0]
@@ -135,7 +135,7 @@ async def get_user_profile(
         logger.exception(f"Error fetching profile for user {hash_user_id_for_logging(user_id)}: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Error fetching user profile: {str(e)}"
+            detail="Error fetching user profile"
         )
 
 
