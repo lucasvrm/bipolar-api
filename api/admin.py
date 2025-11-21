@@ -1,4 +1,3 @@
-# api/admin.py
 """
 Admin endpoints for privileged operations.
 
@@ -6,6 +5,7 @@ These endpoints require admin authentication via service key.
 """
 import os
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from pydantic import BaseModel, Field
@@ -162,4 +162,146 @@ async def generate_synthetic_data(
         raise HTTPException(
             status_code=500,
             detail=f"Error generating synthetic data: {str(e)}"
+        )
+
+
+class CleanupDataRequest(BaseModel):
+    """Request body for data cleanup endpoint."""
+    model_config = {"json_schema_extra": {
+        "example": {
+            "confirm": True
+        }
+    }}
+    
+    confirm: bool = Field(default=False, description="Confirmation to proceed with cleanup")
+
+
+@router.post("/cleanup-data")
+@limiter.limit("3/hour")  # Rate limit to prevent abuse
+async def cleanup_synthetic_data(
+    request: Request,
+    cleanup_request: CleanupDataRequest,
+    supabase: AsyncClient = Depends(get_supabase_client),
+    authorization: Optional[str] = Header(None)
+):
+    """
+    Clean up synthetic patient data from the database.
+    
+    This admin-only endpoint removes synthetic users and their associated check-ins.
+    Synthetic users are identified by their email domain (@example.com).
+    
+    **Authentication**: Requires service key in Authorization header
+    
+    **Rate Limit**: 3 requests per hour per IP
+    
+    Args:
+        cleanup_request: Cleanup confirmation
+        supabase: Supabase client (injected)
+        authorization: Authorization header with service key
+        
+    Returns:
+        JSON with cleanup statistics including:
+        - Number of profiles deleted
+        - Number of check-ins deleted
+        - Cleanup timestamp
+        
+    Raises:
+        HTTPException: 401 if unauthorized, 400 if not confirmed, 500 for errors
+        
+    Example:
+        ```bash
+        curl -X POST https://api.example.com/api/admin/cleanup-data \\
+          -H "Authorization: Bearer <your-service-key>" \\
+          -H "Content-Type: application/json" \\
+          -d '{"confirm": true}'
+        ```
+    """
+    # Verify admin authorization
+    verify_admin_authorization(authorization)
+    
+    # Require explicit confirmation
+    if not cleanup_request.confirm:
+        raise HTTPException(
+            status_code=400,
+            detail="Cleanup requires explicit confirmation. Set 'confirm': true in the request."
+        )
+    
+    logger.info("Admin data cleanup request received")
+    
+    try:
+        # First, get all synthetic user profiles (identified by @example.com email)
+        profiles_response = await supabase.table('profiles').select('id, email').execute()
+        
+        if not profiles_response.data:
+            logger.info("No profiles found in database")
+            return {
+                "status": "success",
+                "message": "No data to cleanup",
+                "statistics": {
+                    "profiles_deleted": 0,
+                    "checkins_deleted": 0,
+                    "cleaned_at": datetime.now(timezone.utc).isoformat()
+                }
+            }
+        
+        # Filter synthetic users (those with @example.com emails or typical faker domains)
+        synthetic_domains = ['@example.com', '@example.org', '@example.net']
+        synthetic_user_ids = [
+            profile['id'] for profile in profiles_response.data
+            if profile.get('email') and any(domain in profile['email'] for domain in synthetic_domains)
+        ]
+        
+        if not synthetic_user_ids:
+            logger.info("No synthetic users found to cleanup")
+            return {
+                "status": "success",
+                "message": "No synthetic users found",
+                "statistics": {
+                    "profiles_deleted": 0,
+                    "checkins_deleted": 0,
+                    "cleaned_at": datetime.now(timezone.utc).isoformat()
+                }
+            }
+        
+        logger.info(f"Found {len(synthetic_user_ids)} synthetic users to cleanup")
+        
+        # Delete check-ins first (child records)
+        checkins_deleted = 0
+        for user_id in synthetic_user_ids:
+            checkins_response = await supabase.table('check_ins').delete().eq('user_id', user_id).execute()
+            if checkins_response.data:
+                checkins_deleted += len(checkins_response.data)
+        
+        logger.info(f"Deleted {checkins_deleted} check-ins")
+        
+        # Then delete profiles (parent records)
+        profiles_deleted = 0
+        for user_id in synthetic_user_ids:
+            profile_response = await supabase.table('profiles').delete().eq('id', user_id).execute()
+            if profile_response.data:
+                profiles_deleted += len(profile_response.data)
+        
+        logger.info(f"Deleted {profiles_deleted} profiles")
+        
+        return {
+            "status": "success",
+            "message": f"Cleaned up {profiles_deleted} synthetic users and {checkins_deleted} check-ins",
+            "statistics": {
+                "profiles_deleted": profiles_deleted,
+                "checkins_deleted": checkins_deleted,
+                "cleaned_at": datetime.now(timezone.utc).isoformat()
+            }
+        }
+        
+    except APIError as e:
+        logger.exception(f"Database error during cleanup: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database error: {str(e)}"
+        )
+    except Exception as e:
+        logger.exception(f"Error cleaning up data: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error cleaning up synthetic data: {str(e)}"
         )

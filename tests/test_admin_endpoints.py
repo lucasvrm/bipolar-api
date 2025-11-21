@@ -249,19 +249,29 @@ class TestDataGeneratorModule:
         
         checkin = generate_realistic_checkin(user_id, checkin_date)
         
-        # Check required fields exist
+        # Check required top-level fields exist
         assert checkin["user_id"] == user_id
         assert "checkin_date" in checkin
-        assert "hoursSlept" in checkin
-        assert "sleepQuality" in checkin
-        assert "energyLevel" in checkin
-        assert "depressedMood" in checkin
-        assert "anxietyStress" in checkin
-        assert "activation" in checkin
-        assert "elevation" in checkin
-        assert "medicationAdherence" in checkin
-        assert "medicationTiming" in checkin
-        assert "compulsionIntensity" in checkin
+        
+        # Check JSONB column fields exist
+        assert "sleep_data" in checkin
+        assert "mood_data" in checkin
+        assert "symptoms_data" in checkin
+        assert "risk_routine_data" in checkin
+        assert "appetite_impulse_data" in checkin
+        assert "meds_context_data" in checkin
+        
+        # Check fields within JSONB columns
+        assert "hoursSlept" in checkin["sleep_data"]
+        assert "sleepQuality" in checkin["sleep_data"]
+        assert "energyLevel" in checkin["mood_data"]
+        assert "depressedMood" in checkin["mood_data"]
+        assert "anxietyStress" in checkin["mood_data"]
+        assert "activation" in checkin["mood_data"]
+        assert "elevation" in checkin["mood_data"]
+        assert "medicationAdherence" in checkin["meds_context_data"]
+        assert "medicationTiming" in checkin["meds_context_data"]
+        assert "compulsionIntensity" in checkin["appetite_impulse_data"]
     
     def test_generate_realistic_checkin_mood_states(self):
         """Test that different mood states produce appropriate values."""
@@ -272,20 +282,20 @@ class TestDataGeneratorModule:
         
         # Test manic state
         manic_checkin = generate_realistic_checkin(user_id, checkin_date, "MANIC")
-        assert manic_checkin["hoursSlept"] < 7  # Low sleep in manic
-        assert manic_checkin["energyLevel"] >= 7  # High energy in manic
-        assert manic_checkin["activation"] >= 7  # High activation in manic
+        assert manic_checkin["sleep_data"]["hoursSlept"] < 7  # Low sleep in manic
+        assert manic_checkin["mood_data"]["energyLevel"] >= 7  # High energy in manic
+        assert manic_checkin["mood_data"]["activation"] >= 7  # High activation in manic
         
         # Test depressed state
         depressed_checkin = generate_realistic_checkin(user_id, checkin_date, "DEPRESSED")
-        assert depressed_checkin["hoursSlept"] >= 8  # More sleep in depression
-        assert depressed_checkin["energyLevel"] <= 4  # Low energy in depression
-        assert depressed_checkin["depressedMood"] >= 6  # High depressed mood
+        assert depressed_checkin["sleep_data"]["hoursSlept"] >= 8  # More sleep in depression
+        assert depressed_checkin["mood_data"]["energyLevel"] <= 4  # Low energy in depression
+        assert depressed_checkin["mood_data"]["depressedMood"] >= 6  # High depressed mood
         
         # Test euthymic state
         euthymic_checkin = generate_realistic_checkin(user_id, checkin_date, "EUTHYMIC")
-        assert 6.5 <= euthymic_checkin["hoursSlept"] <= 8.5  # Normal sleep
-        assert 5 <= euthymic_checkin["energyLevel"] <= 8  # Normal energy
+        assert 6.5 <= euthymic_checkin["sleep_data"]["hoursSlept"] <= 8.5  # Normal sleep
+        assert 5 <= euthymic_checkin["mood_data"]["energyLevel"] <= 8  # Normal energy
     
     def test_generate_user_checkin_history_count(self):
         """Test that correct number of check-ins are generated."""
@@ -330,3 +340,205 @@ class TestDataGeneratorModule:
                 mood_pattern=pattern
             )
             assert len(checkins) == 10
+
+
+class TestCleanupEndpoint:
+    """Test the cleanup-data endpoint."""
+    
+    def test_cleanup_data_without_auth_returns_401(self, client, mock_env):
+        """Test that request without authorization header is rejected."""
+        with patch("api.dependencies.acreate_client", side_effect=mock_acreate_client):
+            response = client.post(
+                "/api/admin/cleanup-data",
+                json={"confirm": True}
+            )
+            
+            assert response.status_code == 401
+            assert "authorization required" in response.json()["detail"].lower()
+    
+    def test_cleanup_data_with_invalid_token_returns_401(self, client, mock_env):
+        """Test that request with invalid token is rejected."""
+        with patch("api.dependencies.acreate_client", side_effect=mock_acreate_client):
+            response = client.post(
+                "/api/admin/cleanup-data",
+                headers={"Authorization": "Bearer invalid-token"},
+                json={"confirm": True}
+            )
+            
+            assert response.status_code == 401
+            assert "invalid" in response.json()["detail"].lower()
+    
+    def test_cleanup_data_without_confirmation_returns_400(self, client, mock_env, service_key):
+        """Test that request without confirmation is rejected."""
+        with patch("api.dependencies.acreate_client", side_effect=mock_acreate_client):
+            response = client.post(
+                "/api/admin/cleanup-data",
+                headers={"Authorization": f"Bearer {service_key}"},
+                json={"confirm": False}
+            )
+            
+            assert response.status_code == 400
+            assert "confirmation" in response.json()["detail"].lower()
+    
+    def test_cleanup_data_with_valid_auth_and_confirmation_succeeds(self, client, mock_env, service_key):
+        """Test that cleanup with valid auth and confirmation succeeds."""
+        # Create mock that returns profiles with example.com emails
+        mock_client = MagicMock()
+        
+        # Mock profiles select response
+        profiles_data = [
+            {"id": "user-1", "email": "test1@example.com"},
+            {"id": "user-2", "email": "test2@example.org"},
+            {"id": "user-3", "email": "real@gmail.com"}
+        ]
+        
+        async def mock_execute():
+            return MockSupabaseResponse(profiles_data)
+        
+        # Mock for delete operations
+        async def mock_delete_execute():
+            return MockSupabaseResponse([{"id": "deleted"}])
+        
+        # Setup the mock chain
+        select_mock = MagicMock()
+        select_mock.execute = mock_execute
+        
+        delete_mock = MagicMock()
+        delete_mock.eq = MagicMock(return_value=delete_mock)
+        delete_mock.execute = mock_delete_execute
+        
+        table_mock = MagicMock()
+        table_mock.select = MagicMock(return_value=select_mock)
+        table_mock.delete = MagicMock(return_value=delete_mock)
+        
+        mock_client.table = MagicMock(return_value=table_mock)
+        
+        async def mock_create_custom(*args, **kwargs):
+            return mock_client
+        
+        with patch("api.dependencies.acreate_client", side_effect=mock_create_custom):
+            response = client.post(
+                "/api/admin/cleanup-data",
+                headers={"Authorization": f"Bearer {service_key}"},
+                json={"confirm": True}
+            )
+            
+            assert response.status_code == 200
+            data = response.json()
+            assert data["status"] == "success"
+            assert "statistics" in data
+            assert "profiles_deleted" in data["statistics"]
+            assert "checkins_deleted" in data["statistics"]
+
+
+class TestPydanticSchemas:
+    """Test the Pydantic schema validation."""
+    
+    def test_sleep_data_validation(self):
+        """Test SleepData model validation."""
+        from api.schemas.checkin_jsonb import SleepData
+        
+        # Valid data
+        valid_data = SleepData(
+            hoursSlept=7.5,
+            sleepQuality=8,
+            perceivedSleepNeed=8.0,
+            sleepHygiene=7,
+            hasNapped=0,
+            nappingDurationMin=0
+        )
+        assert valid_data.hoursSlept == 7.5
+        assert valid_data.sleepQuality == 8
+        
+        # Test validation - hours slept should be 0-24
+        with pytest.raises(Exception):  # Pydantic ValidationError
+            SleepData(
+                hoursSlept=25,  # Invalid
+                sleepQuality=8,
+                perceivedSleepNeed=8.0,
+                sleepHygiene=7,
+                hasNapped=0,
+                nappingDurationMin=0
+            )
+    
+    def test_mood_data_validation(self):
+        """Test MoodData model validation."""
+        from api.schemas.checkin_jsonb import MoodData
+        
+        # Valid data
+        valid_data = MoodData(
+            energyLevel=7,
+            depressedMood=3,
+            anxietyStress=4,
+            elevation=5,
+            activation=6,
+            motivationToStart=7
+        )
+        assert valid_data.energyLevel == 7
+        assert valid_data.depressedMood == 3
+        
+        # Test validation - values should be 0-10
+        with pytest.raises(Exception):  # Pydantic ValidationError
+            MoodData(
+                energyLevel=11,  # Invalid
+                depressedMood=3,
+                anxietyStress=4,
+                elevation=5,
+                activation=6,
+                motivationToStart=7
+            )
+    
+    def test_symptoms_data_validation(self):
+        """Test SymptomsData model validation."""
+        from api.schemas.checkin_jsonb import SymptomsData
+        
+        valid_data = SymptomsData(
+            thoughtSpeed=5,
+            distractibility=4,
+            memoryConcentration=7,
+            ruminationAxis=3
+        )
+        assert valid_data.thoughtSpeed == 5
+        
+    def test_all_models_work_together(self):
+        """Test that all models can be instantiated and dumped."""
+        from api.schemas.checkin_jsonb import (
+            SleepData, MoodData, SymptomsData, 
+            RiskRoutineData, AppetiteImpulseData, MedsContextData
+        )
+        
+        sleep = SleepData(
+            hoursSlept=7.5, sleepQuality=8, perceivedSleepNeed=8.0,
+            sleepHygiene=7, hasNapped=0, nappingDurationMin=0
+        )
+        mood = MoodData(
+            energyLevel=7, depressedMood=3, anxietyStress=4,
+            elevation=5, activation=6, motivationToStart=7
+        )
+        symptoms = SymptomsData(
+            thoughtSpeed=5, distractibility=4,
+            memoryConcentration=7, ruminationAxis=3
+        )
+        risk = RiskRoutineData(
+            socialConnection=6, socialRhythmEvent=0,
+            exerciseDurationMin=30, exerciseFeeling=7,
+            sexualRiskBehavior=0, tasksPlanned=5, tasksCompleted=4
+        )
+        appetite = AppetiteImpulseData(
+            generalAppetite=7, dietTracking=1, skipMeals=0,
+            compulsionEpisode=0, compulsionIntensity=0,
+            substanceUsage=0, substanceUnits=0,
+            caffeineDoses=2, libido=5
+        )
+        meds = MedsContextData(
+            medicationAdherence=1, medicationTiming=1,
+            medicationChangeRecent=0, contextualStressors=0
+        )
+        
+        # All should dump to dicts
+        assert isinstance(sleep.model_dump(), dict)
+        assert isinstance(mood.model_dump(), dict)
+        assert isinstance(symptoms.model_dump(), dict)
+        assert isinstance(risk.model_dump(), dict)
+        assert isinstance(appetite.model_dump(), dict)
+        assert isinstance(meds.model_dump(), dict)

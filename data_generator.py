@@ -10,6 +10,14 @@ from faker import Faker
 from typing import List, Dict, Any, Optional
 from supabase import AsyncClient
 import logging
+from api.schemas.checkin_jsonb import (
+    SleepData,
+    MoodData,
+    SymptomsData,
+    RiskRoutineData,
+    AppetiteImpulseData,
+    MedsContextData
+)
 
 # Use a specific locale for consistency
 fake = Faker('pt_BR')
@@ -144,71 +152,71 @@ def generate_realistic_checkin(
     rumination_axis = max(0, min(10, depressed_mood + random.randint(-1, 2)))
     sexual_risk = 1 if (mood_state == 'MANIC' and random.random() < 0.25) else 0
 
-    # --- 2. Map Raw Values to JSONB Schema Structure ---
+    # --- 2. Map Raw Values to JSONB Schema Structure with Pydantic validation ---
     
-    sleep_data = {
-        "hoursSlept": sleep_hours,
-        "sleepQuality": sleep_quality,
-        "perceivedSleepNeed": perceived_sleep_need,
-        "sleepHygiene": sleep_hygiene,
-        "hasNapped": has_napped,
-        "nappingDurationMin": napping_duration
-    }
+    sleep_data = SleepData(
+        hoursSlept=sleep_hours,
+        sleepQuality=sleep_quality,
+        perceivedSleepNeed=perceived_sleep_need,
+        sleepHygiene=sleep_hygiene,
+        hasNapped=has_napped,
+        nappingDurationMin=napping_duration
+    )
 
-    mood_data = {
-        "energyLevel": energy_level,
-        "depressedMood": depressed_mood,
-        "anxietyStress": anxiety_stress,
-        "elevation": elevation,
-        "activation": activation,
-        "motivationToStart": motivation
-    }
+    mood_data = MoodData(
+        energyLevel=energy_level,
+        depressedMood=depressed_mood,
+        anxietyStress=anxiety_stress,
+        elevation=elevation,
+        activation=activation,
+        motivationToStart=motivation
+    )
 
-    symptoms_data = {
-        "thoughtSpeed": thought_speed,
-        "distractibility": distractibility,
-        "memoryConcentration": memory_concentration,
-        "ruminationAxis": rumination_axis
-    }
+    symptoms_data = SymptomsData(
+        thoughtSpeed=thought_speed,
+        distractibility=distractibility,
+        memoryConcentration=memory_concentration,
+        ruminationAxis=rumination_axis
+    )
 
-    risk_routine_data = {
-        "socialConnection": social_connection,
-        "socialRhythmEvent": social_rhythm_event,
-        "exerciseDurationMin": exercise_duration,
-        "exerciseFeeling": exercise_feeling,
-        "sexualRiskBehavior": sexual_risk,
-        "tasksPlanned": tasks_planned,
-        "tasksCompleted": tasks_completed
-    }
+    risk_routine_data = RiskRoutineData(
+        socialConnection=social_connection,
+        socialRhythmEvent=social_rhythm_event,
+        exerciseDurationMin=exercise_duration,
+        exerciseFeeling=exercise_feeling,
+        sexualRiskBehavior=sexual_risk,
+        tasksPlanned=tasks_planned,
+        tasksCompleted=tasks_completed
+    )
 
-    appetite_impulse_data = {
-        "generalAppetite": general_appetite,
-        "dietTracking": diet_tracking,
-        "skipMeals": skip_meals,
-        "compulsionEpisode": compulsion_episode,
-        "compulsionIntensity": compulsion_intensity,
-        "substanceUsage": substance_usage,
-        "substanceUnits": substance_units,
-        "caffeineDoses": caffeine_doses,
-        "libido": libido
-    }
+    appetite_impulse_data = AppetiteImpulseData(
+        generalAppetite=general_appetite,
+        dietTracking=diet_tracking,
+        skipMeals=skip_meals,
+        compulsionEpisode=compulsion_episode,
+        compulsionIntensity=compulsion_intensity,
+        substanceUsage=substance_usage,
+        substanceUnits=substance_units,
+        caffeineDoses=caffeine_doses,
+        libido=libido
+    )
 
-    meds_context_data = {
-        "medicationAdherence": medication_adherence,
-        "medicationTiming": medication_timing,
-        "medicationChangeRecent": medication_change_recent,
-        "contextualStressors": contextual_stressors
-    }
+    meds_context_data = MedsContextData(
+        medicationAdherence=medication_adherence,
+        medicationTiming=medication_timing,
+        medicationChangeRecent=medication_change_recent,
+        contextualStressors=contextual_stressors
+    )
 
     return {
         "user_id": user_id,
         "checkin_date": checkin_date.strftime('%Y-%m-%d'), # Date type in DB
-        "sleep_data": sleep_data,
-        "mood_data": mood_data,
-        "symptoms_data": symptoms_data,
-        "risk_routine_data": risk_routine_data,
-        "appetite_impulse_data": appetite_impulse_data,
-        "meds_context_data": meds_context_data,
+        "sleep_data": sleep_data.model_dump(),
+        "mood_data": mood_data.model_dump(),
+        "symptoms_data": symptoms_data.model_dump(),
+        "risk_routine_data": risk_routine_data.model_dump(),
+        "appetite_impulse_data": appetite_impulse_data.model_dump(),
+        "meds_context_data": meds_context_data.model_dump(),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "updated_at": datetime.now(timezone.utc).isoformat()
     }
@@ -283,6 +291,18 @@ async def generate_and_populate_data(
         for i in range(num_users):
             user_id = fake.uuid4()
             user_ids.append(user_id)
+            
+            # Generate profile data for this user
+            email = fake.unique.email()
+            profile_data = {
+                "id": user_id,
+                "email": email,
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }
+            
+            # Insert profile into profiles table BEFORE generating check-ins
+            logger.debug(f"Inserting profile for user {i+1}/{num_users} with email {email}")
+            await supabase.table('profiles').insert(profile_data).execute()
             
             # Generate check-in history for this user
             checkins = generate_user_checkin_history(
