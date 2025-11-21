@@ -58,11 +58,26 @@ cd bipolar-api
 # Instale as dependências
 pip install -r requirements.txt
 
+# Configure as variáveis de ambiente
+cp .env.example .env
+# Edite o arquivo .env com suas credenciais do Supabase
+# SUPABASE_URL: URL do seu projeto Supabase (https://app.supabase.com)
+# SUPABASE_SERVICE_KEY: Service role key do seu projeto
+
 # Execute o servidor
 uvicorn main:app --reload
 ```
 
 O servidor estará disponível em `http://localhost:8000`
+
+### Configuração de Variáveis de Ambiente
+
+O projeto requer as seguintes variáveis de ambiente:
+
+- `SUPABASE_URL`: URL do projeto Supabase
+- `SUPABASE_SERVICE_KEY`: Service role key para acesso ao banco de dados
+
+**Importante:** Nunca commite o arquivo `.env` com credenciais reais. Use o arquivo `.env.example` como template.
 
 ## 📚 Documentação da API
 
