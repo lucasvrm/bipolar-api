@@ -6,7 +6,6 @@ to prevent excessive requests and protect the server from abuse.
 """
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
 import os
 
 # Set environment variables before importing main
@@ -21,39 +20,6 @@ os.environ["RATE_LIMIT_DATA_ACCESS"] = "3/minute"
 
 from main import app
 from api.rate_limiter import limiter
-
-
-@pytest.fixture
-def client():
-    """Create a test client for the API."""
-    # Reset rate limiter state between tests
-    # Note: MemoryStorage doesn't have a global clear, so we create a new client each time
-    return TestClient(app)
-
-
-@pytest.fixture
-def mock_supabase():
-    """Mock Supabase client to avoid actual database calls."""
-    with patch("api.dependencies.get_supabase_client") as mock:
-        mock_client = MagicMock()
-        # Mock response for check-ins query
-        mock_response = MagicMock()
-        mock_response.data = [{
-            "id": "test-checkin-id",
-            "user_id": "test-user-id",
-            "checkin_date": "2024-01-01T00:00:00Z",
-            "hoursSlept": 7,
-            "depressedMood": 3,
-            "energyLevel": 5,
-            "anxietyStress": 3
-        }]
-        mock_client.table.return_value.select.return_value.eq.return_value.order.return_value.limit.return_value.execute = MagicMock(return_value=mock_response)
-        
-        async def get_mock_client():
-            return mock_client
-        
-        mock.return_value = get_mock_client()
-        yield mock
 
 
 def test_rate_limit_on_predictions_endpoint(client, mock_supabase):
