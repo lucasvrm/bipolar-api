@@ -25,17 +25,48 @@ class GenerateDataRequest(BaseModel):
     """Request body for data generation endpoint."""
     model_config = {"json_schema_extra": {
         "example": {
-            "num_users": 10,
+            "patients_count": 5,
+            "therapists_count": 2,
             "checkins_per_user": 30,
-            "mood_pattern": "stable"
+            "mood_pattern": "stable",
+            "clear_db": False
         }
     }}
 
-    num_users: int = Field(default=5, ge=1, le=100, description="Number of users to generate (1-100)")
-    checkins_per_user: int = Field(default=30, ge=1, le=365, description="Check-ins per user (1-365)")
+    # New parametrized approach
+    patients_count: Optional[int] = Field(
+        default=2, 
+        ge=0, 
+        le=100, 
+        description="Number of patient profiles to generate (0-100). Patients will have check-ins generated."
+    )
+    therapists_count: Optional[int] = Field(
+        default=1, 
+        ge=0, 
+        le=50, 
+        description="Number of therapist profiles to generate (0-50). Therapists won't have check-ins."
+    )
+    checkins_per_user: int = Field(
+        default=30, 
+        ge=1, 
+        le=365, 
+        description="Check-ins per patient (1-365). Only applies to patients."
+    )
     mood_pattern: str = Field(
         default="stable",
         description="Mood pattern: 'stable' (mostly euthymic), 'cycling' (regular cycles), or 'random'"
+    )
+    clear_db: bool = Field(
+        default=False,
+        description="If true, clears all synthetic data before generating new data"
+    )
+    
+    # Legacy parameter for backward compatibility
+    num_users: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=100,
+        description="DEPRECATED: Use patients_count and therapists_count instead. If provided, creates all users as patients."
     )
 
 
@@ -48,25 +79,25 @@ async def generate_synthetic_data(
     is_admin: bool = Depends(verify_admin_authorization)
 ):
     """
-    Generate and insert synthetic patient data into the database.
+    Generate and insert synthetic patient and therapist data into the database.
 
     This admin-only endpoint creates realistic synthetic check-in data for testing
-    and development purposes. It generates multiple users with complete check-in
-    histories that include realistic correlations between mood states and other
-    clinical markers.
+    and development purposes. It allows controlled generation of specific numbers of
+    patients and therapists, with realistic check-in histories for patients.
 
     **Authentication**: Requires JWT token with admin role in Authorization header
 
     **Rate Limit**: 5 requests per hour per IP
 
     Args:
-        data_request: Configuration for data generation
+        data_request: Configuration for data generation with role-specific counts
         supabase: Supabase client (injected)
         is_admin: Admin authorization check (injected)
 
     Returns:
         JSON with generation statistics including:
-        - Number of users created
+        - Number of patients created
+        - Number of therapists created
         - User IDs
         - Total check-ins inserted
         - Generation timestamp
@@ -79,7 +110,7 @@ async def generate_synthetic_data(
         curl -X POST https://api.example.com/api/admin/generate-data \\
           -H "Authorization: Bearer <your-jwt-token>" \\
           -H "Content-Type: application/json" \\
-          -d '{"num_users": 10, "checkins_per_user": 30, "mood_pattern": "stable"}'
+          -d '{"patients_count": 5, "therapists_count": 2, "checkins_per_user": 30, "mood_pattern": "stable", "clear_db": false}'
         ```
     """
     # Admin check is done by dependency - no need to verify again
@@ -91,23 +122,72 @@ async def generate_synthetic_data(
             status_code=400,
             detail=f"Invalid mood_pattern. Must be one of: {', '.join(valid_patterns)}"
         )
+    
+    # Handle legacy num_users parameter
+    patients_count = data_request.patients_count
+    therapists_count = data_request.therapists_count
+    
+    if data_request.num_users is not None:
+        # Legacy mode: num_users creates all patients
+        logger.info(f"Using legacy num_users parameter ({data_request.num_users}), creating all as patients")
+        patients_count = data_request.num_users
+        therapists_count = 0
+    
+    # Validate at least one user type is requested
+    if patients_count == 0 and therapists_count == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Must specify at least one patient or therapist to generate"
+        )
 
     logger.info(
-        f"Admin data generation request: {data_request.num_users} users, "
-        f"{data_request.checkins_per_user} check-ins per user, "
-        f"pattern={data_request.mood_pattern}"
+        f"Admin data generation request: {patients_count} patients, "
+        f"{therapists_count} therapists, {data_request.checkins_per_user} check-ins per patient, "
+        f"pattern={data_request.mood_pattern}, clear_db={data_request.clear_db}"
     )
 
     try:
-        # Generate and populate data
+        # Clear database if requested
+        if data_request.clear_db:
+            logger.info("Clearing synthetic data before generation...")
+            
+            # Get all synthetic user profiles (identified by @example.com email or faker domains)
+            profiles_response = await supabase.table('profiles').select('id, email').execute()
+            
+            if profiles_response.data:
+                synthetic_domains = ['@example.com', '@example.org', '@example.net']
+                synthetic_user_ids = [
+                    profile['id'] for profile in profiles_response.data
+                    if profile.get('email') and any(domain in profile['email'] for domain in synthetic_domains)
+                ]
+                
+                if synthetic_user_ids:
+                    logger.info(f"Found {len(synthetic_user_ids)} synthetic users to clear")
+                    
+                    # Delete check-ins first (child records)
+                    for user_id in synthetic_user_ids:
+                        await supabase.table('check_ins').delete().eq('user_id', user_id).execute()
+                    
+                    # Then delete profiles (parent records)
+                    for user_id in synthetic_user_ids:
+                        await supabase.table('profiles').delete().eq('id', user_id).execute()
+                    
+                    logger.info(f"Cleared {len(synthetic_user_ids)} synthetic users and their check-ins")
+        
+        # Generate and populate data with new parameters
         result = await generate_and_populate_data(
             supabase=supabase,
-            num_users=data_request.num_users,
             checkins_per_user=data_request.checkins_per_user,
-            mood_pattern=data_request.mood_pattern
+            mood_pattern=data_request.mood_pattern,
+            patients_count=patients_count,
+            therapists_count=therapists_count
         )
 
-        logger.info(f"Data generation completed: {result['statistics']['total_checkins']} check-ins inserted")
+        logger.info(
+            f"Data generation completed: {result['statistics']['patients_created']} patients, "
+            f"{result['statistics']['therapists_created']} therapists, "
+            f"{result['statistics']['total_checkins']} check-ins inserted"
+        )
 
         return result
 

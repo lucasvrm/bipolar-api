@@ -232,9 +232,12 @@ class TestDataGeneration:
             data = response.json()
             assert data["status"] == "success"
             assert "statistics" in data
-            assert data["statistics"]["users_created"] == 5  # default
-            assert data["statistics"]["checkins_per_user"] == 30  # default
-            assert data["statistics"]["mood_pattern"] == "stable"  # default
+            # New defaults: 2 patients + 1 therapist = 3 total users
+            assert data["statistics"]["users_created"] == 3
+            assert data["statistics"]["patients_created"] == 2
+            assert data["statistics"]["therapists_created"] == 1
+            assert data["statistics"]["checkins_per_user"] == 30
+            assert data["statistics"]["mood_pattern"] == "stable"
 
     def test_generate_data_custom_parameters(self, client, mock_env, admin_user):
         """Test data generation with custom parameters."""
@@ -345,6 +348,110 @@ class TestDataGeneration:
                 assert isinstance(user_id, str)
                 assert len(user_id) == 36  # UUID string length
                 assert user_id.count('-') == 4  # UUID has 4 hyphens
+
+    def test_generate_data_with_patients_and_therapists(self, client, mock_env, admin_user):
+        """Test data generation with specific patient and therapist counts."""
+        async def mock_create(*args, **kwargs):
+            return create_mock_supabase_client(mock_user=admin_user)
+        
+        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+            response = client.post(
+                "/api/admin/generate-data",
+                headers={"Authorization": "Bearer valid-admin-token"},
+                json={
+                    "patients_count": 5,
+                    "therapists_count": 2,
+                    "checkins_per_user": 15
+                }
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["status"] == "success"
+            assert data["statistics"]["users_created"] == 7
+            assert data["statistics"]["patients_created"] == 5
+            assert data["statistics"]["therapists_created"] == 2
+
+    def test_generate_data_only_patients(self, client, mock_env, admin_user):
+        """Test data generation with only patients."""
+        async def mock_create(*args, **kwargs):
+            return create_mock_supabase_client(mock_user=admin_user)
+        
+        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+            response = client.post(
+                "/api/admin/generate-data",
+                headers={"Authorization": "Bearer valid-admin-token"},
+                json={
+                    "patients_count": 10,
+                    "therapists_count": 0
+                }
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["statistics"]["patients_created"] == 10
+            assert data["statistics"]["therapists_created"] == 0
+
+    def test_generate_data_only_therapists(self, client, mock_env, admin_user):
+        """Test data generation with only therapists."""
+        async def mock_create(*args, **kwargs):
+            return create_mock_supabase_client(mock_user=admin_user)
+        
+        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+            response = client.post(
+                "/api/admin/generate-data",
+                headers={"Authorization": "Bearer valid-admin-token"},
+                json={
+                    "patients_count": 0,
+                    "therapists_count": 5
+                }
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["statistics"]["patients_created"] == 0
+            assert data["statistics"]["therapists_created"] == 5
+            # Therapists should have 0 check-ins
+            assert data["statistics"]["total_checkins"] == 0
+
+    def test_generate_data_rejects_zero_users(self, client, mock_env, admin_user):
+        """Test that requesting zero patients and zero therapists is rejected."""
+        async def mock_create(*args, **kwargs):
+            return create_mock_supabase_client(mock_user=admin_user)
+        
+        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+            response = client.post(
+                "/api/admin/generate-data",
+                headers={"Authorization": "Bearer valid-admin-token"},
+                json={
+                    "patients_count": 0,
+                    "therapists_count": 0
+                }
+            )
+
+            assert response.status_code == 400
+            assert "at least one" in response.json()["detail"].lower()
+
+    def test_generate_data_with_legacy_num_users(self, client, mock_env, admin_user):
+        """Test backward compatibility with legacy num_users parameter."""
+        async def mock_create(*args, **kwargs):
+            return create_mock_supabase_client(mock_user=admin_user)
+        
+        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+            response = client.post(
+                "/api/admin/generate-data",
+                headers={"Authorization": "Bearer valid-admin-token"},
+                json={
+                    "num_users": 8,
+                    "checkins_per_user": 20
+                }
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            # Legacy mode: all users created as patients
+            assert data["statistics"]["patients_created"] == 8
+            assert data["statistics"]["therapists_created"] == 0
 
 
 class TestDataGeneratorModule:
