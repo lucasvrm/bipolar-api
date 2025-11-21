@@ -10,6 +10,7 @@ from faker import Faker
 from typing import List, Dict, Any, Optional
 from supabase import AsyncClient
 import logging
+from fastapi import HTTPException
 from api.schemas.checkin_jsonb import (
     SleepData,
     MoodData,
@@ -288,8 +289,6 @@ async def generate_and_populate_data(
     patients_count: Optional[int] = None,
     therapists_count: Optional[int] = None
 ) -> Dict[str, Any]:
-    from fastapi import HTTPException
-
     # Compatibilidade com parâmetros antigos e novos
     if patients_count is not None or therapists_count is not None:
         patients_count = patients_count or 0
