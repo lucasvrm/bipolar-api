@@ -11,6 +11,10 @@ jobs:
     name: Run Python Tests
     runs-on: ubuntu-latest
     
+    permissions:
+      contents: read
+      checks: write
+    
     strategy:
       matrix:
         python-version: ['3.11', '3.12']
@@ -50,6 +54,9 @@ jobs:
   lint:
     name: Code Quality Checks
     runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
     
     steps:
       - name: Checkout code
