@@ -216,15 +216,14 @@ def test_uuid_edge_cases():
         edge_cases = [
             "",  # empty string
             " ",  # whitespace
-            "00000000-0000-0000-0000-000000000000",  # nil UUID (valid format, so should pass validation but may fail in DB)
         ]
         
         # Empty and whitespace should return 400
-        for test_case in edge_cases[:2]:
+        for test_case in edge_cases:
             response = client.get(f"/data/predictions/{test_case}")
             assert response.status_code in [400, 404], f"Expected 400 or 404 for: '{test_case}'"
         
-        # Nil UUID has valid format, so should pass validation
+        # Nil UUID has valid format, so should pass validation and return 200 with empty predictions
         mock_client = create_mock_supabase_client([])
         
         async def mock_acreate_client(*args, **kwargs):
@@ -232,7 +231,7 @@ def test_uuid_edge_cases():
         
         with patch("api.dependencies.acreate_client", side_effect=mock_acreate_client):
             response = client.get(f"/data/predictions/00000000-0000-0000-0000-000000000000")
-            # Should pass validation (200 with empty predictions)
+            # Should pass validation and return successful response with no predictions
             assert response.status_code == 200
 
 

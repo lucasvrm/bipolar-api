@@ -9,6 +9,9 @@ from postgrest.exceptions import APIError
 
 logger = logging.getLogger("bipolar-api.utils")
 
+# PostgREST error codes
+POSTGREST_UUID_SYNTAX_ERROR = '22P02'  # invalid_text_representation
+
 
 def validate_uuid_or_400(value: str, param_name: str = "id") -> str:
     """
@@ -27,7 +30,7 @@ def validate_uuid_or_400(value: str, param_name: str = "id") -> str:
     try:
         uuid.UUID(value)
         return value
-    except (ValueError, AttributeError):
+    except ValueError:
         raise HTTPException(
             status_code=400,
             detail=f"Invalid UUID format for {param_name}: {value}"
@@ -50,7 +53,7 @@ def handle_postgrest_error(e: APIError, user_id: str) -> None:
         APIError: Re-raises the original error for other cases
     """
     # Handle PostgREST syntax errors (invalid UUID in database query)
-    if hasattr(e, 'code') and e.code == '22P02':
+    if hasattr(e, 'code') and e.code == POSTGREST_UUID_SYNTAX_ERROR:
         logger.warning(f"PostgREST UUID syntax error for user_id={user_id}: {e}")
         raise HTTPException(
             status_code=400,
