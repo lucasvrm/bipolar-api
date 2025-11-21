@@ -396,5 +396,5 @@ async def generate_and_populate_data(
         }
         
     except Exception as e:
-        logger.exception(f"Error generating and populating data: {e}")
+        logger.exception("Error generating and populating data")
         raise
