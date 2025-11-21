@@ -41,12 +41,20 @@ def get_user_id_from_request(request: Request) -> str:
     Returns:
         Identifier string for rate limiting
     """
+    import uuid
+    
     # Try to extract user_id from path
     path_parts = request.url.path.split('/')
     for part in path_parts:
-        # Look for UUID-like patterns (36 chars with 4 hyphens)
+        # Look for UUID-like patterns and validate them
         if len(part) == 36 and part.count('-') == 4:
-            return f"user:{part}"
+            try:
+                # Validate that it's actually a UUID
+                uuid.UUID(part)
+                return f"user:{part}"
+            except ValueError:
+                # Not a valid UUID, continue searching
+                continue
     
     # Fallback to IP address
     return get_remote_address(request)
@@ -80,15 +88,19 @@ def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JSO
         f"on path {request.url.path}"
     )
     
+    # Calculate retry_after from the exception or use a reasonable default
+    # The exception should have retry_after set by slowapi based on the rate limit
+    retry_after = int(getattr(exc, 'retry_after', 60))
+    
     return JSONResponse(
         status_code=429,
         content={
             "error": "rate_limit_exceeded",
             "message": "Too many requests. Please slow down and try again later.",
             "detail": str(exc.detail) if hasattr(exc, 'detail') else "Rate limit exceeded",
-            "retry_after": getattr(exc, 'retry_after', 60)  # Default 60 seconds
+            "retry_after": retry_after
         },
         headers={
-            "Retry-After": str(getattr(exc, 'retry_after', 60))
+            "Retry-After": str(retry_after)
         }
     )
