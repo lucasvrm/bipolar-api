@@ -102,7 +102,7 @@ class DangerZoneCleanupRequest(BaseModel):
         ]
     }}
 
-    action: str = Field(
+    action: Literal["delete_all", "delete_last_n", "delete_by_mood", "delete_before_date"] = Field(
         description="Type of deletion action: delete_all, delete_last_n, delete_by_mood, delete_before_date"
     )
     quantity: Optional[int] = Field(

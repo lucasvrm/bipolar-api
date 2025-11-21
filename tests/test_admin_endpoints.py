@@ -979,7 +979,7 @@ class TestDangerZoneCleanup:
             assert "forbidden" in response.json()["detail"].lower()
 
     def test_danger_zone_cleanup_invalid_action_returns_400(self, client, mock_env, admin_user):
-        """Test that invalid action returns 400."""
+        """Test that invalid action returns 422 (Pydantic validation error)."""
         async def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=admin_user)
         
@@ -990,8 +990,9 @@ class TestDangerZoneCleanup:
                 json={"action": "invalid_action"}
             )
 
-            assert response.status_code == 400
-            assert "invalid action" in response.json()["detail"].lower()
+            # Pydantic validation returns 422 for invalid enum values
+            assert response.status_code == 422
+            assert "action" in str(response.json())
 
     def test_danger_zone_cleanup_delete_last_n_without_quantity_returns_400(self, client, mock_env, admin_user):
         """Test that delete_last_n without quantity returns 400."""

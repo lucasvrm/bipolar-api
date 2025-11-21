@@ -1161,17 +1161,12 @@ async def danger_zone_cleanup(
           -d '{"action": "delete_last_n", "quantity": 5}'
         ```
     """
+    # Constants for mood pattern analysis
+    MOOD_VARIANCE_THRESHOLD = 2.0  # Threshold to distinguish stable from cycling patterns
+    
     logger.info(f"Danger zone cleanup request: action={cleanup_request.action}")
     
-    # Validate action
-    valid_actions = ["delete_all", "delete_last_n", "delete_by_mood", "delete_before_date"]
-    if cleanup_request.action not in valid_actions:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid action. Must be one of: {', '.join(valid_actions)}"
-        )
-    
-    # Validate required parameters based on action
+    # Validate required parameters based on action (Pydantic handles action validation)
     if cleanup_request.action == "delete_last_n" and not cleanup_request.quantity:
         raise HTTPException(
             status_code=400,
@@ -1255,10 +1250,12 @@ async def danger_zone_cleanup(
                     for checkin in user_checkins[patient_id]:
                         mood_data = checkin.get('mood_data', {})
                         if isinstance(mood_data, dict):
-                            elevation = mood_data.get('elevatedMood', 0) or mood_data.get('elevation', 0)
+                            # Handle both field names for backward compatibility
+                            # 'elevatedMood' is legacy, 'elevation' is current schema
+                            elevation = mood_data.get('elevation', 0) or mood_data.get('elevatedMood', 0)
                             depression = mood_data.get('depressedMood', 0)
-                            # Simple mood score
-                            mood_score = (elevation - depression) / 2
+                            # Normalize mood score to -5 to +5 scale (elevation - depression, then divide by 2)
+                            mood_score = (elevation - depression) / 2.0
                             mood_values.append(mood_score)
                     
                     if len(mood_values) > 0:
@@ -1266,13 +1263,13 @@ async def danger_zone_cleanup(
                         mean_mood = sum(mood_values) / len(mood_values)
                         variance = sum((x - mean_mood) ** 2 for x in mood_values) / len(mood_values)
                         
-                        # Match pattern
-                        if cleanup_request.mood_pattern == "stable" and variance < 2.0:
+                        # Match pattern using threshold constant
+                        if cleanup_request.mood_pattern == "stable" and variance < MOOD_VARIANCE_THRESHOLD:
                             filtered_patients.append(patient)
-                        elif cleanup_request.mood_pattern == "cycling" and variance >= 2.0:
+                        elif cleanup_request.mood_pattern == "cycling" and variance >= MOOD_VARIANCE_THRESHOLD:
                             filtered_patients.append(patient)
                         elif cleanup_request.mood_pattern == "random":
-                            # Random pattern - could include all or use other heuristic
+                            # Random pattern - includes all patients with check-ins
                             filtered_patients.append(patient)
                 
                 patients_to_delete = filtered_patients
@@ -1346,7 +1343,7 @@ async def danger_zone_cleanup(
         # 4. Log to audit_log
         try:
             await supabase.table('audit_log').insert({
-                'user_id': patient_ids_to_delete[0] if patient_ids_to_delete else None,  # First deleted user as reference
+                'user_id': None,  # Bulk operation - no single user reference
                 'action': 'synthetic_cleanup',
                 'details': {
                     'cleanup_action': cleanup_request.action,
@@ -1354,9 +1351,9 @@ async def danger_zone_cleanup(
                     'mood_pattern': cleanup_request.mood_pattern,
                     'before_date': cleanup_request.before_date,
                     'deleted_count': deleted_count,
-                    'deleted_user_ids': patient_ids_to_delete
+                    'deleted_user_ids': patient_ids_to_delete[:10] if len(patient_ids_to_delete) > 10 else patient_ids_to_delete  # Store max 10 IDs for audit
                 },
-                'performed_by': None,  # Admin-performed, no specific user ID tracked
+                'performed_by': None,  # System/admin-performed action
                 'created_at': datetime.now(timezone.utc).isoformat()
             }).execute()
             logger.info(f"Audit log entry created for synthetic_cleanup action")
