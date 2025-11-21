@@ -51,6 +51,10 @@ def generate_test_checkin(user_id: str, days_ago: int) -> dict:
     """
     Generate a test check-in with randomized but realistic data.
     
+    Includes fields from the EXPECTED_FEATURES in feature_engineering.py.
+    The database schema may include additional optional fields beyond those
+    shown in minimal test examples.
+    
     Args:
         user_id: The user ID for the check-in
         days_ago: How many days ago this check-in occurred
@@ -60,7 +64,7 @@ def generate_test_checkin(user_id: str, days_ago: int) -> dict:
     """
     checkin_date = datetime.now(timezone.utc) - timedelta(days=days_ago)
     
-    # Generate realistic random values based on the schema from test_predictions_endpoint.py
+    # Generate realistic random values including core features used by prediction models
     return {
         "user_id": user_id,
         "checkin_date": checkin_date.isoformat(),
@@ -72,6 +76,7 @@ def generate_test_checkin(user_id: str, days_ago: int) -> dict:
         "medicationAdherence": random.randint(0, 1),
         "medicationTiming": random.randint(0, 1),
         "compulsionIntensity": random.randint(0, 5),
+        # activation and elevation are part of EXPECTED_FEATURES (feature_engineering.py)
         "activation": random.randint(0, 10),
         "elevation": random.randint(0, 10),
     }
