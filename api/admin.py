@@ -94,6 +94,10 @@ async def generate_synthetic_data(
     This admin-only endpoint creates realistic synthetic check-in data for testing
     and development purposes. It allows controlled generation of specific numbers of
     patients and therapists, with realistic check-in histories for patients.
+    
+    The endpoint uses a Supabase service role client (injected via dependency) which 
+    bypasses Row Level Security (RLS) and allows admin-level operations for creating
+    users and managing synthetic data.
 
     **Authentication**: Requires JWT token with admin role in Authorization header
 
@@ -101,7 +105,7 @@ async def generate_synthetic_data(
 
     Args:
         data_request: Configuration for data generation with role-specific counts
-        supabase: Supabase client (injected)
+        supabase: Supabase service client with admin privileges (injected via dependency)
         is_admin: Admin authorization check (injected)
 
     Returns:
@@ -124,6 +128,7 @@ async def generate_synthetic_data(
         ```
     """
     # Admin check is done by dependency - no need to verify again
+    # Note: supabase parameter is a service client with admin privileges (uses SUPABASE_SERVICE_KEY)
 
     # Validate mood_pattern
     valid_patterns = ['stable', 'cycling', 'random']
