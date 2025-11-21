@@ -1048,7 +1048,7 @@ class TestDangerZoneCleanup:
             {"id": "test-2", "email": "test2@example.com", "is_test_patient": True, "deleted_at": None, "created_at": "2024-01-02T00:00:00Z"},
         ]
         
-        async def mock_select_execute():
+        async def mock_profiles_execute():
             return MockSupabaseResponse(test_patients)
         
         async def mock_delete_execute():
@@ -1057,34 +1057,39 @@ class TestDangerZoneCleanup:
         async def mock_audit_execute():
             return MockSupabaseResponse([{"id": "audit-1"}])
         
-        # Setup mock chains
-        select_chain = MagicMock()
-        select_chain.select = MagicMock(return_value=select_chain)
-        select_chain.eq = MagicMock(return_value=select_chain)
-        select_chain.is_ = MagicMock(return_value=select_chain)
-        select_chain.execute = mock_select_execute
+        # Setup mock chain for profiles select
+        profiles_chain = MagicMock()
+        profiles_chain.select = MagicMock(return_value=profiles_chain)
+        profiles_chain.eq = MagicMock(return_value=profiles_chain)
+        profiles_chain.is_ = MagicMock(return_value=profiles_chain)
+        profiles_chain.execute = mock_profiles_execute
         
+        # Setup mock chain for delete operations
         delete_chain = MagicMock()
         delete_chain.delete = MagicMock(return_value=delete_chain)
         delete_chain.in_ = MagicMock(return_value=delete_chain)
         delete_chain.eq = MagicMock(return_value=delete_chain)
         delete_chain.execute = mock_delete_execute
         
+        # Setup mock chain for audit log
         audit_chain = MagicMock()
         audit_chain.insert = MagicMock(return_value=audit_chain)
         audit_chain.execute = mock_audit_execute
         
-        # Mock table method
+        # Track which table calls we've made
+        table_calls = {'profiles': 0}
+        
         def mock_table(table_name):
             if table_name == 'profiles':
-                # First call for select, second for delete
-                return select_chain if not hasattr(mock_table, 'profile_calls') else delete_chain
+                table_calls['profiles'] += 1
+                # First call is for select, second is for delete
+                return profiles_chain if table_calls['profiles'] == 1 else delete_chain
             elif table_name == 'audit_log':
                 return audit_chain
             else:
+                # Other tables (check_ins, crisis_plan, etc.)
                 return delete_chain
         
-        mock_table.profile_calls = 0
         mock_client.table = mock_table
         
         # Mock auth for admin
@@ -1121,7 +1126,7 @@ class TestDangerZoneCleanup:
             for i in range(1, 6)
         ]
         
-        async def mock_select_execute():
+        async def mock_profiles_execute():
             return MockSupabaseResponse(test_patients)
         
         async def mock_delete_execute():
@@ -1130,11 +1135,11 @@ class TestDangerZoneCleanup:
         async def mock_audit_execute():
             return MockSupabaseResponse([{"id": "audit-1"}])
         
-        select_chain = MagicMock()
-        select_chain.select = MagicMock(return_value=select_chain)
-        select_chain.eq = MagicMock(return_value=select_chain)
-        select_chain.is_ = MagicMock(return_value=select_chain)
-        select_chain.execute = mock_select_execute
+        profiles_chain = MagicMock()
+        profiles_chain.select = MagicMock(return_value=profiles_chain)
+        profiles_chain.eq = MagicMock(return_value=profiles_chain)
+        profiles_chain.is_ = MagicMock(return_value=profiles_chain)
+        profiles_chain.execute = mock_profiles_execute
         
         delete_chain = MagicMock()
         delete_chain.delete = MagicMock(return_value=delete_chain)
@@ -1146,15 +1151,17 @@ class TestDangerZoneCleanup:
         audit_chain.insert = MagicMock(return_value=audit_chain)
         audit_chain.execute = mock_audit_execute
         
+        table_calls = {'profiles': 0}
+        
         def mock_table(table_name):
             if table_name == 'profiles':
-                return select_chain if not hasattr(mock_table, 'calls') else delete_chain
+                table_calls['profiles'] += 1
+                return profiles_chain if table_calls['profiles'] == 1 else delete_chain
             elif table_name == 'audit_log':
                 return audit_chain
             else:
                 return delete_chain
         
-        mock_table.calls = 0
         mock_client.table = mock_table
         
         async def mock_get_user(jwt=None):
