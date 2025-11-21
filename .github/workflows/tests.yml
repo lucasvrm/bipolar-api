@@ -1,0 +1,89 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, develop, feature/**, bugfix/** ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    name: Run Python Tests
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      checks: write
+    
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12']
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Run pytest
+        run: |
+          python -m pytest tests/ -v --tb=short --color=yes
+        env:
+          # Mock environment variables for tests
+          SUPABASE_URL: https://test.supabase.co
+          SUPABASE_SERVICE_KEY: test-key
+      
+      - name: Generate test summary
+        if: always()
+        run: |
+          echo "### Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Python Version: ${{ matrix.python-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          python -m pytest tests/ --tb=no -q >> $GITHUB_STEP_SUMMARY || true
+  
+  lint:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Check Python syntax
+        run: |
+          python -m py_compile $(find . -name "*.py" -not -path "./venv/*" -not -path "./.venv/*")
+          echo "✓ All Python files have valid syntax"
+      
+      - name: Check for common issues
+        run: |
+          echo "Checking for common code issues..."
+          
+          # Check for print statements (should use logging)
+          if grep -rn "print(" --include="*.py" api/ services/ models/ 2>/dev/null; then
+            echo "::warning::Found print() statements - consider using logging instead"
+          fi
+          
+          # Check for TODO/FIXME comments
+          if grep -rn "TODO\|FIXME" --include="*.py" api/ services/ models/ 2>/dev/null; then
+            echo "::notice::Found TODO/FIXME comments"
+          fi
+          
+          echo "✓ Code quality check complete"
