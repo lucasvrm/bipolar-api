@@ -1,12 +1,33 @@
-# em api/dependencies.py
+# api/dependencies.py
 import os
 import logging
-from typing import Optional
+from typing import Optional, Set
 from fastapi import HTTPException, Header, Depends
 from supabase import acreate_client, AsyncClient
 from supabase.lib.client_options import AsyncClientOptions
 
 logger = logging.getLogger("bipolar-api.dependencies")
+
+# Cache admin emails as a set for O(1) lookup
+_admin_emails_cache: Optional[Set[str]] = None
+
+
+def get_admin_emails() -> Set[str]:
+    """
+    Get the set of admin emails from environment variable.
+    Caches the result for performance.
+    
+    Returns:
+        Set of admin email addresses
+    """
+    global _admin_emails_cache
+    
+    if _admin_emails_cache is None:
+        admin_emails_str = os.getenv("ADMIN_EMAILS", "")
+        _admin_emails_cache = {email.strip() for email in admin_emails_str.split(",") if email.strip()}
+        logger.info(f"Initialized admin emails cache with {len(_admin_emails_cache)} emails")
+    
+    return _admin_emails_cache
 
 async def get_supabase_client() -> AsyncClient:
     """
@@ -92,9 +113,8 @@ async def verify_admin_authorization(
         logger.info(f"JWT token validated for user: {user_email}")
         
         # Check if user is admin
-        # Method 1: Check against ADMIN_EMAILS environment variable
-        admin_emails_str = os.getenv("ADMIN_EMAILS", "")
-        admin_emails = [email.strip() for email in admin_emails_str.split(",") if email.strip()]
+        # Method 1: Check against ADMIN_EMAILS environment variable (cached as set for O(1) lookup)
+        admin_emails = get_admin_emails()
         
         if user_email and admin_emails and user_email in admin_emails:
             logger.info(f"Admin access granted - email in ADMIN_EMAILS: {user_email}")
