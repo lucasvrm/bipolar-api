@@ -3,6 +3,7 @@
 Utility functions for the API.
 """
 import uuid
+import hashlib
 import logging
 from fastapi import HTTPException
 from postgrest.exceptions import APIError
@@ -11,6 +12,22 @@ logger = logging.getLogger("bipolar-api.utils")
 
 # PostgREST error codes
 POSTGREST_UUID_SYNTAX_ERROR = '22P02'  # invalid_text_representation
+
+
+def hash_user_id_for_logging(user_id: str) -> str:
+    """
+    Hash a user ID for privacy-preserving logging.
+    
+    Creates a short hash of the user ID that can be used in logs to track
+    requests without exposing the actual user ID.
+    
+    Args:
+        user_id: The user ID to hash
+        
+    Returns:
+        First 8 characters of SHA-256 hash
+    """
+    return hashlib.sha256(user_id.encode()).hexdigest()[:8]
 
 
 def validate_uuid_or_400(value: str, param_name: str = "id") -> str:
