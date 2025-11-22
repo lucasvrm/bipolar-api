@@ -141,5 +141,5 @@ class SyntheticDataGenerationResponse(BaseModel):
     """Response body for synthetic data generation endpoint."""
     status: str
     statistics: SyntheticDataStatistics
-    patient_ids: list = Field(default_factory=list)
-    therapist_ids: list = Field(default_factory=list)
+    patient_ids: list[str] = Field(default_factory=list)
+    therapist_ids: list[str] = Field(default_factory=list)
