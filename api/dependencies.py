@@ -112,7 +112,7 @@ async def get_supabase_anon_auth_client() -> AsyncClient:
     logger.info(f"ANON Key validation - Length: {anon_key_length} chars")
     
     if not url or not anon_key:
-        error_msg = "SUPABASE_URL or SUPABASE_ANON_KEY not configured."
+        error_msg = "Variáveis de ambiente SUPABASE_URL ou SUPABASE_ANON_KEY não configuradas no servidor."
         logger.error(error_msg)
         logger.error(f"SUPABASE_URL configured: {bool(url)}")
         logger.error(f"SUPABASE_ANON_KEY configured: {bool(anon_key)}")
@@ -121,11 +121,11 @@ async def get_supabase_anon_auth_client() -> AsyncClient:
     # Validate ANON key length (less strict than SERVICE key)
     if anon_key_length < MIN_ANON_KEY_LENGTH:
         error_msg = (
-            f"SUPABASE_ANON_KEY appears to be invalid! "
-            f"Length: {anon_key_length} chars (expected 100+). "
+            f"SUPABASE_ANON_KEY inválida! "
+            f"Comprimento: {anon_key_length} caracteres (esperado 100+). "
         )
         logger.error(error_msg)
-        raise HTTPException(status_code=500, detail="Invalid SUPABASE_ANON_KEY configuration")
+        raise HTTPException(status_code=500, detail="Configuração SUPABASE_ANON_KEY inválida")
     
     logger.debug(f"Supabase URL configured: {url[:30]}...")
     logger.info(f"ANON client will be used exclusively for user JWT validation via auth.get_user()")

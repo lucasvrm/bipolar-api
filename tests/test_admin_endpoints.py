@@ -264,29 +264,16 @@ class TestAdminAuthentication:
     def test_admin_auth_uses_anon_client_not_service(self, client, mock_env, admin_user):
         """Test that admin authentication uses ANON client, not SERVICE client."""
         anon_client_used = []
-        service_client_used = []
         
-        async def mock_create_anon(*args, **kwargs):
-            # Track that ANON client was created
-            anon_client_used.append(True)
-            return create_mock_supabase_client(mock_user=admin_user)
-        
-        async def mock_create_service(*args, **kwargs):
-            # Track that SERVICE client was created
-            service_client_used.append(True)
-            return create_mock_supabase_client(mock_user=admin_user)
-        
-        # Patch acreate_client to track which client is used
-        original_acreate = None
         async def tracking_acreate(url, key, options=None):
             # Check which key is being used by looking at headers
             if options and hasattr(options, 'headers'):
                 headers = options.headers
+                # Use module constants for key length comparison
                 # ANON key is shorter than SERVICE key
-                if 'apikey' in headers and len(headers['apikey']) < 150:
+                from api.dependencies import MIN_SERVICE_KEY_LENGTH
+                if 'apikey' in headers and len(headers['apikey']) < MIN_SERVICE_KEY_LENGTH:
                     anon_client_used.append(True)
-                elif 'apikey' in headers and len(headers['apikey']) >= 150:
-                    service_client_used.append(True)
             return create_mock_supabase_client(mock_user=admin_user)
         
         with patch("api.dependencies.acreate_client", side_effect=tracking_acreate):
