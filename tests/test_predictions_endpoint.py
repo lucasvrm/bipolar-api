@@ -256,7 +256,13 @@ def test_predictions_endpoint_invalid_type():
 
 
 def test_predictions_endpoint_missing_env_vars():
-    """Test endpoint with missing environment variables"""
+    """Test endpoint with missing environment variables.
+    NOTE: This test asserts 500 because standard missing env var triggers 500.
+    We want to verify the 'Invalid API key' response specifically in another test or here.
+    But since we mocked os.environ to be empty, it will fail at `_create_anon_client`
+    with 'Configuração Supabase incompleta (ANON).', which raises 500.
+    This is correct behavior for MISSING keys.
+    """
     test_user_id = "623e4567-e89b-12d3-a456-426614174005"
     with patch.dict(os.environ, {}, clear=True):
         # Force reset of cached client to ensure it tries to create new one and fails
@@ -269,6 +275,58 @@ def test_predictions_endpoint_missing_env_vars():
         assert response.status_code == 500
         detail = response.json()["detail"].lower()
         assert "supabase" in detail or "ambiente" in detail or "configuração" in detail
+
+
+def test_predictions_endpoint_invalid_api_key_response():
+    """
+    Test endpoint when Supabase returns 'Invalid API key' (401).
+    This simulates the production issue where the server returns 401 due to bad config.
+    We want the API to return 500 in this case to avoid frontend auth loop.
+    """
+    test_user_id = "823e4567-e89b-12d3-a456-426614174008"
+
+    # Create a mock that RAISES an APIError resembling the one in production
+    mock_client = MagicMock()
+    async def mock_execute_raising_error():
+        from postgrest.exceptions import APIError
+        # Create error with the specific details seen in logs
+        error = APIError({
+            "message": "JSON could not be generated",
+            "code": "401",
+            "hint": "Refer to full message for details",
+            "details": '{"message":"Invalid API key","hint":"Double check your Supabase `anon` or `service_role` API key."}'
+        })
+        raise error
+
+    # Setup the chain to raise error on execute()
+    mock_limit = MagicMock()
+    mock_limit.execute = mock_execute_raising_error
+    mock_order = MagicMock()
+    mock_order.limit.return_value = mock_limit
+    mock_eq = MagicMock()
+    mock_eq.order.return_value = mock_order
+    mock_select = MagicMock()
+    mock_select.eq.return_value = mock_eq
+    mock_table = MagicMock()
+    mock_table.select.return_value = mock_select
+    mock_client.table.return_value = mock_table
+
+    async def mock_acreate_client(*args, **kwargs):
+        return mock_client
+
+    with patch.dict(os.environ, {
+        "SUPABASE_URL": "https://test.supabase.co",
+        "SUPABASE_SERVICE_KEY": "test-key"
+    }):
+        with patch("api.dependencies.acreate_client", side_effect=mock_acreate_client):
+            import api.dependencies
+            api.dependencies._cached_anon_client = None
+
+            response = client.get(f"/data/predictions/{test_user_id}")
+
+            # THIS IS THE KEY ASSERTION: It must be 500, not 401
+            assert response.status_code == 500
+            assert "configuration invalid" in response.json()["detail"].lower()
 
 
 def test_prediction_of_day_endpoint_no_checkins():
