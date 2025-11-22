@@ -5,6 +5,8 @@ This module provides functionality to generate synthetic patient data with reali
 patterns for bipolar disorder monitoring, mapped correctly to the database JSONB schema.
 """
 import random
+import json
+import uuid
 from datetime import datetime, timedelta, timezone
 from faker import Faker
 from typing import List, Dict, Any, Optional
@@ -24,6 +26,9 @@ from api.schemas.checkin_jsonb import (
 # Use a specific locale for consistency
 fake = Faker('pt_BR')
 logger = logging.getLogger("bipolar-api.data_generator")
+
+# Set logging level to DEBUG for granular tracking
+logger.setLevel(logging.DEBUG)
 
 
 def generate_realistic_checkin(
@@ -130,7 +135,7 @@ def generate_realistic_checkin(
     suicide_risk = random.randint(0, 2) if suicidal_ideation > 0 else 0
     self_harm = random.randint(0, 1) if mood_state in ['DEPRESSED', 'MIXED'] else 0
     routine_disruption = 1 if social_rhythm_event else random.randint(0, 1)
-    substance_use = random.randint(0, 2) if mood_state == 'MANIC' else 0
+    substance_use = random.randint(0, 1) if mood_state == 'MANIC' else 0
     risky_behavior = random.randint(0, 1) if mood_state == 'MANIC' else 0
     
     # Appetite and impulse
@@ -144,64 +149,64 @@ def generate_realistic_checkin(
     
     # --- 2. Structure Data into JSONB Columns ---
     
-    # sleep_data JSONB
+    # sleep_data JSONB - using correct camelCase field names from schema
     sleep_data = SleepData(
-        sleep_hours=sleep_hours,
-        sleep_quality=sleep_quality,
-        sleep_disrupted=random.randint(0, 1),
-        sleep_aids_used=random.randint(0, 1)
+        hoursSlept=sleep_hours,
+        sleepQuality=sleep_quality,
+        perceivedSleepNeed=round(random.uniform(6.0, 9.0), 1),
+        sleepHygiene=random.randint(3, 8),
+        hasNapped=random.randint(0, 1),
+        nappingDurationMin=random.randint(0, 90) if random.random() < 0.3 else 0
     ).model_dump()
     
-    # mood_data JSONB
+    # mood_data JSONB - using correct camelCase field names from schema
     mood_data = MoodData(
-        energy_level=energy_level,
-        depressed_mood=depressed_mood,
-        anxiety_stress=anxiety_stress,
-        activation=activation,
+        energyLevel=energy_level,
+        depressedMood=depressed_mood,
+        anxietyStress=anxiety_stress,
         elevation=elevation,
-        social_connection=social_connection,
-        contextual_stressors=contextual_stressors,
-        social_rhythm_event=social_rhythm_event
+        activation=activation,
+        motivationToStart=motivation
     ).model_dump()
     
-    # symptoms_data JSONB
+    # symptoms_data JSONB - using correct camelCase field names from schema
     symptoms_data = SymptomsData(
-        thought_speed=thought_speed,
+        thoughtSpeed=thought_speed,
         distractibility=distractibility,
-        libido=libido,
-        compulsion_episode=compulsion_episode,
-        compulsion_intensity=compulsion_intensity,
-        motivation=motivation,
-        tasks_planned=tasks_planned,
-        tasks_completed=tasks_completed
+        memoryConcentration=random.randint(3, 8),
+        ruminationAxis=random.randint(2, 7)
     ).model_dump()
     
-    # risk_routine_data JSONB
+    # risk_routine_data JSONB - using correct camelCase field names from schema
     risk_routine_data = RiskRoutineData(
-        suicidal_ideation=suicidal_ideation,
-        suicide_risk=suicide_risk,
-        self_harm=self_harm,
-        routine_disruption=routine_disruption,
-        substance_use=substance_use,
-        risky_behavior=risky_behavior
+        socialConnection=social_connection,
+        socialRhythmEvent=social_rhythm_event,
+        exerciseDurationMin=random.randint(0, 90),
+        exerciseFeeling=random.randint(3, 8),
+        sexualRiskBehavior=risky_behavior,
+        tasksPlanned=tasks_planned,
+        tasksCompleted=tasks_completed
     ).model_dump()
     
-    # appetite_impulse_data JSONB
+    # appetite_impulse_data JSONB - using correct camelCase field names from schema
     appetite_impulse_data = AppetiteImpulseData(
-        appetite=appetite,
-        impulse_control=impulse_control,
-        impulse_spending=impulse_spending,
-        impulse_food=impulse_food,
-        impulse_sex=impulse_sex,
-        impulse_drugs=impulse_drugs,
-        impulse_alcohol=impulse_alcohol
+        generalAppetite=appetite,
+        dietTracking=random.randint(0, 1),
+        skipMeals=random.randint(0, 1) if mood_state == 'DEPRESSED' else 0,
+        compulsionEpisode=compulsion_episode,
+        compulsionIntensity=compulsion_intensity,
+        substanceUsage=substance_use,
+        substanceUnits=random.randint(0, 5) if substance_use else 0,
+        caffeineDoses=random.randint(0, 4),
+        libido=libido
     ).model_dump()
     
-    # meds_context_data JSONB
+    # meds_context_data JSONB - using correct camelCase field names from schema
     meds_context_data = MedsContextData(
-        medication_adherence=medication_adherence,
-        medication_timing=medication_timing,
-        medication_change_recent=medication_change_recent
+        medicationAdherence=medication_adherence,
+        medicationTiming=medication_timing,
+        medicationChangeRecent=medication_change_recent,
+        contextualStressors=contextual_stressors
     ).model_dump()
     
     # --- 3. Assemble Full Check-in Dict ---
@@ -291,7 +296,7 @@ async def create_user_with_retry(
     Create a user with UUID generation and retry logic for duplicates.
     
     Args:
-        supabase: AsyncClient for database operations
+        supabase: AsyncClient for database operations (service role client)
         role: User role (patient or therapist)
         max_retries: Maximum number of retry attempts (default: 3)
         
@@ -307,7 +312,7 @@ async def create_user_with_retry(
             email = fake.unique.email()
             password = fake.password(length=20)
             
-            logger.info(f"Attempt {attempt + 1}/{max_retries}: Creating {role} user")
+            logger.debug(f"Attempt {attempt + 1}/{max_retries}: Creating {role} user with email {email}")
             
             # Create user in Auth (Auth system generates cryptographically secure UUID)
             auth_resp = await supabase.auth.admin.create_user({
@@ -317,7 +322,10 @@ async def create_user_with_retry(
             })
             user_id = auth_resp.user.id
             
+            logger.debug(f"Auth user created: {user_id}")
+            
             # Create profile with is_test_patient flag
+            # Using service role client ensures RLS is bypassed
             await supabase.table('profiles').insert({
                 "id": user_id,
                 "email": email,
@@ -326,32 +334,33 @@ async def create_user_with_retry(
                 "updated_at": datetime.now(timezone.utc).isoformat()
             }).execute()
             
-            logger.info(f"User {role} created successfully: {user_id}")
+            logger.info(f"✓ User {role} created successfully: {user_id} ({email})")
             return user_id, email, password
             
         except APIError as e:
             # Check if it's a duplicate key error
-            if "duplicate" in str(e).lower() or "unique" in str(e).lower():
+            error_msg = str(e).lower()
+            if "duplicate" in error_msg or "unique" in error_msg:
                 if attempt < max_retries - 1:
-                    logger.warning(f"Duplicate UUID detected on attempt {attempt + 1}, regenerating...")
+                    logger.warning(f"Duplicate detected on attempt {attempt + 1}, regenerating...")
                     # Reset faker to avoid email conflicts
                     fake.unique.clear()
                     continue
                 else:
-                    logger.error(f"Failed after {max_retries} attempts due to duplicates")
+                    logger.error(f"✗ Failed after {max_retries} attempts due to duplicates")
                     raise HTTPException(
                         status_code=500,
                         detail=f"Failed to create user after {max_retries} attempts (duplicate error)"
                     )
             else:
                 # Other API errors should be raised immediately
-                logger.error(f"API error creating user: {e}")
+                logger.error(f"✗ API error creating user: {e}")
                 raise HTTPException(
                     status_code=500,
                     detail=f"Error creating user: {str(e)}"
                 )
         except Exception as e:
-            logger.error(f"Unexpected error creating user: {e}")
+            logger.error(f"✗ Unexpected error creating user: {e}", exc_info=True)
             if attempt < max_retries - 1:
                 logger.warning(f"Retrying ({attempt + 2}/{max_retries})...")
                 continue
@@ -368,15 +377,128 @@ async def create_user_with_retry(
     )
 
 
+async def generate_checkins_for_user(
+    supabase: AsyncClient,
+    user_id: str,
+    num_checkins: int,
+    mood_pattern: str
+) -> int:
+    """
+    Generate and insert check-ins for a single user with granular error handling.
+    
+    This function generates check-ins one by one with try/except per check-in
+    to isolate failures and provide detailed logging.
+    
+    Args:
+        supabase: AsyncClient with service role privileges
+        user_id: UUID of the user
+        num_checkins: Number of check-ins to generate
+        mood_pattern: Mood pattern ('stable', 'cycling', or 'random')
+        
+    Returns:
+        Number of successfully inserted check-ins
+    """
+    logger.debug(f"Generating {num_checkins} check-ins for user {user_id} with pattern '{mood_pattern}'")
+    
+    # Generate check-ins data
+    checkins = generate_user_checkin_history(
+        user_id=user_id,
+        num_checkins=num_checkins,
+        mood_pattern=mood_pattern
+    )
+    
+    inserted_count = 0
+    failed_count = 0
+    
+    # Insert check-ins one by one with granular error handling
+    for i, checkin in enumerate(checkins):
+        try:
+            # Validate JSONB data - ensure all nested objects are proper dicts
+            checkin_data = {
+                "user_id": checkin["user_id"],
+                "checkin_date": checkin["checkin_date"],  # Already in ISO format
+                "sleep_data": checkin["sleep_data"],
+                "mood_data": checkin["mood_data"],
+                "symptoms_data": checkin["symptoms_data"],
+                "risk_routine_data": checkin["risk_routine_data"],
+                "appetite_impulse_data": checkin["appetite_impulse_data"],
+                "meds_context_data": checkin["meds_context_data"]
+            }
+            
+            # Validate date format (should be 'YYYY-MM-DD' or ISO timestamp)
+            if "T" not in checkin_data["checkin_date"]:
+                logger.warning(f"Check-in {i+1}: Date missing time component, adding it")
+                checkin_data["checkin_date"] = f"{checkin_data['checkin_date']}T00:00:00+00:00"
+            
+            # Insert check-in using service role client (bypasses RLS)
+            await supabase.table('check_ins').insert(checkin_data).execute()
+            
+            inserted_count += 1
+            
+            if (i + 1) % 10 == 0:
+                logger.debug(f"  Progress: {i + 1}/{num_checkins} check-ins inserted for user {user_id[:8]}...")
+                
+        except APIError as e:
+            failed_count += 1
+            error_details = str(e)
+            logger.error(
+                f"✗ Check-in {i+1}/{num_checkins} failed for user {user_id[:8]}: {error_details}\n"
+                f"  Date: {checkin.get('checkin_date')}\n"
+                f"  JSONB keys: {list(checkin_data.keys())}"
+            )
+            # Continue to next check-in instead of failing completely
+            
+        except Exception as e:
+            failed_count += 1
+            logger.error(
+                f"✗ Unexpected error on check-in {i+1}/{num_checkins} for user {user_id[:8]}: {e}",
+                exc_info=True
+            )
+            # Continue to next check-in
+    
+    if failed_count > 0:
+        logger.warning(
+            f"User {user_id[:8]}: Inserted {inserted_count}/{num_checkins} check-ins "
+            f"({failed_count} failed)"
+        )
+    else:
+        logger.info(f"✓ User {user_id[:8]}: All {inserted_count} check-ins inserted successfully")
+    
+    return inserted_count
+
+
 async def generate_and_populate_data(
     supabase: AsyncClient,
     checkins_per_user: int = 30,
     mood_pattern: str = 'stable',
     num_users: Optional[int] = None,
     patients_count: Optional[int] = None,
-    therapists_count: Optional[int] = None
+    therapists_count: Optional[int] = None,
+    days_history: Optional[int] = None
 ) -> Dict[str, Any]:
-    # Compatibilidade com parâmetros antigos e novos
+    """
+    Generate and populate synthetic data with service role client.
+    
+    This function uses the provided supabase client (which should be a service role client)
+    to bypass RLS for all operations including user creation and check-in insertion.
+    
+    Args:
+        supabase: AsyncClient with service role privileges
+        checkins_per_user: Number of check-ins per patient (default: 30)
+        mood_pattern: Mood pattern ('stable', 'cycling', or 'random')
+        num_users: Legacy parameter - number of patients to create
+        patients_count: Number of patient profiles to create
+        therapists_count: Number of therapist profiles to create
+        days_history: Alternative to checkins_per_user (1 check-in per day for N days)
+        
+    Returns:
+        Dict with generation statistics
+    """
+    # Handle parameter compatibility
+    if days_history is not None:
+        checkins_per_user = days_history
+        logger.debug(f"Using days_history parameter: {days_history} check-ins per patient")
+    
     if patients_count is not None or therapists_count is not None:
         patients_count = patients_count or 0
         therapists_count = therapists_count or 0
@@ -385,16 +507,27 @@ async def generate_and_populate_data(
         therapists_count = 0
 
     total_users = patients_count + therapists_count
-    logger.info(f"Iniciando geração de dados: {patients_count} pacientes + {therapists_count} terapeutas")
+    
+    logger.info("=" * 60)
+    logger.info(f"STARTING SYNTHETIC DATA GENERATION")
+    logger.info(f"  Patients: {patients_count}")
+    logger.info(f"  Therapists: {therapists_count}")
+    logger.info(f"  Check-ins per patient: {checkins_per_user}")
+    logger.info(f"  Mood pattern: {mood_pattern}")
+    logger.info(f"  Using service role client: {type(supabase).__name__}")
+    logger.info("=" * 60)
 
-    all_checkins: List[Dict[str, Any]] = []
     user_ids: List[str] = []
     patients_created = 0
     therapists_created = 0
+    total_checkins_inserted = 0
 
     try:
-        # === PACIENTES ===
-        for _ in range(patients_count):
+        # === CREATE PATIENTS ===
+        logger.info(f"\nPhase 1: Creating {patients_count} patient(s)...")
+        for i in range(patients_count):
+            logger.debug(f"\nCreating patient {i+1}/{patients_count}...")
+            
             # Create patient with retry logic
             user_id, email, password = await create_user_with_retry(
                 supabase=supabase,
@@ -405,39 +538,61 @@ async def generate_and_populate_data(
             patients_created += 1
             user_ids.append(user_id)
 
-            # Gerar check-ins
-            checkins = generate_user_checkin_history(
+            # Generate and insert check-ins for this patient
+            logger.debug(f"Generating check-ins for patient {i+1}...")
+            checkins_inserted = await generate_checkins_for_user(
+                supabase=supabase,
                 user_id=user_id,
                 num_checkins=checkins_per_user,
                 mood_pattern=mood_pattern
             )
-            all_checkins.extend(checkins)
-
-        # === TERAPEUTAS ===
-        for _ in range(therapists_count):
-            # Create therapist with retry logic
-            user_id, email, password = await create_user_with_retry(
-                supabase=supabase,
-                role="therapist",
-                max_retries=3
-            )
             
-            therapists_created += 1
-            user_ids.append(user_id)
+            total_checkins_inserted += checkins_inserted
+            
+            logger.info(
+                f"Patient {i+1}/{patients_count} complete: "
+                f"{checkins_inserted}/{checkins_per_user} check-ins inserted"
+            )
 
-        # === Inserir todos os check-ins de uma vez ===
-        inserted_count = 0
-        if all_checkins:
-            resp = await supabase.table('check_ins').insert(all_checkins).execute()
-            inserted_count = len(resp.data) if resp.data else 0
+        # === CREATE THERAPISTS ===
+        if therapists_count > 0:
+            logger.info(f"\nPhase 2: Creating {therapists_count} therapist(s)...")
+            for i in range(therapists_count):
+                logger.debug(f"\nCreating therapist {i+1}/{therapists_count}...")
+                
+                # Create therapist with retry logic
+                user_id, email, password = await create_user_with_retry(
+                    supabase=supabase,
+                    role="therapist",
+                    max_retries=3
+                )
+                
+                therapists_created += 1
+                user_ids.append(user_id)
+                
+                logger.info(f"Therapist {i+1}/{therapists_count} complete")
+
+        logger.info("\n" + "=" * 60)
+        logger.info("GENERATION COMPLETE")
+        logger.info(f"  ✓ Patients created: {patients_created}")
+        logger.info(f"  ✓ Therapists created: {therapists_created}")
+        logger.info(f"  ✓ Total check-ins: {total_checkins_inserted}")
+        logger.info(f"  Expected check-ins: {patients_count * checkins_per_user}")
+        if total_checkins_inserted < patients_count * checkins_per_user:
+            logger.warning(
+                f"  ⚠ Missing {patients_count * checkins_per_user - total_checkins_inserted} check-ins "
+                f"(check logs for failures)"
+            )
+        logger.info("=" * 60)
 
         return {
             "status": "success",
-            "message": f"Gerados {patients_created} pacientes e {therapists_created} terapeutas com {inserted_count} check-ins",
+            "message": f"Generated {patients_created} patients and {therapists_created} therapists with {total_checkins_inserted} check-ins",
             "statistics": {
                 "patients_created": patients_created,
                 "therapists_created": therapists_created,
-                "total_checkins": inserted_count,
+                "total_checkins": total_checkins_inserted,
+                "expected_checkins": patients_count * checkins_per_user,
                 "user_ids": user_ids,
                 "users_created": total_users,
                 "checkins_per_user": checkins_per_user,
@@ -446,6 +601,12 @@ async def generate_and_populate_data(
             }
         }
 
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
-        logger.exception("Falha crítica na geração de dados sintéticos")
-        raise HTTPException(status_code=500, detail="Erro ao gerar dados sintéticos. Veja os logs do servidor.")
+        logger.exception("✗ CRITICAL FAILURE in synthetic data generation")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Error generating synthetic data: {str(e)}"
+        )

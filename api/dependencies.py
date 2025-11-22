@@ -1,9 +1,9 @@
 # api/dependencies.py
 import os
 import logging
-from typing import Optional, Set
+from typing import Optional, Set, AsyncGenerator
 from fastapi import HTTPException, Header, Depends
-from supabase import acreate_client, AsyncClient
+from supabase import acreate_client, AsyncClient, Client
 from supabase.lib.client_options import AsyncClientOptions
 
 logger = logging.getLogger("bipolar-api.dependencies")
@@ -58,6 +58,67 @@ async def get_supabase_client() -> AsyncClient:
     logger.debug(f"Supabase client created successfully: {type(client).__name__}")
     
     return client
+
+
+async def get_supabase_service() -> AsyncGenerator[AsyncClient, None]:
+    """
+    Dependency function to create and yield a Supabase service client.
+    
+    This function returns an AsyncGenerator that yields a Supabase client with
+    admin-level privileges using SUPABASE_SERVICE_KEY. This bypasses Row Level 
+    Security (RLS) policies and is necessary for admin operations like creating 
+    users and managing synthetic data across all users.
+    
+    The service client uses custom headers to ensure the API key is properly set,
+    which is essential for bypassing RLS in all database operations.
+    
+    Yields:
+        AsyncClient: Supabase client with service role privileges
+        
+    Raises:
+        HTTPException: If environment variables are not configured
+        
+    Usage:
+        @router.post("/endpoint")
+        async def endpoint(supabase: AsyncClient = Depends(get_supabase_service)):
+            # Use supabase client with admin privileges
+            pass
+    """
+    logger.debug("Creating Supabase service client (AsyncGenerator)...")
+    
+    url: str = os.environ.get("SUPABASE_URL")
+    key: str = os.environ.get("SUPABASE_SERVICE_KEY")
+
+    if not url or not key:
+        error_msg = "Variáveis de ambiente do Supabase não configuradas no servidor."
+        logger.error(error_msg)
+        raise HTTPException(status_code=500, detail=error_msg)
+
+    logger.debug(f"Supabase service URL configured: {url[:30]}...")
+    
+    client = None
+    try:
+        # Create client with service role key and custom options
+        # The global headers ensure the API key is set for all requests
+        supabase_options = AsyncClientOptions(
+            persist_session=False,
+            headers={
+                "apikey": key,
+                "Authorization": f"Bearer {key}"
+            }
+        )
+        client = await acreate_client(url, key, options=supabase_options)
+        
+        logger.debug(f"Supabase service client created successfully: {type(client).__name__}")
+        
+        yield client
+        
+    finally:
+        # Cleanup: close any resources if needed
+        if client:
+            logger.debug("Cleaning up Supabase service client")
+            # AsyncClient doesn't require explicit cleanup in current version
+            # but this ensures we handle it if the library changes
 
 
 async def verify_admin_authorization(

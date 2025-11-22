@@ -16,7 +16,7 @@ from supabase import AsyncClient
 from postgrest.exceptions import APIError
 from postgrest.types import CountMethod
 
-from api.dependencies import get_supabase_client, verify_admin_authorization
+from api.dependencies import get_supabase_client, get_supabase_service, verify_admin_authorization
 from api.rate_limiter import limiter
 from api.schemas.synthetic_data import (
     CleanDataRequest,
@@ -87,7 +87,7 @@ class GenerateDataRequest(BaseModel):
 async def generate_synthetic_data(
     request: Request,
     data_request: GenerateDataRequest,
-    supabase: AsyncClient = Depends(get_supabase_client),
+    supabase: AsyncClient = Depends(get_supabase_service),
     is_admin: bool = Depends(verify_admin_authorization)
 ):
     """
@@ -97,9 +97,9 @@ async def generate_synthetic_data(
     and development purposes. It allows controlled generation of specific numbers of
     patients and therapists, with realistic check-in histories for patients.
     
-    The endpoint uses a Supabase service role client (injected via dependency) which 
-    bypasses Row Level Security (RLS) and allows admin-level operations for creating
-    users and managing synthetic data.
+    The endpoint uses a Supabase service role client (injected via get_supabase_service 
+    dependency) which bypasses Row Level Security (RLS) and allows admin-level operations 
+    for creating users and managing synthetic data.
 
     **Authentication**: Requires JWT token with admin role in Authorization header
 
