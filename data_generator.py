@@ -280,7 +280,7 @@ async def create_user_with_retry(
                 logger.error("FALHA CRÍTICA: Supabase client criado com anon key. Use service_role key!")
                 raise HTTPException(
                     status_code=500,
-                    detail="Invalid API key – cliente Supabase deve usar SUPABASE_SERVICE_ROLE_KEY"
+                    detail="Invalid API key – cliente Supabase deve usar SUPABASE_SERVICE_KEY"
                 )
             if "duplicate" in error_msg or "unique" in error_msg:
                 logger.warning(f"Duplicata na tentativa {attempt + 1}, tentando novamente...")

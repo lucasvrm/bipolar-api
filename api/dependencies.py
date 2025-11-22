@@ -47,9 +47,12 @@ async def get_supabase_client() -> AsyncClient:
     if not url or not key:
         error_msg = "Variáveis de ambiente do Supabase não configuradas no servidor."
         logger.error(error_msg)
+        logger.error(f"SUPABASE_URL configured: {bool(url)}")
+        logger.error(f"SUPABASE_SERVICE_KEY configured: {bool(key)}")
         raise HTTPException(status_code=500, detail=error_msg)
 
     logger.debug(f"Supabase URL configured: {url[:30]}...")
+    logger.debug(f"Service key length: {len(key)} characters")
     
     # Use AsyncClientOptions object instead of dict
     supabase_options = AsyncClientOptions(persist_session=False)
@@ -92,9 +95,16 @@ async def get_supabase_service() -> AsyncGenerator[AsyncClient, None]:
     if not url or not key:
         error_msg = "Variáveis de ambiente do Supabase não configuradas no servidor."
         logger.error(error_msg)
+        logger.error(f"SUPABASE_URL configured: {bool(url)}")
+        logger.error(f"SUPABASE_SERVICE_KEY configured: {bool(key)}")
         raise HTTPException(status_code=500, detail=error_msg)
 
     logger.debug(f"Supabase service URL configured: {url[:30]}...")
+    logger.debug(f"Service key length: {len(key)} characters")
+    
+    # Validate key format (JWT tokens should start with 'eyJ')
+    if not key.startswith('eyJ'):
+        logger.warning("SUPABASE_SERVICE_KEY may not be a valid JWT token - should start with 'eyJ'")
     
     client = None
     try:
