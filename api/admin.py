@@ -29,6 +29,7 @@ from api.schemas.synthetic_data import (
     EnhancedStatsResponse,
     DangerZoneCleanupRequest,
     DangerZoneCleanupResponse,
+    SyntheticDataGenerationResponse,
 )
 from data_generator import generate_and_populate_data
 
@@ -94,14 +95,14 @@ class CleanupDataRequest(BaseModel):
 # ----------------------------------------------------------------------
 # Endpoint: geração de dados sintéticos
 # ----------------------------------------------------------------------
-@router.post("/generate-data")
+@router.post("/generate-data", response_model=SyntheticDataGenerationResponse)
 @limiter.limit("5/hour")
 async def generate_synthetic_data(
     request: Request,
     data_request: GenerateDataRequest,
     supabase: AsyncClient = Depends(get_supabase_service),
     is_admin: bool = Depends(verify_admin_authorization),
-):
+) -> Dict[str, Any]:
     valid_patterns = ["stable", "cycling", "random"]
     if data_request.mood_pattern not in valid_patterns:
         raise HTTPException(
@@ -374,7 +375,7 @@ async def get_admin_stats(
 # ----------------------------------------------------------------------
 # Endpoint: lista de usuários
 # ----------------------------------------------------------------------
-@router.get("/users")
+@router.get("/users", response_model=None)
 async def get_admin_users(
     supabase: AsyncClient = Depends(get_supabase_service),
     is_admin: bool = Depends(verify_admin_authorization),
@@ -396,7 +397,7 @@ async def get_admin_users(
 # ----------------------------------------------------------------------
 # Endpoint: limpeza simples (legado)
 # ----------------------------------------------------------------------
-@router.post("/cleanup-data")
+@router.post("/cleanup-data", response_model=None)
 @limiter.limit("3/hour")
 async def cleanup_synthetic_data(
     request: Request,
@@ -565,7 +566,7 @@ async def clean_synthetic_data(
 # ----------------------------------------------------------------------
 # Endpoint: exportação de dados sintéticos
 # ----------------------------------------------------------------------
-@router.get("/synthetic-data/export")
+@router.get("/synthetic-data/export", response_model=None)
 @limiter.limit("5/hour")
 async def export_synthetic_data(
     request: Request,
@@ -745,7 +746,7 @@ async def toggle_test_patient_flag(
 # ----------------------------------------------------------------------
 # Endpoint: disparo manual de job de deleção
 # ----------------------------------------------------------------------
-@router.post("/run-deletion-job")
+@router.post("/run-deletion-job", response_model=None)
 @limiter.limit("5/hour")
 async def run_deletion_job_manually(
     request: Request,
