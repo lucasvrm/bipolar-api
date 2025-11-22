@@ -108,6 +108,7 @@ async def verify_admin_authorization(
     Usa cliente ANON (correto para /auth/v1/user).
     """
     if not authorization or not authorization.lower().startswith("bearer "):
+        # Padrão: 401 para token ausente ou inválido
         raise HTTPException(status_code=401, detail="Missing bearer token")
 
     token = authorization.split(" ", 1)[1].strip()
@@ -118,20 +119,24 @@ async def verify_admin_authorization(
         user_resp = await supabase_anon.auth.get_user(token)
     except Exception as e:
         logger.error("Falha auth.get_user: %s", e)
+        # Padrão: 401 para token inválido
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
     user = getattr(user_resp, "user", None)
     email = getattr(user, "email", None)
 
     if not email:
+        # Padrão: 401 para token sem email (inválido)
         raise HTTPException(status_code=401, detail="Invalid token payload")
 
     admin_emails = get_admin_emails()
     if not admin_emails:
         logger.warning("ADMIN_EMAILS vazio.")
+        # Padrão: 403 para erro de configuração/permissão do lado do servidor/admin
         raise HTTPException(status_code=403, detail="Admin list not configured")
 
     if email.lower() not in admin_emails:
+        # Padrão: 403 para usuário autenticado mas não autorizado
         raise HTTPException(status_code=403, detail="Not authorized as admin")
 
     return True

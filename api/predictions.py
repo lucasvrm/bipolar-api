@@ -4,7 +4,7 @@ import logging
 import os
 import time
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from supabase import AsyncClient
 from postgrest.exceptions import APIError
@@ -14,7 +14,11 @@ import numpy as np
 from api.dependencies import get_supabase_client
 from api.models import MODELS
 from api.utils import validate_uuid_or_400, handle_postgrest_error
-from api.schemas import PredictionsResponse, MoodPredictionResponse
+from api.schemas.predictions import (
+    PredictionsResponse,
+    PredictionsMetric,
+    MoodPredictionResponse
+)
 from feature_engineering import create_features_for_prediction
 from services.prediction_cache import get_cache
 from api.rate_limiter import limiter, PREDICTIONS_RATE_LIMIT
@@ -25,10 +29,8 @@ logger = logging.getLogger("bipolar-api.predictions")
 router = APIRouter(prefix="/data", tags=["Predictions"])
 
 # Configuration constants
-MAX_LIMIT_CHECKINS = 10  # Maximum per_checkin processing to prevent OOM
 INFERENCE_TIMEOUT_SECONDS = int(os.getenv("INFERENCE_TIMEOUT_SECONDS", "30"))
 CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "300"))  # 5 minutes default
-USE_BACKGROUND_INFERENCE = os.getenv("USE_BACKGROUND_INFERENCE", "false").lower() == "true"
 
 # Mapeamento de classes de humor
 MOOD_STATE_MAP = {
@@ -51,74 +53,43 @@ SUPPORTED_TYPES = [
 def calculate_heuristic_probability(checkin_data: Dict[str, Any], prediction_type: str) -> float:
     """
     Calcula probabilidade baseada em heurísticas quando modelo específico não está disponível.
-    
-    Heurísticas clínicas:
-    - relapse_risk: Combina fatores de sono (<8h = risco), humor depressivo, 
-      energia extrema (muito alta/baixa), e ansiedade. Valores esperados: 0-10 para mood/anxiety/energy, horas para sono.
-    - suicidality_risk: Conservador, peso maior para depressão (50%), ansiedade (30%), impulsividade (20%).
-      Escalas esperadas: 0-10.
-    - medication_adherence_risk: Inverso da adesão reportada. Valores esperados: 0-1.
-    - sleep_disturbance_risk: Alto risco se <6h ou >10h (60%), qualidade ruim (40%). 
-      Escalas: horas de sono, qualidade 0-10.
-    
-    Args:
-        checkin_data: Dados do check-in
-        prediction_type: Tipo de predição
-        
-    Returns:
-        Probabilidade normalizada entre 0 e 1
     """
     try:
         if prediction_type == "relapse_risk":
-            # Baseado em sono, humor, energia e ansiedade
             sleep = checkin_data.get("hoursSlept", 7)
             mood = checkin_data.get("depressedMood", 3)
             energy = checkin_data.get("energyLevel", 5)
             anxiety = checkin_data.get("anxietyStress", 3)
-            
-            # Normalizar valores (assumindo escalas 0-10)
-            sleep_risk = max(0, 1 - (sleep / 8)) if sleep > 0 else 1.0  # Prevent division by zero
+            sleep_risk = max(0, 1 - (sleep / 8)) if sleep > 0 else 1.0
             mood_risk = mood / 10
-            energy_risk = abs(energy - 5) / 5  # Muito alta ou baixa = risco
+            energy_risk = abs(energy - 5) / 5
             anxiety_risk = anxiety / 10
-            
-            # Média ponderada
             risk = (sleep_risk * 0.3 + mood_risk * 0.3 + energy_risk * 0.2 + anxiety_risk * 0.2)
             return float(np.clip(risk, 0, 1))
             
         elif prediction_type == "suicidality_risk":
-            # Baseado em humor depressivo, desesperança e impulsividade
             mood = checkin_data.get("depressedMood", 3)
             anxiety = checkin_data.get("anxietyStress", 3)
             impulsivity = checkin_data.get("compulsionIntensity", 0)
-            
-            # Fórmula conservadora (maior peso para depressão)
             risk = (mood * 0.5 + anxiety * 0.3 + impulsivity * 0.2) / 10
             return float(np.clip(risk, 0, 1))
             
         elif prediction_type == "medication_adherence_risk":
-            # Baseado em adesão recente
             adherence = checkin_data.get("medicationAdherence", 1)
             timing = checkin_data.get("medicationTiming", 1)
-            
-            # Risco é inverso da adesão
             risk = 1 - ((adherence + timing) / 2)
             return float(np.clip(risk, 0, 1))
             
         elif prediction_type == "sleep_disturbance_risk":
-            # Baseado em horas de sono e qualidade
             sleep = checkin_data.get("hoursSlept", 7)
             sleep_quality = checkin_data.get("sleepQuality", 5)
-            
-            # Risco alto se sono < 6h ou > 10h
             sleep_duration_risk = 1.0 if (sleep < 6 or sleep > 10) else 0.0
             quality_risk = (10 - sleep_quality) / 10
-            
             risk = (sleep_duration_risk * 0.6 + quality_risk * 0.4)
             return float(np.clip(risk, 0, 1))
             
         else:
-            return 0.5  # Default neutro
+            return 0.5
             
     except Exception as e:
         logger.warning(f"Error calculating heuristic for {prediction_type}: {e}")
@@ -126,27 +97,25 @@ def calculate_heuristic_probability(checkin_data: Dict[str, Any], prediction_typ
 
 
 def normalize_probability(prob: float) -> float:
-    """
-    Normaliza uma probabilidade para o intervalo [0, 1] e trata valores subnormais.
-    
-    Args:
-        prob: Probabilidade bruta
-        
-    Returns:
-        Probabilidade normalizada entre 0 e 1, com subnormais (<1e-6) convertidos para 0
-    """
-    # Converter para float e garantir que está no intervalo [0, 1]
     normalized = float(np.clip(prob, 0.0, 1.0))
-    
-    # Tratar valores subnormais (muito próximos de zero)
     if normalized < 1e-6:
         normalized = 0.0
-    
-    # Tratar valores muito próximos de 1
     if normalized > (1.0 - 1e-6):
         normalized = 1.0
-        
     return normalized
+
+
+def get_risk_level(prob: float, pred_type: str = "") -> str:
+    if pred_type == "suicidality_risk":
+        if prob > 0.7: return "critical"
+        if prob > 0.4: return "high"
+        if prob > 0.2: return "medium"
+        return "low"
+
+    if prob > 0.8: return "critical"
+    if prob > 0.6: return "high"
+    if prob > 0.3: return "medium"
+    return "low"
 
 
 async def run_prediction_with_timeout(
@@ -154,24 +123,12 @@ async def run_prediction_with_timeout(
     prediction_type: str,
     window_days: int = 3,
     timeout_seconds: int = INFERENCE_TIMEOUT_SECONDS
-) -> Dict[str, Any]:
+) -> PredictionsMetric:
     """
     Wrapper around run_prediction with timeout protection.
-    
-    Args:
-        checkin_data: Check-in data
-        prediction_type: Type of prediction
-        window_days: Temporal window in days
-        timeout_seconds: Maximum time to wait for prediction
-        
-    Returns:
-        Prediction result dictionary
-        
-    Raises:
-        asyncio.TimeoutError: If prediction exceeds timeout
+    Returns a PredictionsMetric object.
     """
     try:
-        # Run the synchronous prediction in a thread pool with timeout
         loop = asyncio.get_event_loop()
         result = await asyncio.wait_for(
             loop.run_in_executor(
@@ -186,172 +143,85 @@ async def run_prediction_with_timeout(
         return result
     except asyncio.TimeoutError:
         logger.error(f"Prediction timeout after {timeout_seconds}s for type={prediction_type}")
-        return {
-            "type": prediction_type,
-            "label": "Timeout",
-            "probability": None,
-            "details": {},
-            "model_version": None,
-            "explanation": f"Prediction timed out after {timeout_seconds} seconds",
-            "source": "error"
-        }
+        return PredictionsMetric(
+            name=prediction_type,
+            value=0.0,
+            riskLevel="unknown",
+            confidence=0.0,
+            explanation="Timeout during prediction"
+        )
 
 
 def run_prediction(
     checkin_data: Dict[str, Any],
     prediction_type: str,
     window_days: int = 3
-) -> Dict[str, Any]:
+) -> PredictionsMetric:
     """
     Executa uma predição específica para um check-in.
-    
-    Args:
-        checkin_data: Dados do check-in
-        prediction_type: Tipo de predição a executar
-        window_days: Janela temporal em dias
-        
-    Returns:
-        Dicionário com resultado da predição
+    Returns: PredictionsMetric
     """
     start_time = time.time()
     logger.info(f"Running prediction: {prediction_type} for window_days={window_days}")
     
-    result = {
-        "type": prediction_type,
-        "label": None,
-        "probability": None,
-        "details": {},
-        "model_version": None,
-        "explanation": "Explanation unavailable",
-        "source": "aggregated_last_checkin"
-    }
+    metric = PredictionsMetric(
+        name=prediction_type,
+        value=0.0,
+        riskLevel="low",
+        confidence=0.0,
+        explanation="Explanation unavailable"
+    )
     
     try:
         if prediction_type == "mood_state":
-            # Usar modelo multiclasse existente
             model = MODELS.get('lgbm_multiclass_v1')
             if model:
                 input_df = create_features_for_prediction(checkin_data)
                 prediction_proba = model.predict_proba(input_df)[0]
                 predicted_class = int(prediction_proba.argmax())
+                prob = normalize_probability(prediction_proba[predicted_class])
                 
-                result["label"] = MOOD_STATE_MAP.get(predicted_class, "Desconhecido")
-                result["probability"] = normalize_probability(prediction_proba[predicted_class])
-                result["details"] = {
-                    "class_probs": {
-                        MOOD_STATE_MAP[i]: normalize_probability(prob) 
-                        for i, prob in enumerate(prediction_proba)
-                    }
-                }
-                result["model_version"] = "lgbm_multiclass_v1"
+                label = MOOD_STATE_MAP.get(predicted_class, "Desconhecido")
+                metric.value = prob
+                metric.riskLevel = "high" if label in ["Mania", "Depressão", "Estado Misto"] else "low"
+                metric.confidence = prob
+                metric.explanation = f"Predicted state: {label}"
                 
-                # Adicionar explicação SHAP se disponível
-                explainer = MODELS.get('shap_explainer_v1')
-                if explainer:
-                    try:
-                        shap_values = explainer.shap_values(input_df)
-                        class_shap_values = shap_values[predicted_class][0]
-                        feature_names = input_df.columns
-                        
-                        # Top 3 features
-                        contrib = sorted(
-                            zip(feature_names, class_shap_values),
-                            key=lambda x: abs(x[1]),
-                            reverse=True
-                        )[:3]
-                        
-                        explanation_parts = []
-                        for feature, impact in contrib:
-                            explanation_parts.append(
-                                f"{feature}={checkin_data.get(feature, 'N/A')} (impact: {impact:.3f})"
-                            )
-                        result["explanation"] = f"SHAP top features: {', '.join(explanation_parts)}"
-                    except Exception as e:
-                        logger.warning(f"SHAP explanation failed: {e}")
+                # Explanation details could be expanded here
             else:
-                # Fallback: usar heurística baseada em humor reportado
+                # Heuristic fallback
                 mood = checkin_data.get("depressedMood", 5)
                 energy = checkin_data.get("energyLevel", 5)
-                
                 if mood < 4 and energy < 4:
                     label = "Depressão"
-                    prob = 0.6
+                    prob = 0.7
                 elif energy > 7 and mood > 6:
                     label = "Mania"
-                    prob = 0.55
+                    prob = 0.6
                 elif mood < 5 and energy > 7:
                     label = "Estado Misto"
                     prob = 0.5
                 else:
                     label = "Eutimia"
-                    prob = 0.65
-                    
-                result["label"] = label
-                result["probability"] = normalize_probability(prob)
-                result["model_version"] = "heuristic_v1"
-                result["explanation"] = f"Based on mood={mood}, energy={energy}"
+                    prob = 0.8
                 
-        elif prediction_type == "medication_adherence_risk":
-            # Usar modelo de adesão se disponível
-            model = MODELS.get('lgbm_adherence_v1')
-            if model:
-                input_df = create_features_for_prediction(checkin_data)
-                probability = normalize_probability(model.predict_proba(input_df)[0][1])
-                result["label"] = "Alto risco" if probability > 0.5 else "Baixo risco"
-                result["probability"] = probability
-                result["model_version"] = "lgbm_adherence_v1"
-                result["explanation"] = f"Probability of non-adherence: {probability:.2%}"
-            else:
-                # Fallback heurístico
-                probability = normalize_probability(calculate_heuristic_probability(checkin_data, prediction_type))
-                result["label"] = "Alto risco" if probability > 0.5 else "Baixo risco"
-                result["probability"] = probability
-                result["model_version"] = "heuristic_v1"
-                result["explanation"] = "Heuristic based on reported adherence"
+                metric.value = prob
+                metric.riskLevel = "high" if label != "Eutimia" else "low"
+                metric.confidence = 0.5  # lower confidence for heuristic
+                metric.explanation = f"Heuristic: {label}"
                 
-        elif prediction_type == "relapse_risk":
-            # Usar heurística baseada em múltiplos fatores
-            probability = normalize_probability(calculate_heuristic_probability(checkin_data, prediction_type))
-            result["label"] = "Alto risco" if probability > 0.6 else "Baixo risco"
-            result["probability"] = probability
-            result["model_version"] = "heuristic_v1"
-            result["explanation"] = f"Risk based on sleep, mood, energy and anxiety patterns"
-            
-        elif prediction_type == "suicidality_risk":
-            # IMPORTANTE: Tipo sensível com disclaimer
-            probability = normalize_probability(calculate_heuristic_probability(checkin_data, prediction_type))
-            result["label"] = "Risco detectado" if probability > 0.5 else "Risco baixo"
-            result["probability"] = probability
-            result["model_version"] = "heuristic_v1"
-            result["sensitive"] = True
-            result["disclaimer"] = (
-                "Esta predição NÃO substitui avaliação clínica profissional. "
-                "Se você está pensando em suicídio, procure ajuda imediatamente."
-            )
-            result["resources"] = {
-                "CVV": "188 (24h, gratuito)",
-                "CAPS": "Centros de Atenção Psicossocial",
-                "emergency": "SAMU 192 ou UPA/Emergência hospitalar"
-            }
-            result["explanation"] = "Based on mood and distress indicators. SEEK PROFESSIONAL HELP."
-            
-        elif prediction_type == "sleep_disturbance_risk":
-            probability = normalize_probability(calculate_heuristic_probability(checkin_data, prediction_type))
-            result["label"] = "Distúrbio detectado" if probability > 0.5 else "Sono adequado"
-            result["probability"] = probability
-            result["model_version"] = "heuristic_v1"
-            result["explanation"] = f"Based on sleep duration and quality metrics"
-            
+        elif prediction_type in ["medication_adherence_risk", "relapse_risk", "suicidality_risk", "sleep_disturbance_risk"]:
+             prob = normalize_probability(calculate_heuristic_probability(checkin_data, prediction_type))
+             metric.value = prob
+             metric.riskLevel = get_risk_level(prob, prediction_type)
+             metric.confidence = 0.6 # heuristic confidence
+             metric.explanation = f"Heuristic based on symptoms patterns"
+
     except Exception as e:
         logger.exception(f"Error running prediction {prediction_type}: {e}")
-        result["probability"] = None
-        result["explanation"] = f"Prediction failed: {str(e)}"
+        metric.explanation = f"Error: {str(e)}"
     
-    # Log inference latency metrics
-    elapsed_time = time.time() - start_time
-    logger.info(f"Prediction {prediction_type} completed in {elapsed_time:.3f}s")
-    
-    return result
+    return metric
 
 
 @router.get("/predictions/{user_id}", response_model=PredictionsResponse)
@@ -361,168 +231,82 @@ async def get_predictions(
     user_id: str,
     types: Optional[str] = Query(None, description="Comma-separated list of prediction types"),
     window_days: int = Query(3, ge=1, le=30, description="Temporal window in days"),
-    limit_checkins: int = Query(0, ge=0, le=MAX_LIMIT_CHECKINS, description=f"Number of recent check-ins to include (max {MAX_LIMIT_CHECKINS})"),
     supabase: AsyncClient = Depends(get_supabase_client)
 ):
     """
-    Endpoint para obter predições multi-tipo para um usuário.
-    
-    Retorna predições para até 5 tipos de análise relevantes para transtorno bipolar:
-    1. mood_state - Estado de humor previsto (eutimia/depressão/mania/misto)
-    2. relapse_risk - Risco de recorrência de episódio
-    3. suicidality_risk - Risco suicida (com disclaimer e recursos)
-    4. medication_adherence_risk - Risco de baixa adesão medicamentosa
-    5. sleep_disturbance_risk - Risco de perturbação do sono
-    
-    Features:
-    - Redis caching (TTL: 5-30 min configurable via CACHE_TTL_SECONDS)
-    - Timeout protection (configurable via INFERENCE_TIMEOUT_SECONDS)
-    - Payload size limits (max limit_checkins enforced)
-    
-    Args:
-        user_id: UUID do usuário
-        types: Lista de tipos separados por vírgula (default: todos)
-        window_days: Janela temporal em dias (default: 3)
-        limit_checkins: Número de check-ins recentes para análise individual (default: 0)
-        
-    Returns:
-        JSON com predições agregadas e opcionalmente por check-in
+    Endpoint para obter predições para um usuário.
+    Retorna estrutura padronizada: status, userId, windowDays, metrics.
     """
     request_start_time = time.time()
     
-    # Validate UUID format
     validate_uuid_or_400(user_id, "user_id")
     
-    logger.info(f"GET /data/predictions/{user_id} - types={types}, window_days={window_days}, limit_checkins={limit_checkins}")
+    logger.info(f"GET /data/predictions/{user_id} - types={types}, window_days={window_days}")
     
-    # Validar variáveis de ambiente do Supabase
-    if not os.environ.get("SUPABASE_URL") or not os.environ.get("SUPABASE_SERVICE_KEY"):
-        logger.error("Supabase environment variables not configured")
-        raise HTTPException(
-            status_code=500,
-            detail="Supabase environment variables (SUPABASE_URL, SUPABASE_SERVICE_KEY) not configured"
-        )
-    
-    # Parse tipos solicitados
     if types:
         requested_types = [t.strip() for t in types.split(",")]
-        # Validar tipos
         invalid_types = [t for t in requested_types if t not in SUPPORTED_TYPES]
         if invalid_types:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid prediction types: {invalid_types}. Supported: {SUPPORTED_TYPES}"
-            )
+            raise HTTPException(status_code=400, detail=f"Invalid types: {invalid_types}")
     else:
         requested_types = SUPPORTED_TYPES.copy()
     
-    logger.info(f"Requested types: {requested_types}")
-    
-    # Try to get from cache first (only for aggregated predictions, not per_checkin)
+    # Cache check
     cache = get_cache()
-    cached_result = None
-    if limit_checkins == 0:
-        cached_result = await cache.get(user_id, window_days, requested_types)
-        if cached_result:
-            logger.info(f"Cache HIT for user {user_id}")
-            elapsed_time = time.time() - request_start_time
-            logger.info(f"Request completed in {elapsed_time:.3f}s (from cache)")
-            return cached_result
-        else:
-            logger.info(f"Cache MISS for user {user_id}")
+    cached_result = await cache.get(user_id, window_days, requested_types)
+    if cached_result:
+        # Need to ensure cached result matches Pydantic model structure if it was stored as dict
+        logger.info(f"Cache HIT for user {user_id}")
+        return cached_result
     
     try:
-        # Buscar check-ins do usuário
-        logger.info(f"Fetching check-ins for user_id={user_id}")
-        
         response = await supabase.table('check_ins')\
             .select('*')\
             .eq('user_id', user_id)\
             .order('checkin_date', desc=True)\
-            .limit(max(1, limit_checkins))\
+            .limit(1)\
             .execute()
         
         checkins = response.data if response.data else []
-        logger.info(f"Found {len(checkins)} check-ins for user_id={user_id}")
         
-        # Preparar resposta
-        response_data = {
-            "user_id": user_id,
-            "window_days": window_days,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
-            "predictions": []
-        }
+        metrics = []
         
-        # Se houver check-ins, processar predições
         if checkins:
-            # Usar o check-in mais recente para predição agregada
             latest_checkin = checkins[0]
-            logger.info(f"Processing predictions for latest check-in: {latest_checkin.get('id')}")
-            
-            # Executar predições para cada tipo solicitado com timeout
             for pred_type in requested_types:
-                logger.info(f"Running prediction type: {pred_type}")
-                prediction = await run_prediction_with_timeout(latest_checkin, pred_type, window_days)
-                response_data["predictions"].append(prediction)
-            
-            # Se limit_checkins > 0, incluir predições por check-in
-            if limit_checkins > 0 and len(checkins) > 0:
-                response_data["per_checkin"] = []
-                
-                for checkin in checkins[:limit_checkins]:
-                    checkin_predictions = {
-                        "checkin_id": checkin.get("id"),
-                        "checkin_date": checkin.get("checkin_date"),
-                        "predictions": []
-                    }
-                    
-                    for pred_type in requested_types:
-                        prediction = await run_prediction_with_timeout(checkin, pred_type, window_days)
-                        prediction["source"] = "per_checkin"
-                        checkin_predictions["predictions"].append(prediction)
-                    
-                    response_data["per_checkin"].append(checkin_predictions)
-                    
-                logger.info(f"Included {len(response_data['per_checkin'])} check-ins with predictions")
+                metric = await run_prediction_with_timeout(latest_checkin, pred_type, window_days)
+                metrics.append(metric)
         else:
-            # Sem check-ins: retornar predições com probability null/0
-            logger.info("No check-ins found, returning stub predictions")
+            # Return empty/default metrics if no data
             for pred_type in requested_types:
-                response_data["predictions"].append({
-                    "type": pred_type,
-                    "label": "Dados insuficientes",
-                    "probability": 0.0,
-                    "details": {},
-                    "model_version": None,
-                    "explanation": "No check-in data available for this user",
-                    "source": "aggregated_last_checkin"
-                })
+                metrics.append(PredictionsMetric(
+                    name=pred_type,
+                    value=0.0,
+                    riskLevel="unknown",
+                    confidence=0.0,
+                    explanation="No check-in data available"
+                ))
+
+        result = PredictionsResponse(
+            status="ok",
+            userId=user_id,
+            windowDays=window_days,
+            metrics=metrics,
+            generatedAt=datetime.now(timezone.utc).isoformat()
+        )
         
-        logger.info(f"Successfully generated {len(response_data['predictions'])} predictions")
+        # Cache the result model
+        await cache.set(user_id, window_days, requested_types, result.model_dump(), CACHE_TTL_SECONDS)
         
-        # Store in cache (only if no per_checkin data was requested)
-        if limit_checkins == 0 and checkins:
-            await cache.set(user_id, window_days, requested_types, response_data, CACHE_TTL_SECONDS)
-            logger.info(f"Cached predictions for user {user_id} (TTL: {CACHE_TTL_SECONDS}s)")
-        
-        # Log total request time
-        elapsed_time = time.time() - request_start_time
-        logger.info(f"Request completed in {elapsed_time:.3f}s")
-        
-        return response_data
+        return result
         
     except HTTPException:
-        # Re-raise HTTP exceptions
         raise
     except APIError as e:
-        # Handle PostgREST errors using centralized utility
         handle_postgrest_error(e, user_id)
     except Exception as e:
         logger.exception(f"Error processing predictions for user_id={user_id}: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error processing predictions: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error processing predictions: {str(e)}")
 
 
 @router.get("/prediction_of_day/{user_id}", response_model=MoodPredictionResponse)
@@ -533,33 +317,11 @@ async def get_prediction_of_day(
     supabase: AsyncClient = Depends(get_supabase_client)
 ):
     """
-    Endpoint para obter apenas a predição do estado de humor do dia (mood_state) para um usuário.
-    
-    Retorna apenas a predição de mood_state com janela de 3 dias, otimizado para uso no Dashboard.
-    
-    Args:
-        user_id: UUID do usuário
-        
-    Returns:
-        JSON com predição única do tipo mood_state: { type, label, probability }
+    Endpoint otimizado para dashboard (mood_state apenas).
     """
-    # Validate UUID format
     validate_uuid_or_400(user_id, "user_id")
     
-    logger.info("GET /data/prediction_of_day")
-    
-    # Validar variáveis de ambiente do Supabase
-    if not os.environ.get("SUPABASE_URL") or not os.environ.get("SUPABASE_SERVICE_KEY"):
-        logger.error("Supabase environment variables not configured")
-        raise HTTPException(
-            status_code=500,
-            detail="Supabase environment variables (SUPABASE_URL, SUPABASE_SERVICE_KEY) not configured"
-        )
-    
     try:
-        # Buscar o check-in mais recente do usuário
-        logger.info("Fetching latest check-in for user")
-        
         response = await supabase.table('check_ins')\
             .select('*')\
             .eq('user_id', user_id)\
@@ -568,44 +330,28 @@ async def get_prediction_of_day(
             .execute()
         
         checkins = response.data if response.data else []
-        logger.info(f"Found {len(checkins)} check-ins")
         
-        # Se houver check-in, processar predição de mood_state
         if checkins:
-            latest_checkin = checkins[0]
-            logger.info("Processing mood_state prediction for latest check-in")
-            
-            # Executar predição de mood_state com janela de 3 dias (com timeout)
-            prediction = await run_prediction_with_timeout(latest_checkin, "mood_state", window_days=3)
-            
-            # Retornar apenas os campos essenciais
-            result = {
-                "type": prediction["type"],
-                "label": prediction["label"],
-                "probability": prediction["probability"]
+            metric = await run_prediction_with_timeout(checkins[0], "mood_state", window_days=3)
+            # Extrair label da explanation ou usar lógica do valor
+            label = "Desconhecido"
+            if "Predicted state:" in metric.explanation:
+                label = metric.explanation.split("Predicted state:")[1].strip()
+            elif "Heuristic:" in metric.explanation:
+                label = metric.explanation.split("Heuristic:")[1].strip()
+
+            return {
+                "type": "mood_state",
+                "label": label,
+                "probability": metric.value
             }
-            
-            logger.info(f"Prediction of day generated: {result['label']} (prob: {result.get('probability', 'N/A')})")
-            
-            return result
         else:
-            # Sem check-ins: retornar predição com probability 0
-            logger.info("No check-ins found, returning default prediction")
             return {
                 "type": "mood_state",
                 "label": "Dados insuficientes",
                 "probability": 0.0
             }
         
-    except HTTPException:
-        # Re-raise HTTP exceptions
-        raise
-    except APIError as e:
-        # Handle PostgREST errors using centralized utility
-        handle_postgrest_error(e, user_id)
     except Exception as e:
         logger.exception("Error processing prediction_of_day")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error processing prediction of day: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")

@@ -2,6 +2,7 @@
 import logging
 import os
 from contextlib import asynccontextmanager
+from typing import List
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,8 +15,6 @@ from api.rate_limiter import limiter, rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 # Configurar logging para capturar exceções
-# NOTE: DEBUG level enabled for diagnostic purposes during initial deployment
-# Consider changing to logging.INFO for production after issue is resolved
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("bipolar-api")
 
@@ -66,8 +65,6 @@ async def _rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded)
 async def global_exception_handler(request: Request, exc: Exception):
     """
     Captura todas as exceções não tratadas e loga traceback completo.
-    Isso garante que erros sejam visíveis nos logs do Render para diagnóstico.
-    Cliente recebe apenas mensagem genérica e segura.
     """
     logger.exception(
         "Unhandled exception occurred while handling request: %s %s",
@@ -83,43 +80,30 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 # --- Configuração do CORS ---
-# CORS origins can be configured via environment variable CORS_ORIGINS (comma-separated)
-# Default includes production frontend and common development ports
-default_origins = [
+# Definir origens permitidas explicitamente conforme diagnóstico
+# Garante que o frontend de produção esteja sempre permitido
+ALLOWED_ORIGINS: List[str] = [
     "https://previso-fe.vercel.app",
     "http://localhost:3000",
     "http://localhost:5173",
 ]
 
-# Allow override via environment variable
+# Permitir override ou adição via variável de ambiente
 cors_origins_env = os.getenv("CORS_ORIGINS")
 if cors_origins_env:
-    # Parse and validate origins
-    parsed_origins = []
     for origin in cors_origins_env.split(","):
         origin = origin.strip()
-        # Basic validation: must start with http:// or https://
-        if origin.startswith(("http://", "https://")):
-            parsed_origins.append(origin)
-        else:
-            logger.warning(f"Invalid CORS origin '{origin}' - must start with http:// or https://")
-    
-    if parsed_origins:
-        origins = parsed_origins
-        logger.info(f"Using CORS origins from environment: {origins}")
-    else:
-        logger.warning("No valid CORS origins found in CORS_ORIGINS, using defaults")
-        origins = default_origins
-else:
-    origins = default_origins
-    logger.info(f"Using default CORS origins: {origins}")
+        if origin and origin not in ALLOWED_ORIGINS:
+            ALLOWED_ORIGINS.append(origin)
+
+logger.info(f"CORS allowed origins: {ALLOWED_ORIGINS}")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Accept"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-Request-ID"],
 )
 
 # Add observability middleware
@@ -143,4 +127,13 @@ def read_root():
     return {
         "message": "Bipolar Prediction & Insights API v2.0 is running",
         "status": "healthy"
+    }
+
+@app.get("/health", tags=["Health Check"])
+def health_check():
+    """Health check endpoint standardizado."""
+    return {
+        "status": "healthy",
+        "uptime": "ok", # Idealmente calcular uptime real
+        "version": "2.0.0"
     }

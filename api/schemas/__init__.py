@@ -10,10 +10,9 @@ from .checkin_jsonb import (
     MedsContextData
 )
 from .predictions import (
-    PredictionResponse,
+    PredictionsMetric,
     PredictionsResponse,
-    MoodPredictionResponse,
-    PerCheckinPredictions
+    MoodPredictionResponse
 )
 
 
@@ -31,8 +30,7 @@ __all__ = [
     "RiskRoutineData",
     "AppetiteImpulseData",
     "MedsContextData",
-    "PredictionResponse",
+    "PredictionsMetric",
     "PredictionsResponse",
-    "MoodPredictionResponse",
-    "PerCheckinPredictions"
+    "MoodPredictionResponse"
 ]

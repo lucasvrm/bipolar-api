@@ -93,6 +93,8 @@ async def create_user_with_retry(
             logger.debug("Usuário auth criado: %s", user_id)
             payload = {"id": user_id, "email": email, "role": role}
             await client.table("profiles").insert(payload).execute()
+            # Set test flag for cleanup
+            await client.table("profiles").update({"is_test_patient": True}).eq("id", user_id).execute()
             return user_id, email, password
         except Exception as e:
             last_err_msg = str(e)
@@ -416,7 +418,8 @@ def generate_user_checkin_history(
     mood_pattern: str = "stable",
 ) -> List[Dict[str, Any]]:
     mood_pattern = (mood_pattern or "stable").lower()
-    if mood_pattern not in ("stable", "cycling", "random"):
+    valid_patterns = ("stable", "cycling", "random", "manic", "depressive")
+    if mood_pattern not in valid_patterns:
         mood_pattern = "random"
 
     now = datetime.now(timezone.utc)
@@ -428,6 +431,10 @@ def generate_user_checkin_history(
             state = "STABLE"
         elif mood_pattern == "cycling":
             state = "HYPOMANIC" if (i // 3) % 2 == 0 else "DEPRESSED"
+        elif mood_pattern == "manic":
+            state = "MANIC"
+        elif mood_pattern == "depressive":
+            state = "DEPRESSED"
         else:
             state = random.choice(["MANIC", "DEPRESSED", "HYPOMANIC", "MIXED", "STABLE", "EUTHYMIC"])
         out.append(generate_realistic_checkin(user_id=user_id, when=when, mood_state=state))
@@ -472,8 +479,14 @@ async def generate_and_populate_data(
     pattern: str = "stable",
     clear_db: bool = False,
     concurrency: int = 5,
+    seed: Optional[int] = None,
     **_ignored,
 ) -> Dict[str, Any]:
+    # Set seed if provided
+    if seed is not None:
+        random.seed(seed)
+        logger.info(f"Using seed {seed} for synthetic data generation")
+
     if clear_db:
         logger.info("clear_db=True (simulado)")
 
@@ -501,7 +514,11 @@ async def generate_and_populate_data(
         total_checkins = len(batch)
         if batch:
             try:
-                await supabase.table("check_ins").insert(batch).execute()
+                # Insert in chunks of 100
+                chunk_size = 100
+                for i in range(0, len(batch), chunk_size):
+                    chunk = batch[i:i + chunk_size]
+                    await supabase.table("check_ins").insert(chunk).execute()
             except Exception as e:
                 logger.warning("Falha ao inserir check-ins (prosseguindo): %s", e)
 

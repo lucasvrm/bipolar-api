@@ -2,128 +2,40 @@
 Pydantic schemas for synthetic data management endpoints.
 """
 from datetime import datetime
-from typing import Optional, Literal
+from typing import Optional, Literal, List, Dict, Any
 from pydantic import BaseModel, Field
 
 
-class CleanDataRequest(BaseModel):
-    """Request body for cleaning synthetic data endpoint."""
-    model_config = {"json_schema_extra": {
-        "examples": [
-            {
-                "action": "delete_all"
-            },
-            {
-                "action": "delete_last_n",
-                "quantity": 10
-            },
-            {
-                "action": "delete_by_mood",
-                "mood_pattern": "stable"
-            },
-            {
-                "action": "delete_before_date",
-                "before_date": "2024-01-01T00:00:00Z"
+class GenerateDataRequest(BaseModel):
+    """Request body for generation of synthetic data."""
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "patientsCount": 5,
+                "therapistsCount": 2,
+                "checkinsPerUser": 30,
+                "moodPattern": "stable",
+                "seed": 42,
+                "clearDb": False,
             }
-        ]
-    }}
+        },
+        "populate_by_name": True # Allow using field names or aliases
+    }
 
-    action: Literal["delete_all", "delete_last_n", "delete_before_date"] = Field(
-        description="Type of deletion action to perform"
-    )
-    quantity: Optional[int] = Field(
-        default=None,
-        ge=1,
-        description="Number of patients to delete (required for delete_last_n)"
-    )
-    mood_pattern: Optional[str] = Field(
-        default=None,
-        description="Mood pattern to filter by (required for delete_by_mood): stable, cycling, or random"
-    )
-    before_date: Optional[str] = Field(
-        default=None,
-        description="ISO datetime string - delete patients created before this date (required for delete_before_date)"
-    )
+    # Primary fields (camelCase)
+    patientsCount: Optional[int] = Field(default=2, ge=0, le=500, description="Number of patients to generate (max 500)")
+    therapistsCount: Optional[int] = Field(default=1, ge=0, le=50, description="Number of therapists to generate")
+    checkinsPerUser: int = Field(default=30, ge=1, le=365, description="Number of check-ins per patient")
+    moodPattern: str = Field(default="stable", description="Mood pattern: stable, cycling, random, depressive, manic")
+    seed: Optional[int] = Field(default=None, description="Random seed for reproducibility")
+    clearDb: bool = Field(default=False, description="Whether to clear existing synthetic data first")
 
-
-class CleanDataResponse(BaseModel):
-    """Response body for cleaning synthetic data endpoint."""
-    status: str
-    message: str
-    deleted_count: int
-
-
-class ToggleTestFlagResponse(BaseModel):
-    """Response body for toggling test flag endpoint."""
-    id: str
-    is_test_patient: bool
-    message: str
-
-
-class EnhancedStatsResponse(BaseModel):
-    """Response body for enhanced stats endpoint."""
-    # Legacy fields (keep for backwards compatibility)
-    total_users: int
-    total_checkins: int
-    
-    # New required fields
-    real_patients_count: int
-    synthetic_patients_count: int
-    checkins_today: int
-    checkins_last_7_days: int
-    checkins_last_7_days_previous: int
-    avg_checkins_per_active_patient: float
-    avg_adherence_last_30d: float
-    avg_current_mood: float
-    mood_distribution: dict
-    critical_alerts_last_30d: int
-    patients_with_recent_radar: int
-
-
-class DangerZoneCleanupRequest(BaseModel):
-    """Request body for danger zone cleanup endpoint."""
-    model_config = {"json_schema_extra": {
-        "examples": [
-            {
-                "action": "delete_all"
-            },
-            {
-                "action": "delete_last_n",
-                "quantity": 5
-            },
-            {
-                "action": "delete_by_mood",
-                "mood_pattern": "stable"
-            },
-            {
-                "action": "delete_before_date",
-                "before_date": "2024-01-01T00:00:00Z"
-            }
-        ]
-    }}
-
-    action: Literal["delete_all", "delete_last_n", "delete_by_mood", "delete_before_date"] = Field(
-        description="Type of deletion action: delete_all, delete_last_n, delete_by_mood, delete_before_date"
-    )
-    quantity: Optional[int] = Field(
-        default=None,
-        ge=1,
-        description="Number of test patients to delete (required for delete_last_n)"
-    )
-    mood_pattern: Optional[str] = Field(
-        default=None,
-        description="Mood pattern to filter by (required for delete_by_mood): stable, cycling, or random"
-    )
-    before_date: Optional[str] = Field(
-        default=None,
-        description="ISO datetime string - delete test patients created before this date (required for delete_before_date)"
-    )
-
-
-class DangerZoneCleanupResponse(BaseModel):
-    """Response body for danger zone cleanup endpoint."""
-    deleted: int
-    message: str
+    # We remove the explicit snake_case fields that had alias conflicts.
+    # Users can send snake_case if we add alias=snake_case to the fields above,
+    # but the requirement was camelCase input support.
+    # If backward compatibility is strictly required for snake_case inputs mapping to these fields,
+    # we can use validation_alias in Pydantic v2 or alias in v1, but avoid duplicates.
+    # Assuming camelCase is the target standard.
 
 
 class SyntheticDataStatistics(BaseModel):
@@ -133,13 +45,62 @@ class SyntheticDataStatistics(BaseModel):
     therapists_created: int
     total_checkins: int
     mood_pattern: str
-    checkins_per_user: int = Field(default=0)
-    generated_at: str = Field(description="ISO datetime when data was generated")
+    checkins_per_user: int
+    generated_at: str
 
 
 class SyntheticDataGenerationResponse(BaseModel):
     """Response body for synthetic data generation endpoint."""
     status: str
     statistics: SyntheticDataStatistics
-    patient_ids: list[str] = Field(default_factory=list)
-    therapist_ids: list[str] = Field(default_factory=list)
+    generatedAt: str
+
+
+class StatsResponse(BaseModel):
+    """
+    Standardized response for admin stats.
+    Replaces EnhancedStatsResponse.
+    """
+    total_users: int
+    total_checkins: int
+    real_patients_count: int
+    synthetic_patients_count: int
+    checkins_today: int
+    checkins_last_7_days: int
+    checkins_last_7_days_previous: int
+    avg_checkins_per_active_patient: float
+    avg_adherence_last_30d: float
+    avg_current_mood: float
+    mood_distribution: Dict[str, int]
+    critical_alerts_last_30d: int
+    patients_with_recent_radar: int
+
+
+class CleanupResponse(BaseModel):
+    """Standardized response for cleanup operations."""
+    status: str
+    message: str
+    removedRecords: int
+    sampleIds: List[str]
+    dryRun: bool
+    cleanedAt: str
+
+
+class CleanupDataRequest(BaseModel):
+    """Request for simple cleanup."""
+    confirm: bool = False
+    dryRun: bool = False
+
+
+class DangerZoneCleanupRequest(BaseModel):
+    """Request body for danger zone cleanup endpoint."""
+    action: Literal["delete_all", "delete_last_n", "delete_by_mood", "delete_before_date"]
+    quantity: Optional[int] = Field(default=None, ge=1)
+    mood_pattern: Optional[str] = None
+    before_date: Optional[str] = None
+    dryRun: bool = Field(default=False, description="If true, only simulates deletion")
+
+# Legacy/Alias for compatibility with existing code imports
+EnhancedStatsResponse = StatsResponse
+CleanDataRequest = DangerZoneCleanupRequest
+CleanDataResponse = CleanupResponse
