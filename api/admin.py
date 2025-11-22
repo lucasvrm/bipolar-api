@@ -224,7 +224,7 @@ async def generate_synthetic_data(
 
 @router.get("/stats", response_model=EnhancedStatsResponse)
 async def get_admin_stats(
-    supabase: AsyncClient = Depends(get_supabase_client),
+    supabase: AsyncClient = Depends(get_supabase_service),
     is_admin: bool = Depends(verify_admin_authorization)
 ):
     """
@@ -423,7 +423,7 @@ async def get_admin_stats(
 
 @router.get("/users")
 async def get_admin_users(
-    supabase: AsyncClient = Depends(get_supabase_client),
+    supabase: AsyncClient = Depends(get_supabase_service),
     is_admin: bool = Depends(verify_admin_authorization)
 ):
     """
@@ -492,7 +492,7 @@ class CleanupDataRequest(BaseModel):
 async def cleanup_synthetic_data(
     request: Request,
     cleanup_request: CleanupDataRequest,
-    supabase: AsyncClient = Depends(get_supabase_client),
+    supabase: AsyncClient = Depends(get_supabase_service),
     is_admin: bool = Depends(verify_admin_authorization)
 ):
     """
@@ -622,7 +622,7 @@ async def cleanup_synthetic_data(
 async def clean_synthetic_data(
     request: Request,
     clean_request: CleanDataRequest,
-    supabase: AsyncClient = Depends(get_supabase_client),
+    supabase: AsyncClient = Depends(get_supabase_service),
     is_admin: bool = Depends(verify_admin_authorization)
 ):
     """
@@ -798,7 +798,7 @@ async def export_synthetic_data(
     include_notes: bool = False,
     include_medications: bool = False,
     include_radar: bool = False,
-    supabase: AsyncClient = Depends(get_supabase_client),
+    supabase: AsyncClient = Depends(get_supabase_service),
     is_admin: bool = Depends(verify_admin_authorization)
 ):
     """
@@ -991,7 +991,7 @@ async def export_synthetic_data(
 @router.patch("/patients/{patient_id}/toggle-test-flag", response_model=ToggleTestFlagResponse)
 async def toggle_test_patient_flag(
     patient_id: str,
-    supabase: AsyncClient = Depends(get_supabase_client),
+    supabase: AsyncClient = Depends(get_supabase_service),
     is_admin: bool = Depends(verify_admin_authorization)
 ):
     """
@@ -1060,7 +1060,7 @@ async def toggle_test_patient_flag(
 @limiter.limit("5/hour")
 async def run_deletion_job_manually(
     request: Request,
-    supabase: AsyncClient = Depends(get_supabase_client),
+    supabase: AsyncClient = Depends(get_supabase_service),
     is_admin: bool = Depends(verify_admin_authorization)
 ):
     """
@@ -1113,7 +1113,7 @@ async def run_deletion_job_manually(
 async def danger_zone_cleanup(
     request: Request,
     cleanup_request: DangerZoneCleanupRequest,
-    supabase: AsyncClient = Depends(get_supabase_client),
+    supabase: AsyncClient = Depends(get_supabase_service),
     is_admin: bool = Depends(verify_admin_authorization)
 ):
     """
