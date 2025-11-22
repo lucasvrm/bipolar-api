@@ -63,7 +63,8 @@ async def get_user_from_token(authorization: Optional[str], supabase: Client) ->
     token = authorization[7:]  # Remove "Bearer " prefix
     
     try:
-        user_response = await supabase.auth.get_user(token)
+        # Sync client's auth.get_user() is synchronous
+        user_response = supabase.auth.get_user(token)
         
         if not user_response or not user_response.user:
             logger.error("Invalid JWT token - user not found")

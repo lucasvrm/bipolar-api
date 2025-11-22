@@ -265,7 +265,7 @@ class TestAdminAuthentication:
         """Test that admin authentication uses ANON client, not SERVICE client."""
         anon_client_used = []
         
-        async def tracking_acreate(url, key, options=None):
+        def tracking_acreate(url, key, options=None):
             # Check which key is being used by looking at headers
             if options and hasattr(options, 'headers'):
                 headers = options.headers
