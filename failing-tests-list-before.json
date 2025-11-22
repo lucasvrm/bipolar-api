@@ -1,0 +1,104 @@
+{
+  "summary": {
+    "total_tests": 157,
+    "failed": 83,
+    "passed": 74,
+    "failure_rate": "52.9%"
+  },
+  "failures_by_category": {
+    "missing_acreate_client_export": {
+      "count": 81,
+      "description": "AttributeError: <module 'api.dependencies'> does not have the attribute 'acreate_client'",
+      "affected_files": [
+        "test_account_endpoints.py",
+        "test_admin_endpoints.py",
+        "test_predictions_endpoint.py",
+        "test_privacy_endpoints.py",
+        "test_uuid_validation.py",
+        "test_observability_middleware.py"
+      ]
+    },
+    "error_message_mismatch": {
+      "count": 1,
+      "description": "AssertionError: assert 'duplicate' in 'falha após todas as tentativas'",
+      "affected_files": [
+        "test_data_generator_retry.py"
+      ]
+    },
+    "status_code_mismatch": {
+      "count": 1,
+      "description": "assert 400 == 500 (cascading failure from acreate_client issue)",
+      "affected_files": [
+        "test_predictions_endpoint.py"
+      ]
+    }
+  },
+  "detailed_failures": [
+    {
+      "file": "tests/test_account_endpoints.py",
+      "test": "test_export_patient_data",
+      "line": 56,
+      "error": "AttributeError: <module 'api.dependencies'> does not have the attribute 'acreate_client'",
+      "stacktrace_snippet": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_client_factory)"
+    },
+    {
+      "file": "tests/test_account_endpoints.py",
+      "test": "test_delete_request_therapist_with_patients",
+      "line": 147,
+      "error": "AttributeError: <module 'api.dependencies'> does not have the attribute 'acreate_client'",
+      "stacktrace_snippet": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_client_factory)"
+    },
+    {
+      "file": "tests/test_account_endpoints.py",
+      "test": "test_delete_request_patient_success",
+      "line": 219,
+      "error": "AttributeError: <module 'api.dependencies'> does not have the attribute 'acreate_client'",
+      "stacktrace_snippet": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_client_factory)"
+    },
+    {
+      "file": "tests/test_data_generator_retry.py",
+      "test": "TestCreateUserWithRetry::test_failure_after_max_retries",
+      "line": 150,
+      "error": "AssertionError: assert 'duplicate' in 'falha após todas as tentativas'",
+      "stacktrace_snippet": "assert \"duplicate\" in exc_info.value.detail.lower()"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "test": "TestAdminAuthentication::test_generate_data_without_auth_returns_401",
+      "line": 151,
+      "error": "AttributeError: <module 'api.dependencies'> does not have the attribute 'acreate_client'",
+      "stacktrace_snippet": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create)"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "test": "Multiple admin endpoint tests",
+      "count": 60,
+      "error": "AttributeError: <module 'api.dependencies'> does not have the attribute 'acreate_client'",
+      "stacktrace_snippet": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create)"
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "test": "test_predictions_endpoint_no_checkins",
+      "error": "AttributeError: <module 'api.dependencies'> does not have the attribute 'acreate_client'",
+      "stacktrace_snippet": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_client_factory)"
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "test": "test_prediction_of_day_endpoint_missing_env_vars",
+      "error": "assert 400 == 500",
+      "stacktrace_snippet": "Cascading failure from acreate_client issue"
+    },
+    {
+      "file": "tests/test_privacy_endpoints.py",
+      "test": "test_consent_endpoint_with_auth",
+      "error": "AttributeError: <module 'api.dependencies'> does not have the attribute 'acreate_client'",
+      "stacktrace_snippet": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_client_factory)"
+    },
+    {
+      "file": "tests/test_uuid_validation.py",
+      "test": "test_latest_checkin_valid_uuid_calls_supabase",
+      "error": "AttributeError: <module 'api.dependencies'> does not have the attribute 'acreate_client'",
+      "stacktrace_snippet": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_client_factory)"
+    }
+  ]
+}

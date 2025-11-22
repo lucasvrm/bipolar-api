@@ -1,0 +1,14 @@
+........................................................................ [ 45%]
+........................................................................ [ 91%]
+.............                                                            [100%]
+=============================== warnings summary ===============================
+tests/test_observability_middleware.py::test_middleware_works_with_privacy_endpoints
+  /home/runner/work/bipolar-api/bipolar-api/.venv/lib/python3.12/site-packages/supabase/_async/client.py:303: DeprecationWarning: The 'timeout' parameter is deprecated. Please configure it in the http client instead.
+    return AsyncPostgrestClient(
+
+tests/test_observability_middleware.py::test_middleware_works_with_privacy_endpoints
+  /home/runner/work/bipolar-api/bipolar-api/.venv/lib/python3.12/site-packages/supabase/_async/client.py:303: DeprecationWarning: The 'verify' parameter is deprecated. Please configure it in the http client instead.
+    return AsyncPostgrestClient(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+157 passed, 2 warnings in 2.29s
