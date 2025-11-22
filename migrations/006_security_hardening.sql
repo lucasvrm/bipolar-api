@@ -14,6 +14,10 @@ ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
 -- 2. Create RLS Policies for audit_log
 -- ============================================================================
 
+-- Drop existing policies if they exist (for idempotency)
+DROP POLICY IF EXISTS "service_role_full_access" ON public.audit_log;
+DROP POLICY IF EXISTS "users_read_own_audit_logs" ON public.audit_log;
+
 -- Policy: Allow service_role to have full access to audit_log
 -- This is needed for backend operations and admin functions
 CREATE POLICY "service_role_full_access" ON public.audit_log

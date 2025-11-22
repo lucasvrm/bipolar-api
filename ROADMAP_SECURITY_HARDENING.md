@@ -93,12 +93,21 @@ ALTER FUNCTION public.handle_new_user() SET search_path = public, extensions;
 
 ## Migration Idempotency
 
-The migration is designed to be safe to run multiple times:
+The migration is designed to be fully idempotent and safe to run multiple times:
 - `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` can be run multiple times without error
-- `CREATE POLICY` may need to be wrapped with existence checks in production if re-run is needed
+- `DROP POLICY IF EXISTS` ensures policies can be recreated safely
+- `CREATE POLICY` creates fresh policies after dropping existing ones
 - `ALTER FUNCTION ... SET search_path` can be run multiple times without error
 
-**Note:** If the policies already exist, you may need to drop and recreate them or use `CREATE OR REPLACE POLICY` (PostgreSQL 15+).
+**Migration Strategy:**
+The script uses a "drop and recreate" pattern for policies:
+1. Drop existing policies (if they exist)
+2. Create fresh policies with current configuration
+
+This ensures:
+- ✅ First run: Creates everything successfully
+- ✅ Subsequent runs: Updates policies without errors
+- ✅ Safe for all environments (development, staging, production)
 
 ## Next Steps
 
