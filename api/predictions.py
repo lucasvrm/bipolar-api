@@ -146,6 +146,7 @@ async def run_prediction_with_timeout(
         return PredictionsMetric(
             name=prediction_type,
             value=0.0,
+            label="Timeout",
             riskLevel="unknown",
             confidence=0.0,
             explanation="Timeout during prediction"
@@ -167,6 +168,7 @@ def run_prediction(
     metric = PredictionsMetric(
         name=prediction_type,
         value=0.0,
+        label="Unknown",
         riskLevel="low",
         confidence=0.0,
         explanation="Explanation unavailable"
@@ -183,6 +185,7 @@ def run_prediction(
                 
                 label = MOOD_STATE_MAP.get(predicted_class, "Desconhecido")
                 metric.value = prob
+                metric.label = label
                 metric.riskLevel = "high" if label in ["Mania", "Depressão", "Estado Misto"] else "low"
                 metric.confidence = prob
                 metric.explanation = f"Predicted state: {label}"
@@ -206,6 +209,7 @@ def run_prediction(
                     prob = 0.8
                 
                 metric.value = prob
+                metric.label = label
                 metric.riskLevel = "high" if label != "Eutimia" else "low"
                 metric.confidence = 0.5  # lower confidence for heuristic
                 metric.explanation = f"Heuristic: {label}"
@@ -214,12 +218,19 @@ def run_prediction(
              prob = normalize_probability(calculate_heuristic_probability(checkin_data, prediction_type))
              metric.value = prob
              metric.riskLevel = get_risk_level(prob, prediction_type)
+             # Label logic for risks
+             if metric.riskLevel == "critical": metric.label = "Risco Crítico"
+             elif metric.riskLevel == "high": metric.label = "Alto Risco"
+             elif metric.riskLevel == "medium": metric.label = "Risco Médio"
+             else: metric.label = "Baixo Risco"
+
              metric.confidence = 0.6 # heuristic confidence
              metric.explanation = f"Heuristic based on symptoms patterns"
 
     except Exception as e:
         logger.exception(f"Error running prediction {prediction_type}: {e}")
         metric.explanation = f"Error: {str(e)}"
+        metric.label = "Error"
     
     return metric
 
@@ -282,6 +293,7 @@ async def get_predictions(
                 metrics.append(PredictionsMetric(
                     name=pred_type,
                     value=0.0,
+                    label="Sem dados",
                     riskLevel="unknown",
                     confidence=0.0,
                     explanation="No check-in data available"
@@ -335,21 +347,12 @@ async def get_prediction_of_day(
             metric = await run_prediction_with_timeout(checkins[0], "mood_state", window_days=3)
             # Extrair label da explanation ou usar lógica do valor
             label = "Desconhecido"
-            if "Predicted state:" in metric.explanation:
+            if metric.label != "Unknown":
+                label = metric.label
+            elif "Predicted state:" in metric.explanation:
                 label = metric.explanation.split("Predicted state:")[1].strip()
             elif "Heuristic:" in metric.explanation:
                 label = metric.explanation.split("Heuristic:")[1].strip()
-            # Se não conseguir extrair, usa o valor mapeado na métrica se disponível, ou o riskLevel?
-            # Metric riskLevel is not the label.
-            # But in run_prediction for mood_state we set metric.explanation = f"Predicted state: {label}"
-            # So parsing it back is a bit hacky but works for now.
-            # Ideally we should pass label in metric details or similar.
-            # But wait, run_prediction sets explanation.
-
-            # Fallback if parsing fails but value is set?
-            if label == "Desconhecido" and metric.riskLevel != "unknown":
-                # Try to reverse engineer from probability? No, that's bad.
-                pass
 
             return {
                 "type": "mood_state",
