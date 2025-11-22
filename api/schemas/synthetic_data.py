@@ -30,12 +30,7 @@ class GenerateDataRequest(BaseModel):
     seed: Optional[int] = Field(default=None, description="Random seed for reproducibility")
     clearDb: bool = Field(default=False, description="Whether to clear existing synthetic data first")
 
-    # We remove the explicit snake_case fields that had alias conflicts.
-    # Users can send snake_case if we add alias=snake_case to the fields above,
-    # but the requirement was camelCase input support.
-    # If backward compatibility is strictly required for snake_case inputs mapping to these fields,
-    # we can use validation_alias in Pydantic v2 or alias in v1, but avoid duplicates.
-    # Assuming camelCase is the target standard.
+    # Removed snake_case duplicate fields to avoid Pydantic ConfigError
 
 
 class SyntheticDataStatistics(BaseModel):
