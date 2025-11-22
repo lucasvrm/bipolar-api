@@ -295,7 +295,7 @@ async def create_user_with_retry(
             if attempt == max_retries - 1:
                 raise HTTPException(status_code=500, detail=f"Erro ao criar usuário: {str(e)}")
    
-    raise HTTPException(status_code=500, detail="Falha após todas as tentativas")
+    raise HTTPException(status_code=500, detail="Falha após todas as tentativas (duplicate key)")
 
 
 async def generate_checkins_for_user(

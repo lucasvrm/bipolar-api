@@ -8,6 +8,12 @@ from supabase.lib.client_options import AsyncClientOptions
 
 logger = logging.getLogger("bipolar-api.dependencies")
 
+# Re-export acreate_client to support test mocking
+# Tests need to patch api.dependencies.acreate_client for dependency injection
+__all__ = ['acreate_client', 'AsyncClient', 'Client', 'get_supabase_client', 
+           'get_supabase_anon_auth_client', 'get_supabase_service_role_client',
+           'get_supabase_service', 'verify_admin_authorization', 'get_admin_emails']
+
 # Cache admin emails as a set for O(1) lookup
 _admin_emails_cache: Optional[Set[str]] = None
 
