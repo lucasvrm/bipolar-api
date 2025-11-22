@@ -39,7 +39,7 @@ class UndoDeleteRequest(BaseModel):
     token: str = Field(..., description="Deletion token received via email")
 
 
-async def get_user_from_token(authorization: Optional[str], supabase: Client) -> Dict[str, Any]:
+def get_user_from_token(authorization: Optional[str], supabase: Client) -> Dict[str, Any]:
     """
     Extract and validate user from JWT token.
     
@@ -147,7 +147,7 @@ async def export_account_data(
     Raises:
         HTTPException: 401 if unauthorized, 500 for errors
     """
-    user = await get_user_from_token(authorization, supabase)
+    user = get_user_from_token(authorization, supabase)
     user_id = user.id
     
     logger.info(f"Data export requested for user {hash_user_id_for_logging(user_id)}")
@@ -345,7 +345,7 @@ async def request_account_deletion(
     Raises:
         HTTPException: 401 if unauthorized, 403 if therapist has active patients, 500 for errors
     """
-    user = await get_user_from_token(authorization, supabase)
+    user = get_user_from_token(authorization, supabase)
     user_id = user.id
     
     logger.info(f"Deletion request for user {hash_user_id_for_logging(user_id)}")
