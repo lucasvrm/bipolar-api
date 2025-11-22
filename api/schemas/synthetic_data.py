@@ -124,3 +124,22 @@ class DangerZoneCleanupResponse(BaseModel):
     """Response body for danger zone cleanup endpoint."""
     deleted: int
     message: str
+
+
+class SyntheticDataStatistics(BaseModel):
+    """Statistics from synthetic data generation."""
+    users_created: int
+    patients_created: int
+    therapists_created: int
+    total_checkins: int
+    mood_pattern: str
+    checkins_per_user: int = Field(default=0)
+    generated_at: str = Field(description="ISO datetime when data was generated")
+
+
+class SyntheticDataGenerationResponse(BaseModel):
+    """Response body for synthetic data generation endpoint."""
+    status: str
+    statistics: SyntheticDataStatistics
+    patient_ids: list[str] = Field(default_factory=list)
+    therapist_ids: list[str] = Field(default_factory=list)

@@ -102,7 +102,6 @@ get_supabase_service = get_supabase_service_role_client
 
 async def verify_admin_authorization(
     authorization: str = Header(None),
-    supabase_anon: AsyncClient = None,
 ) -> bool:
     """
     Verifica token Bearer e se o e-mail está na lista ADMIN_EMAILS.
@@ -113,8 +112,7 @@ async def verify_admin_authorization(
 
     token = authorization.split(" ", 1)[1].strip()
 
-    if supabase_anon is None:
-        supabase_anon = await get_supabase_anon_auth_client()
+    supabase_anon = await get_supabase_anon_auth_client()
 
     try:
         user_resp = await supabase_anon.auth.get_user(token)
