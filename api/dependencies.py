@@ -39,26 +39,40 @@ def get_admin_emails() -> Set[str]:
 
 async def _create_anon_client() -> AsyncClient:
     url = os.getenv("SUPABASE_URL")
-    anon_key = os.getenv("SUPABASE_ANON_KEY")
+    anon_key = os.getenv("SUPABASE_ANON_KEY", "").strip()
+
     if not url or not anon_key:
         logger.error("SUPABASE_URL ou SUPABASE_ANON_KEY ausentes.")
         raise HTTPException(status_code=500, detail="Configuração Supabase incompleta (ANON).")
+
+    # Validate length
     if len(anon_key) < MIN_ANON_KEY_LENGTH:
         logger.error("ANON KEY inválida/truncada (len=%d).", len(anon_key))
         raise HTTPException(status_code=500, detail="SUPABASE_ANON_KEY inválida ou truncada.")
+
+    # Log masked key for debugging
+    logger.info(f"Initializing ANON client with key: {anon_key[:5]}...{anon_key[-5:]}")
+
     options = AsyncClientOptions(persist_session=False, headers={"apikey": anon_key})
     return await acreate_client(url, anon_key, options=options)
 
 
 async def _create_service_client() -> AsyncClient:
     url = os.getenv("SUPABASE_URL")
-    service_key = os.getenv("SUPABASE_SERVICE_KEY")
+    service_key = os.getenv("SUPABASE_SERVICE_KEY", "").strip()
+
     if not url or not service_key:
         logger.error("SUPABASE_URL ou SUPABASE_SERVICE_KEY ausentes.")
         raise HTTPException(status_code=500, detail="Configuração Supabase incompleta (SERVICE).")
+
+    # Validate length
     if len(service_key) < MIN_SERVICE_KEY_LENGTH:
         logger.error("SERVICE KEY inválida/truncada (len=%d).", len(service_key))
         raise HTTPException(status_code=500, detail="SUPABASE_SERVICE_KEY inválida ou truncada.")
+
+    # Log masked key for debugging
+    logger.info(f"Initializing SERVICE client with key: {service_key[:5]}...{service_key[-5:]}")
+
     options = AsyncClientOptions(persist_session=False, headers={"apikey": service_key})
     return await acreate_client(url, service_key, options=options)
 
@@ -118,6 +132,12 @@ async def verify_admin_authorization(
     try:
         user_resp = await supabase_anon.auth.get_user(token)
     except Exception as e:
+        error_str = str(e)
+        # Check for configuration error
+        if "Invalid API key" in error_str:
+            logger.error(f"Configuration Error in verify_admin_authorization: {e}")
+            raise HTTPException(status_code=500, detail="Internal Server Error: Database configuration invalid.")
+
         logger.error("Falha auth.get_user: %s", e)
         # Padrão: 401 para token inválido
         raise HTTPException(status_code=401, detail="Invalid or expired token")
