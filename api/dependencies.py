@@ -110,11 +110,13 @@ async def get_supabase_service_role_client() -> AsyncClient:
 
     # Log key length for debugging (only length logged, not the key itself for security)
     key_length = len(key) if key else 0
-    logger.critical(f"Service Role Key validation - Length: {key_length} chars")
+    logger.info(f"Service Role Key validation - Length: {key_length} chars")
     
-    # Log first 5 characters to confirm correct key type (service keys start with 'eyJ')
-    if key:
-        logger.critical(f"Service Role Key - First 5 chars: '{key[:5]}...'")
+    # Log first 5 characters for diagnostic purposes (only in debug mode)
+    # This helps confirm the correct key type is being used (service keys start with 'eyJ')
+    # In production, rely on length validation instead
+    if key and logger.isEnabledFor(logging.DEBUG):
+        logger.debug(f"Service Role Key - First 5 chars: '{key[:5]}...'")
     
     if not url or not key:
         error_msg = "Variáveis de ambiente do Supabase não configuradas no servidor."
@@ -144,12 +146,15 @@ async def get_supabase_service_role_client() -> AsyncClient:
     
     # CRITICAL: Set explicit headers to force service role authentication
     # This is the HARD FIX that ensures admin privileges
+    # Supabase requires BOTH headers set to the same service key:
+    # - 'apikey': Used for API authentication
+    # - 'Authorization': Used for bypassing RLS policies
     headers = {
         "apikey": key,
         "Authorization": f"Bearer {key}"
     }
     
-    logger.critical(f"Service Role Client - Explicit headers set: apikey='{key[:5]}...', Authorization='Bearer {key[:5]}...'")
+    logger.info("Service Role Client - Explicit authorization headers configured")
     
     # Create client with service role key and custom options with EXPLICIT headers
     supabase_options = AsyncClientOptions(
@@ -159,8 +164,8 @@ async def get_supabase_service_role_client() -> AsyncClient:
     
     client = await acreate_client(url, key, options=supabase_options)
     
-    logger.critical(f"Supabase SERVICE ROLE client created successfully: {type(client).__name__}")
-    logger.critical("Service role client GUARANTEED to bypass RLS with explicit Authorization headers")
+    logger.info(f"Supabase SERVICE ROLE client created successfully: {type(client).__name__}")
+    logger.info("Service role client GUARANTEED to bypass RLS with explicit Authorization headers")
     
     return client
 
@@ -197,11 +202,12 @@ async def get_supabase_service() -> AsyncGenerator[AsyncClient, None]:
 
     # Log key length for debugging (only length logged, not the key itself for security)
     key_length = len(key) if key else 0
-    logger.critical(f"Service Key validation - Length: {key_length} chars")
+    logger.info(f"Service Key validation - Length: {key_length} chars")
     
-    # Log first 5 characters to confirm correct key type (service keys start with 'eyJ')
-    if key:
-        logger.critical(f"Service Key - First 5 chars: '{key[:5]}...'")
+    # Log first 5 characters for diagnostic purposes (only in debug mode)
+    # This helps confirm the correct key type is being used (service keys start with 'eyJ')
+    if key and logger.isEnabledFor(logging.DEBUG):
+        logger.debug(f"Service Key - First 5 chars: '{key[:5]}...'")
     
     if not url or not key:
         error_msg = "Variáveis de ambiente do Supabase não configuradas no servidor."
@@ -232,7 +238,9 @@ async def get_supabase_service() -> AsyncGenerator[AsyncClient, None]:
     client = None
     try:
         # Create client with service role key and custom options
-        # The global headers ensure the API key is set for all requests
+        # Supabase requires BOTH headers set to the same service key:
+        # - 'apikey': Used for API authentication
+        # - 'Authorization': Used for bypassing RLS policies
         supabase_options = AsyncClientOptions(
             persist_session=False,
             headers={
@@ -243,7 +251,7 @@ async def get_supabase_service() -> AsyncGenerator[AsyncClient, None]:
         client = await acreate_client(url, key, options=supabase_options)
         
         logger.debug(f"Supabase service client created successfully: {type(client).__name__}")
-        logger.critical(f"Service client with explicit headers: apikey='{key[:5]}...', Authorization='Bearer {key[:5]}...'")
+        logger.info("Service client configured with explicit authorization headers")
         
         yield client
         
