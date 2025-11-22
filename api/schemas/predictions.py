@@ -57,6 +57,7 @@ class PredictionsResponse(BaseModel):
     user_id: Optional[UUID] = Field(None, description="Legacy alias for userId")
     window_days: Optional[int] = Field(None, description="Legacy alias for windowDays")
     predictions: Optional[List[PredictionsMetric]] = Field(None, description="Legacy alias for metrics")
+    generated_at: Optional[str] = Field(None, description="Legacy alias for generatedAt")
 
     def model_post_init(self, __context):
         # Auto-populate legacy fields from new fields if not set
@@ -66,6 +67,8 @@ class PredictionsResponse(BaseModel):
             self.window_days = self.windowDays
         if self.predictions is None:
             self.predictions = self.metrics
+        if self.generated_at is None:
+            self.generated_at = self.generatedAt
 
 
 class MoodPredictionResponse(BaseModel):
