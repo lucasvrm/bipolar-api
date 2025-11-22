@@ -135,7 +135,7 @@ def generate_realistic_checkin(
     suicide_risk = random.randint(0, 2) if suicidal_ideation > 0 else 0
     self_harm = random.randint(0, 1) if mood_state in ['DEPRESSED', 'MIXED'] else 0
     routine_disruption = 1 if social_rhythm_event else random.randint(0, 1)
-    substance_use = random.randint(0, 1) if mood_state == 'MANIC' else 0  # Changed from 0-2 to 0-1
+    substance_use = random.randint(0, 1) if mood_state == 'MANIC' else 0
     risky_behavior = random.randint(0, 1) if mood_state == 'MANIC' else 0
     
     # Appetite and impulse
@@ -414,16 +414,15 @@ async def generate_checkins_for_user(
     for i, checkin in enumerate(checkins):
         try:
             # Validate JSONB data - ensure all nested objects are proper dicts
-            # Convert Pydantic models to dicts if needed
             checkin_data = {
                 "user_id": checkin["user_id"],
                 "checkin_date": checkin["checkin_date"],  # Already in ISO format
-                "sleep_data": checkin["sleep_data"] if isinstance(checkin["sleep_data"], dict) else checkin["sleep_data"],
-                "mood_data": checkin["mood_data"] if isinstance(checkin["mood_data"], dict) else checkin["mood_data"],
-                "symptoms_data": checkin["symptoms_data"] if isinstance(checkin["symptoms_data"], dict) else checkin["symptoms_data"],
-                "risk_routine_data": checkin["risk_routine_data"] if isinstance(checkin["risk_routine_data"], dict) else checkin["risk_routine_data"],
-                "appetite_impulse_data": checkin["appetite_impulse_data"] if isinstance(checkin["appetite_impulse_data"], dict) else checkin["appetite_impulse_data"],
-                "meds_context_data": checkin["meds_context_data"] if isinstance(checkin["meds_context_data"], dict) else checkin["meds_context_data"]
+                "sleep_data": checkin["sleep_data"],
+                "mood_data": checkin["mood_data"],
+                "symptoms_data": checkin["symptoms_data"],
+                "risk_routine_data": checkin["risk_routine_data"],
+                "appetite_impulse_data": checkin["appetite_impulse_data"],
+                "meds_context_data": checkin["meds_context_data"]
             }
             
             # Validate date format (should be 'YYYY-MM-DD' or ISO timestamp)

@@ -4,6 +4,7 @@ Tests for admin endpoints including data generation functionality.
 """
 import pytest
 import os
+import uuid
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
@@ -86,7 +87,6 @@ def create_mock_supabase_client(return_data=None, num_records=30, mock_user=None
         return None
     
     # Mock auth.admin.create_user() method
-    import uuid
     async def mock_create_user(user_data):
         # Generate a unique user ID for each call
         user_id = str(uuid.uuid4())
