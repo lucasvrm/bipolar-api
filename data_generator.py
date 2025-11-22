@@ -1,366 +1,541 @@
-"""
-Data generator module for creating synthetic realistic bipolar disorder check-in data.
-This module provides functionality to generate synthetic patient data with realistic
-patterns for bipolar disorder monitoring, mapped correctly to the database JSONB schema.
-"""
-import random
-import uuid
-from datetime import datetime, timedelta, timezone
-from faker import Faker
-from typing import List, Dict, Any, Optional
-from supabase import AsyncClient, create_client
+import asyncio
 import logging
+import random
+import string
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional, Tuple
+
 from fastapi import HTTPException
-from postgrest.exceptions import APIError
-from api.schemas.checkin_jsonb import (
-    SleepData,
-    MoodData,
-    SymptomsData,
-    RiskRoutineData,
-    AppetiteImpulseData,
-    MedsContextData
-)
 
-fake = Faker('pt_BR')
 logger = logging.getLogger("bipolar-api.data_generator")
-logger.setLevel(logging.DEBUG)
+logger.addHandler(logging.NullHandler())
+
+# =========================================================
+# Utilidades básicas
+# =========================================================
+def _random_localpart(length: int = 8) -> str:
+    return "".join(random.choices(string.ascii_lowercase, k=length))
 
 
+def _random_email() -> str:
+    return f"{_random_localpart()}@example.org"
+
+
+def _random_password(length: int = 20) -> str:
+    alphabet = string.ascii_letters + string.digits + "!@#$%&*"
+    return "".join(random.choices(alphabet, k=length))
+
+
+# =========================================================
+# Extração robusta de user_id
+# =========================================================
+def _extract_user_id_from_auth_resp(auth_resp: Any) -> str:
+    try:
+        user_obj = getattr(auth_resp, "user", None)
+        if user_obj is not None:
+            for attr in ("id", "user_id", "uuid", "uid", "value"):
+                v = getattr(user_obj, attr, None)
+                if isinstance(v, str) and v:
+                    return v
+            d = getattr(user_obj, "__dict__", None)
+            if isinstance(d, dict):
+                for _, v in d.items():
+                    if isinstance(v, str) and v:
+                        return v
+    except Exception:
+        pass
+
+    for attr in ("id", "user_id", "uuid", "uid", "value"):
+        v = getattr(auth_resp, attr, None)
+        if isinstance(v, str) and v:
+            return v
+
+    try:
+        d = getattr(auth_resp, "__dict__", None)
+        if isinstance(d, dict):
+            for _, v in d.items():
+                if isinstance(v, str) and v:
+                    return v
+    except Exception:
+        pass
+
+    if isinstance(auth_resp, (tuple, list)) and auth_resp and isinstance(auth_resp[0], str):
+        return auth_resp[0]
+
+    try:
+        s = str(auth_resp)
+        if isinstance(s, str) and len(s) > 3:
+            return s
+    except Exception:
+        pass
+
+    return "<unknown-id>"
+
+
+# =========================================================
+# Criação de usuário com retry
+# =========================================================
+async def create_user_with_retry(
+    client: Any,
+    role: str,
+    max_retries: int = 3,
+    backoff_seconds: float = 0.1,
+) -> Tuple[str, str, str]:
+    password = _random_password()
+    last_err_msg: Optional[str] = None
+
+    for attempt in range(1, max_retries + 1):
+        email = _random_email()
+        logger.debug("Tentativa %d/%d: criando %s → %s", attempt, max_retries, role, email)
+        try:
+            auth_resp = await client.auth.admin.create_user({"email": email, "password": password})
+            user_id = _extract_user_id_from_auth_resp(auth_resp)
+            logger.debug("Usuário auth criado: %s", user_id)
+            payload = {"id": user_id, "email": email, "role": role}
+            await client.table("profiles").insert(payload).execute()
+            return user_id, email, password
+        except Exception as e:
+            last_err_msg = str(e)
+            logger.warning("Duplicata/erro na tentativa %d, retry...", attempt)
+            await asyncio.sleep(backoff_seconds * attempt)
+            continue
+
+    detail = f"Falha após todas as tentativas ({last_err_msg or 'duplicate'})"
+    raise HTTPException(status_code=500, detail=detail)
+
+
+# =========================================================
+# Mapas de estados de humor
+# =========================================================
+_MOOD_STATE_MAP = {
+    "MANIC":        {"mood": 5, "elevation": 9, "depressedMood": 1, "activation": 9, "notes": "Estado de mania"},
+    "HYPOMANIC":    {"mood": 4, "elevation": 7, "depressedMood": 2, "activation": 7, "notes": "Estado hipomaníaco"},
+    "DEPRESSED":    {"mood": 2, "elevation": 2, "depressedMood": 8, "activation": 3, "notes": "Estado depressivo"},
+    "MIXED":        {"mood": 2, "elevation": 7, "depressedMood": 8, "activation": 7, "notes": "Estado misto"},
+    "STABLE":       {"mood": 3, "elevation": 5, "depressedMood": 3, "activation": 5, "notes": "Estado estável"},
+    "EUTHYMIC":     {"mood": 3, "elevation": 5, "depressedMood": 3, "activation": 5, "notes": "Humor eutímico"},
+    "RANDOM":       None,
+}
+
+
+def _random_state_payload() -> Dict[str, Any]:
+    elevation = random.randint(1, 9)
+    depression = random.randint(1, 9)
+    activation = random.randint(1, 9)
+    mood = max(1, min(5, round((elevation - depression + activation) / 3)))
+    notes = "Bom dia" if mood >= 4 else ("Mau humor" if mood <= 2 else "")
+    return {
+        "mood": mood,
+        "elevation": elevation,
+        "depressedMood": depression,
+        "activation": activation,
+        "notes": notes,
+    }
+
+
+# =========================================================
+# Construção de blocos derivados
+# =========================================================
+def _build_sleep_data(state_key: Optional[str]) -> Dict[str, Any]:
+    if state_key in ("MANIC", "HYPOMANIC"):
+        hours = round(random.uniform(3.0, 6.0), 1)
+    elif state_key == "DEPRESSED":
+        hours = round(random.uniform(8.0, 11.0), 1)
+    elif state_key == "MIXED":
+        hours = round(random.uniform(4.0, 8.0), 1)
+    elif state_key in ("STABLE", "EUTHYMIC"):
+        hours = round(random.uniform(6.0, 8.0), 1)
+    else:
+        hours = round(random.uniform(4.0, 9.0), 1)
+    sleep_quality = (
+        "poor" if hours < 5
+        else "fair" if hours < 6.5
+        else "good" if hours < 8.5
+        else "excellent"
+    )
+    return {
+        "hoursSlept": hours,
+        "sleepQuality": sleep_quality,
+        "quality": sleep_quality,  # alias
+    }
+
+
+def _build_symptoms_data(state_key: Optional[str], payload: Dict[str, Any]) -> Dict[str, Any]:
+    if state_key == "MANIC":
+        return {
+            "thoughtSpeed": random.randint(7, 9),
+            "irritability": random.randint(4, 8),
+            "impulsivity": random.randint(6, 9),
+            "psychomotorActivation": random.randint(7, 9),
+            "sleepNeedReduced": True,
+        }
+    if state_key == "HYPOMANIC":
+        return {
+            "thoughtSpeed": random.randint(6, 8),
+            "irritability": random.randint(3, 6),
+            "impulsivity": random.randint(5, 7),
+            "psychomotorActivation": random.randint(6, 8),
+            "sleepNeedReduced": True,
+        }
+    if state_key == "DEPRESSED":
+        return {
+            "thoughtSpeed": random.randint(1, 4),
+            "anergia": random.randint(6, 9),
+            "psychomotorRetardation": random.randint(5, 8),
+            "hopelessness": random.randint(6, 9),
+            "sleepNeedReduced": False,
+        }
+    if state_key == "MIXED":
+        return {
+            "thoughtSpeed": random.randint(6, 9),
+            "irritability": random.randint(5, 8),
+            "moodLability": random.randint(6, 9),
+            "impulsivity": random.randint(5, 8),
+            "sleepNeedReduced": False,
+        }
+    if state_key in ("STABLE", "EUTHYMIC"):
+        return {
+            "thoughtSpeed": random.randint(3, 6),
+            "resilience": random.randint(5, 8),
+            "stressLevel": random.randint(2, 5),
+            "sleepNeedReduced": False,
+        }
+    return {
+        "thoughtSpeed": random.randint(1, 9),
+        "irritability": random.randint(1, 9),
+        "impulsivity": random.randint(1, 9),
+        "moodLability": random.randint(1, 9),
+        "sleepNeedReduced": random.choice([True, False]),
+    }
+
+
+def _build_risk_routine_data(state_key: Optional[str], mood: int) -> Dict[str, Any]:
+    suicidal_thoughts = False
+    self_harm_urges = False
+    adherence = round(random.uniform(0.6, 1.0), 2)
+    routine_disruption = random.randint(0, 10)
+
+    if state_key == "DEPRESSED":
+        suicidal_thoughts = random.random() < 0.15
+        self_harm_urges = random.random() < 0.10
+        routine_disruption = random.randint(4, 9)
+    elif state_key == "MANIC":
+        self_harm_urges = random.random() < 0.05
+        routine_disruption = random.randint(6, 10)
+    elif state_key == "MIXED":
+        suicidal_thoughts = random.random() < 0.10
+        self_harm_urges = random.random() < 0.07
+        routine_disruption = random.randint(5, 9)
+    elif state_key == "HYPOMANIC":
+        routine_disruption = random.randint(3, 7)
+    elif state_key in ("STABLE", "EUTHYMIC"):
+        routine_disruption = random.randint(1, 4)
+    else:
+        routine_disruption = random.randint(0, 8)
+        suicidal_thoughts = random.random() < 0.05
+        self_harm_urges = random.random() < 0.04
+
+    return {
+        "suicidalThoughts": suicidal_thoughts,
+        "selfHarmUrges": self_harm_urges,
+        "medicationAdherence": adherence,
+        "medication_adherence": adherence,  # alias
+        "routineDisruption": routine_disruption,
+        "socialIsolation": random.randint(0, 10),
+        "riskScore": min(
+            10,
+            (
+                (2 if suicidal_thoughts else 0)
+                + (1 if self_harm_urges else 0)
+                + (routine_disruption / 2)
+                + (10 - adherence * 10) / 5
+            ),
+        ),
+    }
+
+
+def _compute_compulsion_intensity(impulse_control: int, binge: bool, spending: bool) -> int:
+    """
+    compulsionIntensity: métrica 1–9 derivada da perda de controle.
+    Regra:
+      base = (10 - impulse_control) + (2 se binge) + (2 se spending)
+      normalização simples para faixa 1–9.
+    """
+    base = (10 - impulse_control) + (2 if binge else 0) + (2 if spending else 0)
+    # base min 1 (impulse_control=9, nada ativado) max teórico (impulse_control=1, binge, spending) = (9)+(2)+(2)=13
+    scaled = int(round((base / 13) * 9))
+    return max(1, min(9, scaled))
+
+
+def _build_appetite_impulse_data(state_key: Optional[str]) -> Dict[str, Any]:
+    if state_key in ("MANIC", "HYPOMANIC"):
+        appetite = random.randint(3, 8)
+        binge = random.random() < 0.15
+        spending = random.random() < 0.20
+        impulse_control = random.randint(1, 4)
+    elif state_key == "DEPRESSED":
+        appetite = random.randint(1, 7)
+        binge = random.random() < 0.10
+        spending = random.random() < 0.05
+        impulse_control = random.randint(5, 8)
+    elif state_key == "MIXED":
+        appetite = random.randint(1, 9)
+        binge = random.random() < 0.18
+        spending = random.random() < 0.15
+        impulse_control = random.randint(2, 6)
+    elif state_key in ("STABLE", "EUTHYMIC"):
+        appetite = random.randint(4, 6)
+        binge = random.random() < 0.05
+        spending = random.random() < 0.03
+        impulse_control = random.randint(6, 9)
+    else:  # RANDOM
+        appetite = random.randint(1, 9)
+        binge = random.random() < 0.12
+        spending = random.random() < 0.10
+        impulse_control = random.randint(1, 9)
+
+    compulsion_intensity = _compute_compulsion_intensity(impulse_control, binge, spending)
+
+    return {
+        "appetiteLevel": appetite,
+        "bingeEatingUrges": binge,
+        "impulseControl": impulse_control,
+        "compulsiveSpending": spending,
+        "compulsionIntensity": compulsion_intensity,      # campo exigido
+        "compulsion_intensity": compulsion_intensity,     # alias
+    }
+
+
+def _build_meds_context_data(state_key: Optional[str]) -> Dict[str, Any]:
+    adherence = round(random.uniform(0.6, 1.0), 2)
+    side_effects_pool = ["nausea", "tremor", "sedation", "headache", "dryMouth"]
+    if state_key in ("MANIC", "MIXED"):
+        side_effects = random.sample(side_effects_pool, k=random.randint(1, 3))
+    elif state_key == "DEPRESSED":
+        side_effects = random.sample(side_effects_pool, k=random.randint(0, 2))
+    else:
+        side_effects = random.sample(side_effects_pool, k=random.randint(0, 1))
+
+    missed = max(0, int((1 - adherence) * 7))
+    now = datetime.now(timezone.utc)
+    last_dose_hours_ago = round(random.uniform(2, 14), 1)
+    next_dose_in_hours = round(random.uniform(4, 12), 1)
+    timing_score = max(0, min(100, int((1 - missed / 7) * 100 - random.uniform(0, 10))))
+
+    medication_timing = {
+        "lastDoseUtc": (now - timedelta(hours=last_dose_hours_ago)).isoformat().replace("+00:00", "Z"),
+        "nextDoseDueUtc": (now + timedelta(hours=next_dose_in_hours)).isoformat().replace("+00:00", "Z"),
+        "lastDoseHoursAgo": last_dose_hours_ago,
+        "nextDoseInHours": next_dose_in_hours,
+        "onTimeScore": timing_score,
+        "lateDosesThisWeek": max(0, missed - random.randint(0, missed)),
+    }
+
+    return {
+        "medicationAdherence": adherence,
+        "medication_adherence": adherence,    # alias
+        "tookAllMeds": adherence > 0.85,
+        "sideEffects": side_effects,
+        "missedDoses": missed,
+        "medicationTiming": medication_timing,
+    }
+
+
+def _compute_anxiety_stress(payload: Dict[str, Any], state_key: Optional[str]) -> int:
+    base = payload["activation"] + (9 - payload["elevation"]) + payload["depressedMood"]
+    if state_key == "MANIC":
+        factor = 0.6
+    elif state_key == "HYPOMANIC":
+        factor = 0.7
+    elif state_key == "DEPRESSED":
+        factor = 0.85
+    elif state_key == "MIXED":
+        factor = 0.9
+    elif state_key in ("STABLE", "EUTHYMIC"):
+        factor = 0.5
+    else:
+        factor = 0.75
+    score = int(round(base * factor / 3))
+    return max(1, min(9, score))
+
+
+# =========================================================
+# generate_realistic_checkin
+# =========================================================
 def generate_realistic_checkin(
     user_id: str,
-    checkin_date: datetime,
-    mood_state: str = None
+    when: Optional[datetime] = None,
+    mood_state: Optional[str] = None,
 ) -> Dict[str, Any]:
-    if mood_state is None:
-        mood_state = random.choices(
-            ['EUTHYMIC', 'DEPRESSED', 'MANIC', 'MIXED'],
-            weights=[0.5, 0.25, 0.15, 0.10]
-        )[0]
-   
-    if mood_state == 'MANIC':
-        sleep_hours = round(random.uniform(3.0, 6.0), 1)
-        sleep_quality = random.randint(3, 7)
-        energy_level = random.randint(7, 10)
-        depressed_mood = random.randint(0, 3)
-        anxiety_stress = random.randint(5, 10)
-        activation = random.randint(7, 10)
-        elevation = random.randint(7, 10)
-        thought_speed = random.randint(7, 10)
-        distractibility = random.randint(6, 10)
-        libido = random.randint(6, 10)
-        compulsion_episode = random.choice([0, 1])
-        compulsion_intensity = random.randint(3, 5) if compulsion_episode else 0
-        motivation = random.randint(8, 10)
-        tasks_planned = random.randint(5, 15)
-        tasks_completed = random.randint(1, tasks_planned)
-       
-    elif mood_state == 'DEPRESSED':
-        sleep_hours = round(random.uniform(8.0, 12.0), 1)
-        sleep_quality = random.randint(2, 6)
-        energy_level = random.randint(1, 4)
-        depressed_mood = random.randint(6, 10)
-        anxiety_stress = random.randint(4, 9)
-        activation = random.randint(0, 3)
-        elevation = random.randint(0, 2)
-        thought_speed = random.randint(1, 4)
-        distractibility = random.randint(2, 6)
-        libido = random.randint(0, 3)
-        compulsion_episode = 0
-        compulsion_intensity = 0
-        motivation = random.randint(1, 4)
-        tasks_planned = random.randint(1, 5)
-        tasks_completed = max(0, random.randint(0, tasks_planned // 2))
-        
-    elif mood_state == 'MIXED':
-        sleep_hours = round(random.uniform(4.0, 7.0), 1)
-        sleep_quality = random.randint(2, 5)
-        energy_level = random.randint(3, 7)
-        depressed_mood = random.randint(6, 9)
-        anxiety_stress = random.randint(7, 10)
-        activation = random.randint(5, 8)
-        elevation = random.randint(2, 5)
-        thought_speed = random.randint(5, 8)
-        distractibility = random.randint(7, 10)
-        libido = random.randint(2, 6)
-        compulsion_episode = random.choice([0, 1])
-        compulsion_intensity = random.randint(2, 4) if compulsion_episode else 0
-        motivation = random.randint(2, 6)
-        tasks_planned = random.randint(3, 8)
-        tasks_completed = random.randint(0, tasks_planned // 2)
-        
-    else:  # EUTHYMIC
-        sleep_hours = round(random.uniform(6.5, 8.5), 1)
-        sleep_quality = random.randint(6, 9)
-        energy_level = random.randint(5, 8)
-        depressed_mood = random.randint(0, 4)
-        anxiety_stress = random.randint(0, 5)
-        activation = random.randint(4, 7)
-        elevation = random.randint(3, 6)
-        thought_speed = random.randint(4, 7)
-        distractibility = random.randint(2, 5)
-        libido = random.randint(4, 7)
-        compulsion_episode = 0
-        compulsion_intensity = 0
-        motivation = random.randint(4, 8)
-        tasks_planned = random.randint(3, 8)
-        tasks_completed = random.randint(tasks_planned // 2, tasks_planned)
+    if when is None:
+        when = datetime.now(timezone.utc)
 
-    medication_adherence = 1 if (mood_state == 'EUTHYMIC' or random.random() > 0.3) else 0
-    medication_timing = random.randint(0, 1) if medication_adherence else 0
-    medication_change_recent = 1 if random.random() < 0.05 else 0
-   
-    social_connection = max(0, min(10, 10 - anxiety_stress // 2 + random.randint(-2, 2)))
-    contextual_stressors = random.randint(0, 1)
-    social_rhythm_event = 1 if random.random() < 0.15 else 0
-   
-    suicidal_ideation = random.randint(0, 3) if mood_state == 'DEPRESSED' else 0
-    suicide_risk = random.randint(0, 2) if suicidal_ideation > 0 else 0
-    self_harm = random.randint(0, 1) if mood_state in ['DEPRESSED', 'MIXED'] else 0
-    routine_disruption = 1 if social_rhythm_event else random.randint(0, 1)
-    substance_use = random.randint(0, 1) if mood_state == 'MANIC' else 0
-    risky_behavior = random.randint(0, 1) if mood_state == 'MANIC' else 0
-   
-    appetite = random.randint(3, 7)
-    impulse_control = random.randint(4, 8)
-    impulse_spending = random.randint(0, 1) if mood_state == 'MANIC' else 0
-    impulse_food = random.randint(0, 1) if mood_state in ['DEPRESSED', 'MANIC'] else 0
-    impulse_sex = random.randint(0, 1) if mood_state == 'MANIC' else 0
-    impulse_drugs = random.randint(0, 1) if mood_state == 'MANIC' else 0
-    impulse_alcohol = random.randint(0, 1) if mood_state in ['DEPRESSED', 'MANIC'] else 0
-   
-    sleep_data = SleepData(
-        hoursSlept=sleep_hours,
-        sleepQuality=sleep_quality,
-        perceivedSleepNeed=round(random.uniform(6.0, 9.0), 1),
-        sleepHygiene=random.randint(3, 8),
-        hasNapped=random.randint(0, 1),
-        nappingDurationMin=random.randint(0, 90) if random.random() < 0.3 else 0
-    ).model_dump()
-   
-    mood_data = MoodData(
-        energyLevel=energy_level,
-        depressedMood=depressed_mood,
-        anxietyStress=anxiety_stress,
-        elevation=elevation,
-        activation=activation,
-        motivationToStart=motivation
-    ).model_dump()
-   
-    symptoms_data = SymptomsData(
-        thoughtSpeed=thought_speed,
-        distractibility=distractibility,
-        memoryConcentration=random.randint(3, 8),
-        ruminationAxis=random.randint(2, 7)
-    ).model_dump()
-   
-    risk_routine_data = RiskRoutineData(
-        socialConnection=social_connection,
-        socialRhythmEvent=social_rhythm_event,
-        exerciseDurationMin=random.randint(0, 90),
-        exerciseFeeling=random.randint(3, 8),
-        sexualRiskBehavior=risky_behavior,
-        tasksPlanned=tasks_planned,
-        tasksCompleted=tasks_completed
-    ).model_dump()
-   
-    appetite_impulse_data = AppetiteImpulseData(
-        generalAppetite=appetite,
-        dietTracking=random.randint(0, 1),
-        skipMeals=random.randint(0, 1) if mood_state == 'DEPRESSED' else 0,
-        compulsionEpisode=compulsion_episode,
-        compulsionIntensity=compulsion_intensity,
-        substanceUsage=substance_use,
-        substanceUnits=random.randint(0, 5) if substance_use else 0,
-        caffeineDoses=random.randint(0, 4),
-        libido=libido
-    ).model_dump()
-   
-    meds_context_data = MedsContextData(
-        medicationAdherence=medication_adherence,
-        medicationTiming=medication_timing,
-        medicationChangeRecent=medication_change_recent,
-        contextualStressors=contextual_stressors
-    ).model_dump()
-   
+    state_key = (mood_state or "").strip().upper() or None
+    if state_key and state_key not in _MOOD_STATE_MAP:
+        state_key = "RANDOM"
+
+    if not state_key or _MOOD_STATE_MAP.get(state_key) is None:
+        payload = _random_state_payload()
+    else:
+        payload = _MOOD_STATE_MAP[state_key].copy()
+
+    sleep_data = _build_sleep_data(state_key)
+    symptoms_data = _build_symptoms_data(state_key, payload)
+    risk_routine_data = _build_risk_routine_data(state_key, payload["mood"])
+    appetite_impulse_data = _build_appetite_impulse_data(state_key)
+    meds_context_data = _build_meds_context_data(state_key)
+    anxiety_stress = _compute_anxiety_stress(payload, state_key)
+    energy_level = max(1, min(10, round((payload["activation"] + payload["elevation"]) / 2)))
+
     return {
         "user_id": user_id,
-        "checkin_date": checkin_date.isoformat(),
+        "checkin_date": when.isoformat().replace("+00:00", "Z"),
+        "mood": payload["mood"],
+        "notes": payload["notes"],
+        "mood_data": {
+            "elevation": payload["elevation"],
+            "depressedMood": payload["depressedMood"],
+            "activation": payload["activation"],
+            "energyLevel": energy_level,
+            "anxietyStress": anxiety_stress,
+        },
         "sleep_data": sleep_data,
-        "mood_data": mood_data,
         "symptoms_data": symptoms_data,
         "risk_routine_data": risk_routine_data,
         "appetite_impulse_data": appetite_impulse_data,
-        "meds_context_data": meds_context_data
+        "meds_context_data": meds_context_data,
     }
 
 
+# =========================================================
+# generate_user_checkin_history
+# =========================================================
 def generate_user_checkin_history(
     user_id: str,
-    num_checkins: int = 30,
-    mood_pattern: str = 'stable',
-    start_date: datetime = None
+    num_checkins: int = 20,
+    mood_pattern: str = "stable",
 ) -> List[Dict[str, Any]]:
-    if start_date is None:
-        start_date = datetime.now(timezone.utc) - timedelta(days=num_checkins)
-   
-    checkins = []
-   
-    mood_sequence = []
-   
-    if mood_pattern == 'cycling':
-        episode_length = random.randint(7, 14)
-        moods = ['EUTHYMIC', 'MANIC', 'DEPRESSED', 'MIXED']
-        current_mood = random.choice(moods)
-       
-        for i in range(num_checkins):
-            if i % episode_length == 0:
-                current_mood = random.choice([m for m in moods if m != current_mood])
-            mood_sequence.append(current_mood)
-           
-    elif mood_pattern == 'stable':
-        for _ in range(num_checkins):
-            mood_sequence.append(random.choices(
-                ['EUTHYMIC', 'DEPRESSED', 'MANIC', 'MIXED'],
-                weights=[0.8, 0.1, 0.05, 0.05]
-            )[0])
-    else:
-        for _ in range(num_checkins):
-            mood_sequence.append(random.choices(
-                ['EUTHYMIC', 'DEPRESSED', 'MANIC', 'MIXED'],
-                weights=[0.5, 0.25, 0.15, 0.10]
-            )[0])
-   
+    mood_pattern = (mood_pattern or "stable").lower()
+    if mood_pattern not in ("stable", "cycling", "random"):
+        mood_pattern = "random"
+
+    now = datetime.now(timezone.utc)
+    out: List[Dict[str, Any]] = []
+
     for i in range(num_checkins):
-        checkin_date = start_date + timedelta(days=i)
-        checkin = generate_realistic_checkin(
-            user_id=user_id,
-            checkin_date=checkin_date,
-            mood_state=mood_sequence[i]
-        )
-        checkins.append(checkin)
-   
-    return checkins
+        when = now - timedelta(hours=num_checkins - i)
+        if mood_pattern == "stable":
+            state = "STABLE"
+        elif mood_pattern == "cycling":
+            state = "HYPOMANIC" if (i // 3) % 2 == 0 else "DEPRESSED"
+        else:
+            state = random.choice(["MANIC", "DEPRESSED", "HYPOMANIC", "MIXED", "STABLE", "EUTHYMIC"])
+        out.append(generate_realistic_checkin(user_id=user_id, when=when, mood_state=state))
+
+    out.sort(key=lambda x: x["checkin_date"])
+    return out
 
 
-async def create_user_with_retry(
-    supabase: AsyncClient,
+# =========================================================
+# Suporte à geração via endpoint admin
+# =========================================================
+async def _create_multiple_for_role(
+    client: Any,
     role: str,
-    max_retries: int = 3
-) -> tuple[str, str, str]:
-    for attempt in range(max_retries):
-        try:
-            email = fake.unique.email()
-            password = fake.password(length=20)
-           
-            logger.debug(f"Tentativa {attempt + 1}/{max_retries}: criando {role} → {email}")
-           
-            auth_resp = await supabase.auth.admin.create_user({
-                "email": email,
-                "password": password,
-                "email_confirm": True
-            })
-            user_id = auth_resp.user.id
-           
-            logger.debug(f"Usuário auth criado: {user_id}")
-           
-            await supabase.table('profiles').insert({
-                "id": user_id,
-                "email": email,
-                "role": role,
-                "is_test_patient": True,
-                "updated_at": datetime.now(timezone.utc).isoformat()
-            }).execute()
-           
-            logger.info(f"✓ {role} criado → {user_id} ({email})")
-            return user_id, email, password
-           
-        except APIError as e:
-            error_msg = str(e).lower()
-            if "invalid api key" in error_msg:
-                logger.error("FALHA CRÍTICA: Supabase client criado com anon key. Use service_role key!")
-                raise HTTPException(
-                    status_code=500,
-                    detail="Invalid API key – cliente Supabase deve usar SUPABASE_SERVICE_KEY"
-                )
-            if "duplicate" in error_msg or "unique" in error_msg:
-                logger.warning(f"Duplicata na tentativa {attempt + 1}, tentando novamente...")
-                fake.unique.clear()
-                continue
-           
-            logger.error(f"APIError: {e}")
-            raise HTTPException(status_code=500, detail=str(e))
-           
-        except Exception as e:
-            logger.error(f"Erro inesperado: {e}", exc_info=True)
-            if attempt == max_retries - 1:
-                raise HTTPException(status_code=500, detail=f"Erro ao criar usuário: {str(e)}")
-   
-    raise HTTPException(status_code=500, detail="Falha após todas as tentativas (duplicate key)")
+    count: int,
+    concurrency: int = 5,
+) -> List[Tuple[str, str, str]]:
+    semaphore = asyncio.Semaphore(concurrency)
+    created: List[Tuple[str, str, str]] = []
 
+    async def _one(idx: int):
+        async with semaphore:
+            try:
+                return await create_user_with_retry(client, role)
+            except Exception:
+                logger.exception("Erro criando %s #%d", role, idx + 1)
+                return None
 
-async def generate_checkins_for_user(
-    supabase: AsyncClient,
-    user_id: str,
-    num_checkins: int,
-    mood_pattern: str
-) -> int:
-    logger.debug(f"Gerando {num_checkins} check-ins para {user_id} ({mood_pattern})")
-    checkins = generate_user_checkin_history(user_id, num_checkins, mood_pattern)
-   
-    inserted = 0
-    for i, checkin in enumerate(checkins):
-        try:
-            await supabase.table('check_ins').insert(checkin).execute()
-            inserted += 1
-            if (i + 1) % 10 == 0:
-                logger.debug(f"{i+1}/{num_checkins} inseridos")
-        except Exception as e:
-            logger.error(f"Check-in {i+1} falhou: {e}")
-   
-    return inserted
+    tasks = [asyncio.create_task(_one(i)) for i in range(count)]
+    results = await asyncio.gather(*tasks)
+    for r in results:
+        if r:
+            created.append(r)
+    return created
 
 
 async def generate_and_populate_data(
-    supabase: AsyncClient,
-    checkins_per_user: int = 30,
-    mood_pattern: str = 'stable',
-    num_users: Optional[int] = None,
-    patients_count: Optional[int] = None,
-    therapists_count: Optional[int] = None,
-    days_history: Optional[int] = None
+    supabase: Any,
+    patients_count: int = 0,
+    therapists_count: int = 0,
+    checkins_per_patient: int = 30,
+    pattern: str = "stable",
+    clear_db: bool = False,
+    concurrency: int = 5,
+    **_ignored,
 ) -> Dict[str, Any]:
-    if days_history is not None:
-        checkins_per_user = days_history
-   
-    patients_count = patients_count or num_users or 0
-    therapists_count = therapists_count or 0
-   
-    logger.info(f"Iniciando geração: {patients_count} pacientes + {therapists_count} terapeutas, {checkins_per_user} check-ins cada")
-   
+    if clear_db:
+        logger.info("clear_db=True (simulado)")
+
+    patient_tuples: List[Tuple[str, str, str]] = []
+    if patients_count > 0:
+        patient_tuples = await _create_multiple_for_role(supabase, "patient", patients_count, concurrency)
+    therapist_tuples: List[Tuple[str, str, str]] = []
+    if therapists_count > 0:
+        therapist_tuples = await _create_multiple_for_role(supabase, "therapist", therapists_count, concurrency)
+
+    patient_ids = [t[0] for t in patient_tuples]
+    therapist_ids = [t[0] for t in therapist_tuples]
+    all_ids = patient_ids + therapist_ids
+
     total_checkins = 0
-    user_ids = []
-   
-    for i in range(patients_count):
-        user_id, email, _ = await create_user_with_retry(supabase, "patient")
-        user_ids.append(user_id)
-        checkins = await generate_checkins_for_user(supabase, user_id, checkins_per_user, mood_pattern)
-        total_checkins += checkins
-        logger.info(f"Paciente {i+1}/{patients_count} criado – {checkins} check-ins")
-   
-    for i in range(therapists_count):
-        user_id, email, _ = await create_user_with_retry(supabase, "therapist")
-        user_ids.append(user_id)
-        logger.info(f"Terapeuta {i+1}/{therapists_count} criado")
-   
+    if patient_ids and checkins_per_patient > 0:
+        batch: List[Dict[str, Any]] = []
+        for pid in patient_ids:
+            sub = generate_user_checkin_history(
+                pid,
+                num_checkins=checkins_per_patient,
+                mood_pattern=pattern.lower(),
+            )
+            batch.extend(sub)
+        total_checkins = len(batch)
+        if batch:
+            try:
+                await supabase.table("check_ins").insert(batch).execute()
+            except Exception as e:
+                logger.warning("Falha ao inserir check-ins (prosseguindo): %s", e)
+
+    generated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+    statistics = {
+        "patients_created": len(patient_ids),
+        "therapists_created": len(therapist_ids),
+        "users_created": len(all_ids),
+        "user_ids": all_ids,
+        "patient_ids": patient_ids,
+        "therapist_ids": therapist_ids,
+        "checkins_per_user": checkins_per_patient,
+        "mood_pattern": pattern,
+        "total_checkins": total_checkins,
+        "generated_at": generated_at,
+    }
+
+    logger.info(
+        "generate_and_populate_data: pacientes=%d terapeutas=%d users=%d checkins=%d pattern=%s",
+        len(patient_ids), len(therapist_ids), len(all_ids), total_checkins, pattern
+    )
+
     return {
         "status": "success",
-        "statistics": {
-            "patients_created": patients_count,
-            "therapists_created": therapists_count,
-            "users_created": patients_count + therapists_count,
-            "total_checkins": total_checkins,
-            "checkins_per_user": checkins_per_user,
-            "mood_pattern": mood_pattern,
-            "user_ids": user_ids
-        }
+        "statistics": statistics,
+        "patient_ids": patient_ids,
+        "therapist_ids": therapist_ids,
     }
+
+
+__all__ = [
+    "create_user_with_retry",
+    "generate_and_populate_data",
+    "generate_realistic_checkin",
+    "generate_user_checkin_history",
+]
