@@ -70,7 +70,7 @@ def create_mock_supabase_client(return_data=None, num_records=30, mock_user=None
         mock_method = MagicMock()
 
         # Support various chain methods
-        for method in ['execute', 'insert', 'upsert', 'delete', 'eq', 'select', 'limit', 'order', 'in_', 'is_', 'gte', 'lt']:
+        for method in ['execute', 'insert', 'upsert', 'update', 'delete', 'eq', 'select', 'limit', 'order', 'in_', 'is_', 'gte', 'lt', 'head']:
             if method == 'execute':
                 setattr(mock_method, method, mock_execute)
             else:
@@ -672,34 +672,42 @@ class TestStatsEndpoint:
 
         # Mock response with count attribute
         class MockCountResponse:
-            def __init__(self, count_value):
+            def __init__(self, count_value, data_value=None):
                 self.count = count_value
-                self.data = []
+                self.data = data_value if data_value is not None else []
 
-        async def mock_profiles_execute():
-            return MockCountResponse(150)
+        async def mock_execute_with_count(count_value, data_value=None):
+            return MockCountResponse(count_value, data_value)
 
-        async def mock_checkins_execute():
-            return MockCountResponse(3500)
-
-        # Create separate mocks for profiles and check_ins tables
-        profiles_mock = MagicMock()
-        profiles_mock.select = MagicMock(return_value=profiles_mock)
-        profiles_mock.execute = mock_profiles_execute
-
-        checkins_mock = MagicMock()
-        checkins_mock.select = MagicMock(return_value=checkins_mock)
-        checkins_mock.execute = mock_checkins_execute
-
-        # Mock table method to return appropriate mock based on table name
-        def mock_table(table_name):
+        # Create a flexible chain mock that supports all query builder methods
+        def create_query_chain(table_name):
+            chain_mock = MagicMock()
+            
+            # Default behavior for most chains
             if table_name == 'profiles':
-                return profiles_mock
+                # For profiles table, return different responses based on query type
+                async def profiles_execute():
+                    # Check if it's a count query (head=True) or data query
+                    return MockCountResponse(150, [])  # count=150, empty data for head=True queries
+                chain_mock.execute = profiles_execute
             elif table_name == 'check_ins':
-                return checkins_mock
-            return MagicMock()
+                # For check_ins, also return counts
+                async def checkins_execute():
+                    return MockCountResponse(3500, [])
+                chain_mock.execute = checkins_execute
+            else:
+                # Generic table
+                async def generic_execute():
+                    return MockCountResponse(0, [])
+                chain_mock.execute = generic_execute
+            
+            # Support all chain methods by returning self
+            for method in ['select', 'eq', 'gte', 'lt', 'is_', 'in_', 'order', 'limit', 'head']:
+                setattr(chain_mock, method, MagicMock(return_value=chain_mock))
+            
+            return chain_mock
 
-        mock_client.table = mock_table
+        mock_client.table = create_query_chain
         
         # Mock auth.get_user for admin
         async def mock_get_user(jwt=None):
@@ -751,11 +759,18 @@ class TestStatsEndpoint:
         async def mock_execute():
             return MockCountResponse(0)
 
-        chain_mock = MagicMock()
-        chain_mock.select = MagicMock(return_value=chain_mock)
-        chain_mock.execute = mock_execute
+        # Create a flexible chain mock
+        def create_query_chain(table_name):
+            chain_mock = MagicMock()
+            chain_mock.execute = mock_execute
+            
+            # Support all chain methods
+            for method in ['select', 'eq', 'gte', 'lt', 'is_', 'in_', 'order', 'limit', 'head']:
+                setattr(chain_mock, method, MagicMock(return_value=chain_mock))
+            
+            return chain_mock
 
-        mock_client.table = MagicMock(return_value=chain_mock)
+        mock_client.table = create_query_chain
         
         # Mock auth for admin
         async def mock_get_user(jwt=None):
