@@ -80,7 +80,6 @@ def handle_postgrest_error(e: Union[APIError, Exception], user_id: str) -> None:
         if hasattr(e, 'code'):
             error_code = e.code
         elif hasattr(e, 'message'):
-            # Some versions might put code in message dict? Unlikely but possible
             pass
 
     # Handle PostgREST syntax errors (invalid UUID in database query)
@@ -92,10 +91,17 @@ def handle_postgrest_error(e: Union[APIError, Exception], user_id: str) -> None:
         )
 
     # Handle Authentication/Authorization errors
-    # Note: PostgREST usually returns 401/403 as HTTP status, but library wraps it.
-    # We check if the error code matches HTTP status codes which sometimes happens
-    # when the library parses the error response.
     if error_code == '401' or '401' in error_msg:
+        # Check specifically for invalid API key (server config error)
+        # The error detail often contains "Invalid API key" when the server's ANON/SERVICE key is wrong.
+        details = getattr(e, 'details', '') or ''
+        if "Invalid API key" in str(details) or "Invalid API key" in error_msg:
+            logger.error(f"Server Configuration Error: Invalid Supabase API Key. User_id={user_id}: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail="Internal Server Error: Database configuration invalid."
+            )
+
         logger.error(f"PostgREST Auth Error (401) for user_id={user_id}: {e}")
         raise HTTPException(
             status_code=401,
