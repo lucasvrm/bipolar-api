@@ -1,0 +1,57 @@
+{
+  "summary": {
+    "total_tests": 157,
+    "failed": 0,
+    "passed": 157,
+    "failure_rate": "0%",
+    "success_rate": "100%"
+  },
+  "improvements": {
+    "tests_fixed": 83,
+    "success_rate_improvement": "52.9%",
+    "files_changed": 3,
+    "lines_changed": 6
+  },
+  "remaining_issues": [],
+  "warnings": [
+    {
+      "type": "DeprecationWarning",
+      "message": "The 'timeout' parameter is deprecated. Please configure it in the http client instead.",
+      "location": "supabase._async.client.py:303",
+      "severity": "low",
+      "action_required": false
+    },
+    {
+      "type": "DeprecationWarning",
+      "message": "The 'verify' parameter is deprecated. Please configure it in the http client instead.",
+      "location": "supabase._async.client.py:303",
+      "severity": "low",
+      "action_required": false
+    }
+  ],
+  "test_execution": {
+    "duration_seconds": 2.29,
+    "total_tests": 157,
+    "passed": 157,
+    "failed": 0,
+    "skipped": 0,
+    "errors": 0
+  },
+  "resolution_details": {
+    "acreate_client_export_fix": {
+      "tests_fixed": 81,
+      "file": "api/dependencies.py",
+      "change": "Added __all__ export list with acreate_client"
+    },
+    "error_message_fix": {
+      "tests_fixed": 1,
+      "file": "data_generator.py",
+      "change": "Updated error message to include 'duplicate key'"
+    },
+    "cascading_fix": {
+      "tests_fixed": 1,
+      "file": "None (auto-resolved)",
+      "change": "Status code assertion passed after primary fix"
+    }
+  }
+}
