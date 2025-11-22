@@ -45,7 +45,10 @@ def _log_db_error(operation: str, error: Exception) -> None:
         error: The exception that was raised
     """
     logger.error(f"Error {operation}: {error}")
-    logger.error(f"Raw response (if available): {getattr(error, 'response', 'N/A')}")
+    
+    # Log raw response if available
+    if hasattr(error, 'response'):
+        logger.error(f"Raw response: {error.response}")
     
     # Check if this is a Pydantic validation error using proper isinstance check
     if isinstance(error, ValidationError):

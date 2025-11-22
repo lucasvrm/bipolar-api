@@ -11,6 +11,11 @@ logger = logging.getLogger("bipolar-api.dependencies")
 # Cache admin emails as a set for O(1) lookup
 _admin_emails_cache: Optional[Set[str]] = None
 
+# Service key validation constants
+# Service role keys are JWT tokens ~200+ characters
+# Anon keys are typically ~150 characters
+MIN_SERVICE_KEY_LENGTH = 180  # Conservative threshold to detect wrong key type
+
 
 def get_admin_emails() -> Set[str]:
     """
@@ -93,9 +98,9 @@ async def get_supabase_service() -> AsyncGenerator[AsyncClient, None]:
     url: str = os.environ.get("SUPABASE_URL")
     key: str = os.environ.get("SUPABASE_SERVICE_KEY")
 
-    # CRITICAL: Log key length for debugging (only length, not the actual key for security)
+    # Log key length for debugging (only length logged, not the key itself for security)
     key_length = len(key) if key else 0
-    logger.critical(f"Service Key validation - Length: {key_length} chars (key itself not logged)")
+    logger.critical(f"Service Key validation - Length: {key_length} chars")
     
     if not url or not key:
         error_msg = "Variáveis de ambiente do Supabase não configuradas no servidor."
@@ -104,10 +109,7 @@ async def get_supabase_service() -> AsyncGenerator[AsyncClient, None]:
         logger.error(f"SUPABASE_SERVICE_KEY configured: {bool(key)}")
         raise HTTPException(status_code=500, detail=error_msg)
 
-    # CRITICAL: Service role keys are typically 200+ characters (JWT tokens)
-    # Anon keys are typically ~150 characters
-    # If the key is too short, it's likely the wrong key
-    MIN_SERVICE_KEY_LENGTH = 180  # Conservative threshold
+    # Validate service key length using module constant
     if key_length < MIN_SERVICE_KEY_LENGTH:
         error_msg = (
             f"CRITICAL: SUPABASE_SERVICE_KEY appears to be invalid! "
