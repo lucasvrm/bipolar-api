@@ -11,7 +11,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from supabase import AsyncClient
 from postgrest.exceptions import APIError
 from postgrest.types import CountMethod
@@ -31,6 +31,30 @@ from data_generator import generate_and_populate_data
 logger = logging.getLogger("bipolar-api.admin")
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
+
+
+def _log_db_error(operation: str, error: Exception) -> None:
+    """
+    Helper function to log database errors with enhanced details.
+    
+    Detects Pydantic ValidationErrors which indicate DB returned an error
+    instead of expected data, usually due to RLS/permission issues.
+    
+    Args:
+        operation: Description of the operation that failed (e.g., "fetching profiles")
+        error: The exception that was raised
+    """
+    logger.error(f"Error {operation}: {error}")
+    
+    # Log raw response if available
+    if hasattr(error, 'response'):
+        logger.error(f"Raw response: {error.response}")
+    
+    # Check if this is a Pydantic validation error using proper isinstance check
+    if isinstance(error, ValidationError):
+        logger.critical(f"Pydantic ValidationError detected! This likely means DB returned an error instead of data.")
+        logger.critical(f"Error details: {str(error)}")
+        logger.critical(f"This suggests RLS permission issue or query failure")
 
 
 class GenerateDataRequest(BaseModel):
@@ -257,17 +281,36 @@ async def get_admin_stats(
         fourteen_days_ago = now - timedelta(days=14)
         thirty_days_ago = now - timedelta(days=30)
 
-        # Legacy counts
-        profiles_response = await supabase.table('profiles').select('*', count=CountMethod.exact, head=True).execute()
-        total_users = profiles_response.count if profiles_response.count is not None else 0
+        # Legacy counts - with enhanced error logging
+        try:
+            profiles_response = await supabase.table('profiles').select('*', count=CountMethod.exact, head=True).execute()
+            total_users = profiles_response.count if profiles_response.count is not None else 0
+        except Exception as e:
+            _log_db_error("fetching profiles count", e)
+            raise
 
-        checkins_response = await supabase.table('check_ins').select('*', count=CountMethod.exact, head=True).execute()
-        total_checkins = checkins_response.count if checkins_response.count is not None else 0
+        try:
+            checkins_response = await supabase.table('check_ins').select('*', count=CountMethod.exact, head=True).execute()
+            total_checkins = checkins_response.count if checkins_response.count is not None else 0
+        except Exception as e:
+            _log_db_error("fetching checkins count", e)
+            raise
 
-        # Get all profiles with is_test_patient flag
+        # Get all profiles with is_test_patient flag - with enhanced error logging
         SYNTHETIC_DOMAINS = ['@example.com', '@example.org', '@example.net']
-        all_profiles_response = await supabase.table('profiles').select('id, email, is_test_patient, role').execute()
-        all_profiles = all_profiles_response.data if all_profiles_response.data else []
+        try:
+            all_profiles_response = await supabase.table('profiles').select('id, email, is_test_patient, role').execute()
+            all_profiles = all_profiles_response.data if all_profiles_response.data else []
+        except APIError as e:
+            logger.error(f"APIError fetching profiles: {e}")
+            logger.critical(f"Database error - likely permission/RLS issue or invalid query")
+            logger.critical(f"Error message: {str(e)}")
+            if hasattr(e, 'message'):
+                logger.critical(f"Error details: {e.message}")
+            raise
+        except Exception as e:
+            _log_db_error("fetching profiles", e)
+            raise
 
         # Count synthetic vs real patients - use sets for O(1) lookup
         synthetic_patient_ids = set()
@@ -284,29 +327,45 @@ async def get_admin_stats(
         real_patients_count = len(real_patient_ids)
         synthetic_patients_count = len(synthetic_patient_ids)
 
-        # Check-ins today
-        checkins_today_response = await supabase.table('check_ins').select(
-            '*', count=CountMethod.exact, head=True
-        ).gte('checkin_date', today_start.isoformat()).execute()
-        checkins_today = checkins_today_response.count if checkins_today_response.count is not None else 0
+        # Check-ins today - with enhanced error logging
+        try:
+            checkins_today_response = await supabase.table('check_ins').select(
+                '*', count=CountMethod.exact, head=True
+            ).gte('checkin_date', today_start.isoformat()).execute()
+            checkins_today = checkins_today_response.count if checkins_today_response.count is not None else 0
+        except Exception as e:
+            _log_db_error("fetching today's checkins", e)
+            raise
 
-        # Check-ins last 7 days
-        checkins_7d_response = await supabase.table('check_ins').select(
-            '*', count=CountMethod.exact, head=True
-        ).gte('checkin_date', seven_days_ago.isoformat()).execute()
-        checkins_last_7_days = checkins_7d_response.count if checkins_7d_response.count is not None else 0
+        # Check-ins last 7 days - with enhanced error logging
+        try:
+            checkins_7d_response = await supabase.table('check_ins').select(
+                '*', count=CountMethod.exact, head=True
+            ).gte('checkin_date', seven_days_ago.isoformat()).execute()
+            checkins_last_7_days = checkins_7d_response.count if checkins_7d_response.count is not None else 0
+        except Exception as e:
+            _log_db_error("fetching 7-day checkins", e)
+            raise
 
-        # Check-ins previous 7 days (for % variation)
-        checkins_prev_7d_response = await supabase.table('check_ins').select(
-            '*', count=CountMethod.exact, head=True
-        ).gte('checkin_date', fourteen_days_ago.isoformat()).lt('checkin_date', seven_days_ago.isoformat()).execute()
-        checkins_last_7_days_previous = checkins_prev_7d_response.count if checkins_prev_7d_response.count is not None else 0
+        # Check-ins previous 7 days (for % variation) - with enhanced error logging
+        try:
+            checkins_prev_7d_response = await supabase.table('check_ins').select(
+                '*', count=CountMethod.exact, head=True
+            ).gte('checkin_date', fourteen_days_ago.isoformat()).lt('checkin_date', seven_days_ago.isoformat()).execute()
+            checkins_last_7_days_previous = checkins_prev_7d_response.count if checkins_prev_7d_response.count is not None else 0
+        except Exception as e:
+            _log_db_error("fetching previous 7-day checkins", e)
+            raise
 
-        # Get check-ins from last 30 days with full data for calculations
-        checkins_30d_response = await supabase.table('check_ins').select(
-            'user_id, checkin_date, mood_data, meds_context_data'
-        ).gte('checkin_date', thirty_days_ago.isoformat()).execute()
-        checkins_30d = checkins_30d_response.data if checkins_30d_response.data else []
+        # Get check-ins from last 30 days with full data for calculations - with enhanced error logging
+        try:
+            checkins_30d_response = await supabase.table('check_ins').select(
+                'user_id, checkin_date, mood_data, meds_context_data'
+            ).gte('checkin_date', thirty_days_ago.isoformat()).execute()
+            checkins_30d = checkins_30d_response.data if checkins_30d_response.data else []
+        except Exception as e:
+            _log_db_error("fetching 30-day checkins", e)
+            raise
 
         # Calculate avg check-ins per active patient (patients who checked in last 30 days)
         active_patients = set(c['user_id'] for c in checkins_30d)

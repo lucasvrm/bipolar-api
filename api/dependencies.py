@@ -11,6 +11,11 @@ logger = logging.getLogger("bipolar-api.dependencies")
 # Cache admin emails as a set for O(1) lookup
 _admin_emails_cache: Optional[Set[str]] = None
 
+# Service key validation constants
+# Service role keys are JWT tokens ~200+ characters
+# Anon keys are typically ~150 characters
+MIN_SERVICE_KEY_LENGTH = 180  # Conservative threshold to detect wrong key type
+
 
 def get_admin_emails() -> Set[str]:
     """
@@ -80,6 +85,7 @@ async def get_supabase_service() -> AsyncGenerator[AsyncClient, None]:
         
     Raises:
         HTTPException: If environment variables are not configured
+        RuntimeError: If service key validation fails
         
     Usage:
         @router.post("/endpoint")
@@ -92,6 +98,10 @@ async def get_supabase_service() -> AsyncGenerator[AsyncClient, None]:
     url: str = os.environ.get("SUPABASE_URL")
     key: str = os.environ.get("SUPABASE_SERVICE_KEY")
 
+    # Log key length for debugging (only length logged, not the key itself for security)
+    key_length = len(key) if key else 0
+    logger.critical(f"Service Key validation - Length: {key_length} chars")
+    
     if not url or not key:
         error_msg = "Variáveis de ambiente do Supabase não configuradas no servidor."
         logger.error(error_msg)
@@ -99,12 +109,24 @@ async def get_supabase_service() -> AsyncGenerator[AsyncClient, None]:
         logger.error(f"SUPABASE_SERVICE_KEY configured: {bool(key)}")
         raise HTTPException(status_code=500, detail=error_msg)
 
+    # Validate service key length using module constant
+    if key_length < MIN_SERVICE_KEY_LENGTH:
+        error_msg = (
+            f"CRITICAL: SUPABASE_SERVICE_KEY appears to be invalid! "
+            f"Length: {key_length} chars (expected 200+). "
+            f"This is likely an ANON key instead of SERVICE_ROLE key. "
+            f"Check your environment variables!"
+        )
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg)
+    
     logger.debug(f"Supabase service URL configured: {url[:30]}...")
-    logger.debug(f"Service key length: {len(key)} characters")
     
     # Validate key format (JWT tokens should start with 'eyJ')
     if not key.startswith('eyJ'):
-        logger.warning("SUPABASE_SERVICE_KEY may not be a valid JWT token - should start with 'eyJ'")
+        error_msg = "SUPABASE_SERVICE_KEY is not a valid JWT token - should start with 'eyJ'"
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg)
     
     client = None
     try:
