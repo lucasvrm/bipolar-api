@@ -14,6 +14,7 @@ import numpy as np
 from api.dependencies import get_supabase_client
 from api.models import MODELS
 from api.utils import validate_uuid_or_400, handle_postgrest_error
+from api.schemas import PredictionsResponse, MoodPredictionResponse
 from feature_engineering import create_features_for_prediction
 from services.prediction_cache import get_cache
 from api.rate_limiter import limiter, PREDICTIONS_RATE_LIMIT
@@ -353,7 +354,7 @@ def run_prediction(
     return result
 
 
-@router.get("/predictions/{user_id}")
+@router.get("/predictions/{user_id}", response_model=PredictionsResponse)
 @limiter.limit(PREDICTIONS_RATE_LIMIT)
 async def get_predictions(
     request: Request,
@@ -524,7 +525,7 @@ async def get_predictions(
         )
 
 
-@router.get("/prediction_of_day/{user_id}")
+@router.get("/prediction_of_day/{user_id}", response_model=MoodPredictionResponse)
 @limiter.limit(PREDICTIONS_RATE_LIMIT)
 async def get_prediction_of_day(
     request: Request,
