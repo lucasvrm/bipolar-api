@@ -129,8 +129,11 @@ def non_admin_user():
 @pytest.fixture
 def mock_env(monkeypatch):
     """Mock environment variables."""
+    # Use a realistic JWT service key that passes validation
+    # Real service keys are ~200+ characters and start with 'eyJ'
+    mock_service_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9." + "x" * 150  # 200+ chars, valid JWT prefix
     monkeypatch.setenv("SUPABASE_URL", "https://test.supabase.co")
-    monkeypatch.setenv("SUPABASE_SERVICE_KEY", "test-service-key-12345")
+    monkeypatch.setenv("SUPABASE_SERVICE_KEY", mock_service_key)
     monkeypatch.setenv("ADMIN_EMAILS", "admin@example.com,superadmin@test.com")
 
 

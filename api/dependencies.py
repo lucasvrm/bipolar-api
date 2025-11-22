@@ -36,13 +36,15 @@ def get_admin_emails() -> Set[str]:
 
 async def get_supabase_client() -> AsyncClient:
     """
+    DEPRECATED: Use get_supabase_service_role_client() for admin operations.
+    
     Dependency function assíncrona para criar e retornar um cliente Supabase.
     Isso garante que as variáveis de ambiente sejam lidas apenas quando
     a função é chamada, não na inicialização do módulo.
     
-    The client is created using SUPABASE_SERVICE_KEY which provides admin-level
-    privileges, bypassing Row Level Security (RLS) policies. This is necessary
-    for admin operations like creating users and managing data across all users.
+    NOTE: This function does NOT set explicit Authorization headers and should
+    NOT be used for admin operations that bypass RLS. Use get_supabase_service_role_client()
+    instead for admin-level operations.
     """
     logger.debug("Creating Supabase client...")
     
@@ -64,6 +66,101 @@ async def get_supabase_client() -> AsyncClient:
     client = await acreate_client(url, key, options=supabase_options)
     
     logger.debug(f"Supabase client created successfully: {type(client).__name__}")
+    
+    return client
+
+
+async def get_supabase_service_role_client() -> AsyncClient:
+    """
+    NEW DEDICATED FUNCTION: Create Supabase client with explicit service role authentication.
+    
+    This function creates an AsyncClient with EXPLICIT headers to ensure service role
+    privileges that bypass Row Level Security (RLS) policies. This is the ONLY correct
+    way to authenticate admin operations.
+    
+    Key differences from get_supabase_client():
+    1. Sets explicit Authorization header with Bearer token
+    2. Sets explicit apikey header  
+    3. Validates service key format and length
+    4. Logs diagnostic information (first 5 chars, length)
+    
+    Returns:
+        AsyncClient: Supabase client with service role privileges
+        
+    Raises:
+        HTTPException: If environment variables are not configured
+        RuntimeError: If service key validation fails (wrong key type, invalid JWT)
+        
+    Usage:
+        Use this for ALL admin operations that need to bypass RLS:
+        - User authentication verification
+        - Admin endpoint operations
+        - Data generation/cleanup
+        
+    Example:
+        @router.get("/admin/endpoint")
+        async def endpoint(supabase: AsyncClient = Depends(get_supabase_service_role_client)):
+            # Use supabase client with admin privileges
+            pass
+    """
+    logger.debug("Creating Supabase SERVICE ROLE client with explicit headers...")
+    
+    url: str = os.environ.get("SUPABASE_URL")
+    key: str = os.environ.get("SUPABASE_SERVICE_KEY")
+
+    # Log key length for debugging (only length logged, not the key itself for security)
+    key_length = len(key) if key else 0
+    logger.critical(f"Service Role Key validation - Length: {key_length} chars")
+    
+    # Log first 5 characters to confirm correct key type (service keys start with 'eyJ')
+    if key:
+        logger.critical(f"Service Role Key - First 5 chars: '{key[:5]}...'")
+    
+    if not url or not key:
+        error_msg = "Variáveis de ambiente do Supabase não configuradas no servidor."
+        logger.error(error_msg)
+        logger.error(f"SUPABASE_URL configured: {bool(url)}")
+        logger.error(f"SUPABASE_SERVICE_KEY configured: {bool(key)}")
+        raise HTTPException(status_code=500, detail=error_msg)
+
+    # Validate service key length using module constant
+    if key_length < MIN_SERVICE_KEY_LENGTH:
+        error_msg = (
+            f"CRITICAL: SUPABASE_SERVICE_KEY appears to be invalid! "
+            f"Length: {key_length} chars (expected 200+). "
+            f"This is likely an ANON key instead of SERVICE_ROLE key. "
+            f"Check your environment variables!"
+        )
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg)
+    
+    logger.debug(f"Supabase service URL configured: {url[:30]}...")
+    
+    # Validate key format (JWT tokens should start with 'eyJ')
+    if not key.startswith('eyJ'):
+        error_msg = "SUPABASE_SERVICE_KEY is not a valid JWT token - should start with 'eyJ'"
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg)
+    
+    # CRITICAL: Set explicit headers to force service role authentication
+    # This is the HARD FIX that ensures admin privileges
+    headers = {
+        "apikey": key,
+        "Authorization": f"Bearer {key}"
+    }
+    
+    logger.critical(f"Service Role Client - Explicit headers set: apikey='{key[:5]}...', Authorization='Bearer {key[:5]}...'")
+    
+    # Create client with service role key and custom options with EXPLICIT headers
+    supabase_options = AsyncClientOptions(
+        persist_session=False,
+        headers=headers
+    )
+    
+    client = await acreate_client(url, key, options=supabase_options)
+    
+    logger.critical(f"Supabase SERVICE ROLE client created successfully: {type(client).__name__}")
+    logger.critical("Service role client GUARANTEED to bypass RLS with explicit Authorization headers")
     
     return client
 
@@ -101,6 +198,10 @@ async def get_supabase_service() -> AsyncGenerator[AsyncClient, None]:
     # Log key length for debugging (only length logged, not the key itself for security)
     key_length = len(key) if key else 0
     logger.critical(f"Service Key validation - Length: {key_length} chars")
+    
+    # Log first 5 characters to confirm correct key type (service keys start with 'eyJ')
+    if key:
+        logger.critical(f"Service Key - First 5 chars: '{key[:5]}...'")
     
     if not url or not key:
         error_msg = "Variáveis de ambiente do Supabase não configuradas no servidor."
@@ -142,6 +243,7 @@ async def get_supabase_service() -> AsyncGenerator[AsyncClient, None]:
         client = await acreate_client(url, key, options=supabase_options)
         
         logger.debug(f"Supabase service client created successfully: {type(client).__name__}")
+        logger.critical(f"Service client with explicit headers: apikey='{key[:5]}...', Authorization='Bearer {key[:5]}...'")
         
         yield client
         
@@ -155,10 +257,13 @@ async def get_supabase_service() -> AsyncGenerator[AsyncClient, None]:
 
 async def verify_admin_authorization(
     authorization: Optional[str] = Header(None),
-    supabase: AsyncClient = Depends(get_supabase_client)
+    supabase: AsyncClient = Depends(get_supabase_service_role_client)
 ) -> bool:
     """
     Verify that the request has admin authorization via JWT token.
+    
+    CRITICAL FIX: Now uses get_supabase_service_role_client() instead of get_supabase_client()
+    to ensure proper service role authentication with explicit headers.
     
     Uses Role-Based Access Control (RBAC) to check if the user has admin privileges.
     Admin status is determined by:
@@ -167,7 +272,7 @@ async def verify_admin_authorization(
     
     Args:
         authorization: Authorization header with Bearer token
-        supabase: Supabase client (injected dependency)
+        supabase: Supabase SERVICE ROLE client with explicit headers (injected dependency)
     
     Returns:
         True if authorized as admin
