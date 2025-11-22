@@ -9,6 +9,12 @@ from .checkin_jsonb import (
     AppetiteImpulseData,
     MedsContextData
 )
+from .predictions import (
+    PredictionResponse,
+    PredictionsResponse,
+    MoodPredictionResponse,
+    PerCheckinPredictions
+)
 
 
 class PatientDataInput(BaseModel):
@@ -24,5 +30,9 @@ __all__ = [
     "SymptomsData",
     "RiskRoutineData",
     "AppetiteImpulseData",
-    "MedsContextData"
+    "MedsContextData",
+    "PredictionResponse",
+    "PredictionsResponse",
+    "MoodPredictionResponse",
+    "PerCheckinPredictions"
 ]
