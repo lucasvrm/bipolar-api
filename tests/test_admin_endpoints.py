@@ -132,8 +132,11 @@ def mock_env(monkeypatch):
     # Use a realistic JWT service key that passes validation
     # Real service keys are ~200+ characters and start with 'eyJ'
     mock_service_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9." + "x" * 150  # 200+ chars, valid JWT prefix
+    # ANON keys are typically ~150 characters and also start with 'eyJ'
+    mock_anon_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9." + "y" * 80  # 120+ chars, valid JWT prefix
     monkeypatch.setenv("SUPABASE_URL", "https://test.supabase.co")
     monkeypatch.setenv("SUPABASE_SERVICE_KEY", mock_service_key)
+    monkeypatch.setenv("SUPABASE_ANON_KEY", mock_anon_key)
     monkeypatch.setenv("ADMIN_EMAILS", "admin@example.com,superadmin@test.com")
 
 
@@ -233,6 +236,59 @@ class TestAdminAuthentication:
 
             assert response.status_code == 401
             assert "bearer" in response.json()["detail"].lower()
+
+    def test_admin_auth_missing_anon_key_returns_500(self, client, monkeypatch):
+        """Test that missing ANON key raises configuration error."""
+        # Set up environment without ANON key
+        mock_service_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9." + "x" * 150
+        monkeypatch.setenv("SUPABASE_URL", "https://test.supabase.co")
+        monkeypatch.setenv("SUPABASE_SERVICE_KEY", mock_service_key)
+        # Explicitly unset ANON_KEY to simulate missing config
+        monkeypatch.delenv("SUPABASE_ANON_KEY", raising=False)
+        monkeypatch.setenv("ADMIN_EMAILS", "admin@example.com")
+        
+        async def mock_create(*args, **kwargs):
+            return create_mock_supabase_client()
+        
+        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+            response = client.post(
+                "/api/admin/generate-data",
+                headers={"Authorization": "Bearer some-token"},
+                json={"num_users": 1}
+            )
+            
+            # Should get 500 due to missing ANON key
+            assert response.status_code == 500
+            assert "SUPABASE_ANON_KEY" in response.json()["detail"]
+
+    def test_admin_auth_uses_anon_client_not_service(self, client, mock_env, admin_user):
+        """Test that admin authentication uses ANON client, not SERVICE client."""
+        anon_client_used = []
+        
+        async def tracking_acreate(url, key, options=None):
+            # Check which key is being used by looking at headers
+            if options and hasattr(options, 'headers'):
+                headers = options.headers
+                # Use module constants for key length comparison
+                # ANON key is shorter than SERVICE key
+                from api.dependencies import MIN_SERVICE_KEY_LENGTH
+                if 'apikey' in headers and len(headers['apikey']) < MIN_SERVICE_KEY_LENGTH:
+                    anon_client_used.append(True)
+            return create_mock_supabase_client(mock_user=admin_user)
+        
+        with patch("api.dependencies.acreate_client", side_effect=tracking_acreate):
+            response = client.post(
+                "/api/admin/generate-data",
+                headers={"Authorization": "Bearer valid-admin-token"},
+                json={"num_users": 1, "checkins_per_user": 10}
+            )
+            
+            # Should succeed
+            assert response.status_code not in [401, 403]
+            
+            # Verify ANON client was used for auth (should have been called)
+            # The exact number of calls depends on implementation, but we should see at least one
+            assert len(anon_client_used) >= 1, "ANON client should be used for authentication"
 
 
 class TestDataGeneration:

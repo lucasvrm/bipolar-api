@@ -15,6 +15,7 @@ _admin_emails_cache: Optional[Set[str]] = None
 # Service role keys are JWT tokens ~200+ characters
 # Anon keys are typically ~150 characters
 MIN_SERVICE_KEY_LENGTH = 180  # Conservative threshold to detect wrong key type
+MIN_ANON_KEY_LENGTH = 100  # Anon keys are typically ~150 characters
 
 
 def get_admin_emails() -> Set[str]:
@@ -70,6 +71,83 @@ async def get_supabase_client() -> AsyncClient:
     return client
 
 
+async def get_supabase_anon_auth_client() -> AsyncClient:
+    """
+    Create Supabase client with ANON KEY for user JWT validation.
+    
+    This client is EXCLUSIVELY for validating user JWT tokens via auth.get_user(token).
+    It uses the ANON (public) key, which is the correct key type for the /auth/v1/user endpoint.
+    
+    IMPORTANT: This client should ONLY be used for:
+    - User authentication verification (auth.get_user(token))
+    - Validating JWT tokens from users
+    
+    DO NOT use this client for:
+    - Admin operations that bypass RLS (use get_supabase_service_role_client instead)
+    - Database operations requiring elevated privileges
+    
+    The Supabase auth endpoint /auth/v1/user expects:
+    - apikey header: ANON KEY (public key)
+    - Authorization header: Bearer <user_jwt_token> (passed to get_user)
+    
+    Returns:
+        AsyncClient: Supabase client with ANON key for auth validation
+        
+    Raises:
+        HTTPException: If SUPABASE_URL or SUPABASE_ANON_KEY are not configured
+        
+    Example:
+        @router.get("/endpoint")
+        async def endpoint(supabase_anon: AsyncClient = Depends(get_supabase_anon_auth_client)):
+            # Validate user JWT
+            user_response = await supabase_anon.auth.get_user(jwt_token)
+    """
+    logger.debug("Creating Supabase ANON client for auth validation...")
+    
+    url: str = os.environ.get("SUPABASE_URL")
+    anon_key: str = os.environ.get("SUPABASE_ANON_KEY")
+
+    # Log key length for debugging (only length, not the key itself)
+    anon_key_length = len(anon_key) if anon_key else 0
+    logger.info(f"ANON Key validation - Length: {anon_key_length} chars")
+    
+    if not url or not anon_key:
+        error_msg = "Variáveis de ambiente SUPABASE_URL ou SUPABASE_ANON_KEY não configuradas no servidor."
+        logger.error(error_msg)
+        logger.error(f"SUPABASE_URL configured: {bool(url)}")
+        logger.error(f"SUPABASE_ANON_KEY configured: {bool(anon_key)}")
+        raise HTTPException(status_code=500, detail=error_msg)
+
+    # Validate ANON key length (less strict than SERVICE key)
+    if anon_key_length < MIN_ANON_KEY_LENGTH:
+        error_msg = (
+            f"SUPABASE_ANON_KEY inválida! "
+            f"Comprimento: {anon_key_length} caracteres (esperado 100+). "
+        )
+        logger.error(error_msg)
+        raise HTTPException(status_code=500, detail="Configuração SUPABASE_ANON_KEY inválida")
+    
+    logger.debug(f"Supabase URL configured: {url[:30]}...")
+    logger.info(f"ANON client will be used exclusively for user JWT validation via auth.get_user()")
+    
+    # Create client with ANON key
+    # The apikey header will be set to the ANON key automatically
+    # When calling auth.get_user(token), the user's JWT will be passed as parameter
+    supabase_options = AsyncClientOptions(
+        persist_session=False,
+        headers={
+            "apikey": anon_key
+        }
+    )
+    
+    client = await acreate_client(url, anon_key, options=supabase_options)
+    
+    logger.info(f"Supabase ANON client created successfully for auth validation: {type(client).__name__}")
+    logger.info("ANON client will call /auth/v1/user with apikey=ANON_KEY")
+    
+    return client
+
+
 async def get_supabase_service_role_client() -> AsyncClient:
     """
     NEW DEDICATED FUNCTION: Create Supabase client with explicit service role authentication.
@@ -77,6 +155,15 @@ async def get_supabase_service_role_client() -> AsyncClient:
     This function creates an AsyncClient with EXPLICIT headers to ensure service role
     privileges that bypass Row Level Security (RLS) policies. This is the ONLY correct
     way to authenticate admin operations.
+    
+    IMPORTANT: This client should ONLY be used for:
+    - Admin endpoint operations that bypass RLS
+    - Data generation/cleanup operations
+    - Database operations requiring elevated privileges
+    
+    DO NOT use this client for:
+    - User JWT validation (use get_supabase_anon_auth_client instead)
+    - The /auth/v1/user endpoint expects ANON KEY, not SERVICE KEY
     
     Key differences from get_supabase_client():
     1. Sets explicit Authorization header with Bearer token
@@ -93,14 +180,13 @@ async def get_supabase_service_role_client() -> AsyncClient:
         
     Usage:
         Use this for ALL admin operations that need to bypass RLS:
-        - User authentication verification
-        - Admin endpoint operations
+        - Admin endpoint operations (NOT user auth validation)
         - Data generation/cleanup
         
     Example:
         @router.get("/admin/endpoint")
         async def endpoint(supabase: AsyncClient = Depends(get_supabase_service_role_client)):
-            # Use supabase client with admin privileges
+            # Use supabase client with admin privileges for data operations
             pass
     """
     logger.debug("Creating Supabase SERVICE ROLE client with explicit headers...")
@@ -265,13 +351,14 @@ async def get_supabase_service() -> AsyncGenerator[AsyncClient, None]:
 
 async def verify_admin_authorization(
     authorization: Optional[str] = Header(None),
-    supabase: AsyncClient = Depends(get_supabase_service_role_client)
+    supabase_anon: AsyncClient = Depends(get_supabase_anon_auth_client)
 ) -> bool:
     """
     Verify that the request has admin authorization via JWT token.
     
-    CRITICAL FIX: Now uses get_supabase_service_role_client() instead of get_supabase_client()
-    to ensure proper service role authentication with explicit headers.
+    CRITICAL FIX: Now uses get_supabase_anon_auth_client() for user JWT validation.
+    The /auth/v1/user endpoint requires ANON KEY (apikey header) + user JWT (Bearer token),
+    NOT the SERVICE ROLE KEY.
     
     Uses Role-Based Access Control (RBAC) to check if the user has admin privileges.
     Admin status is determined by:
@@ -280,7 +367,7 @@ async def verify_admin_authorization(
     
     Args:
         authorization: Authorization header with Bearer token
-        supabase: Supabase SERVICE ROLE client with explicit headers (injected dependency)
+        supabase_anon: Supabase ANON client for auth validation (injected dependency)
     
     Returns:
         True if authorized as admin
@@ -307,7 +394,10 @@ async def verify_admin_authorization(
     
     try:
         # Validate the JWT token and get user info
-        user_response = await supabase.auth.get_user(token)
+        # This call goes to /auth/v1/user with:
+        # - apikey header: ANON KEY (from supabase_anon client)
+        # - Authorization: Bearer <user_jwt_token> (from get_user parameter)
+        user_response = await supabase_anon.auth.get_user(token)
         
         if not user_response or not user_response.user:
             logger.error("Invalid JWT token - user not found")
