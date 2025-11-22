@@ -338,20 +338,29 @@ async def generate_and_populate_data(
     logger.info(f"Iniciando geração: {patients_count} pacientes + {therapists_count} terapeutas, {checkins_per_user} check-ins cada")
    
     total_checkins = 0
+    user_ids = []
    
     for i in range(patients_count):
         user_id, email, _ = await create_user_with_retry(supabase, "patient")
+        user_ids.append(user_id)
         checkins = await generate_checkins_for_user(supabase, user_id, checkins_per_user, mood_pattern)
         total_checkins += checkins
         logger.info(f"Paciente {i+1}/{patients_count} criado – {checkins} check-ins")
    
     for i in range(therapists_count):
         user_id, email, _ = await create_user_with_retry(supabase, "therapist")
+        user_ids.append(user_id)
         logger.info(f"Terapeuta {i+1}/{therapists_count} criado")
    
     return {
         "status": "success",
-        "patients_created": patients_count,
-        "therapists_created": therapists_count,
-        "total_checkins_inserted": total_checkins
+        "statistics": {
+            "patients_created": patients_count,
+            "therapists_created": therapists_count,
+            "users_created": patients_count + therapists_count,
+            "total_checkins": total_checkins,
+            "checkins_per_user": checkins_per_user,
+            "mood_pattern": mood_pattern,
+            "user_ids": user_ids
+        }
     }
