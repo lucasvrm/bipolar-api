@@ -8,6 +8,7 @@ from typing import Dict, Any, Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from supabase import AsyncClient
 from postgrest.exceptions import APIError
+from pydantic import ValidationError
 import pandas as pd
 import numpy as np
 
@@ -314,7 +315,9 @@ async def get_predictions(
         
     except HTTPException:
         raise
-    except APIError as e:
+    except (APIError, ValidationError) as e:
+        # Pass both APIError and Pydantic validation errors to handle_postgrest_error
+        # The new handle_postgrest_error knows how to handle both gracefully
         handle_postgrest_error(e, user_id)
     except Exception as e:
         logger.exception(f"Error processing predictions for user_id={user_id}: {e}")
@@ -365,7 +368,8 @@ async def get_prediction_of_day(
                 "label": "Dados insuficientes",
                 "probability": 0.0
             }
-        
+    except (APIError, ValidationError) as e:
+         handle_postgrest_error(e, user_id)
     except Exception as e:
         logger.exception("Error processing prediction_of_day")
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
