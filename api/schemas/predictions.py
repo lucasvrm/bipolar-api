@@ -4,6 +4,7 @@ Pydantic schemas for predictions API responses.
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
+from uuid import UUID
 
 
 class PredictionResponse(BaseModel):
@@ -65,11 +66,11 @@ class PerCheckinPredictions(BaseModel):
     Schema for predictions associated with a specific check-in.
     
     Attributes:
-        checkin_id: ID of the check-in
+        checkin_id: UUID of the check-in
         checkin_date: Date of the check-in
         predictions: List of predictions for this check-in
     """
-    checkin_id: str = Field(..., description="Check-in ID")
+    checkin_id: UUID = Field(..., description="Check-in UUID")
     checkin_date: str = Field(..., description="Check-in date (ISO 8601)")
     predictions: List[PredictionResponse] = Field(
         ...,
@@ -90,7 +91,7 @@ class PredictionsResponse(BaseModel):
         predictions: List of prediction results
         per_checkin: Optional list of per-checkin predictions
     """
-    user_id: str = Field(..., description="User UUID")
+    user_id: UUID = Field(..., description="User UUID")
     window_days: int = Field(
         ..., 
         ge=1, 

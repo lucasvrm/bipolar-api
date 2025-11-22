@@ -123,7 +123,7 @@ def test_cors_preflight_request_allowed_origin(client):
     # Check that allowed headers include our required headers
     allowed_headers = response.headers.get("Access-Control-Allow-Headers", "")
     # Should include at least Authorization and Content-Type
-    assert "Authorization" in allowed_headers or "authorization" in allowed_headers.lower()
+    assert "authorization" in allowed_headers.lower()
 
 
 def test_cors_preflight_request_disallowed_origin(client):
