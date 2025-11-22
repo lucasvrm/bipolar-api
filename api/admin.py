@@ -11,7 +11,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from supabase import AsyncClient
 from postgrest.exceptions import APIError
 from postgrest.types import CountMethod
@@ -47,8 +47,8 @@ def _log_db_error(operation: str, error: Exception) -> None:
     logger.error(f"Error {operation}: {error}")
     logger.error(f"Raw response (if available): {getattr(error, 'response', 'N/A')}")
     
-    # Check if this is a Pydantic validation error
-    if "ValidationError" in str(type(error)):
+    # Check if this is a Pydantic validation error using proper isinstance check
+    if isinstance(error, ValidationError):
         logger.critical(f"Pydantic ValidationError detected! This likely means DB returned an error instead of data.")
         logger.critical(f"Error details: {str(error)}")
         logger.critical(f"This suggests RLS permission issue or query failure")

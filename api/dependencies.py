@@ -119,7 +119,6 @@ async def get_supabase_service() -> AsyncGenerator[AsyncClient, None]:
         raise RuntimeError(error_msg)
     
     logger.debug(f"Supabase service URL configured: {url[:30]}...")
-    logger.debug(f"Service key length: {len(key)} characters")
     
     # Validate key format (JWT tokens should start with 'eyJ')
     if not key.startswith('eyJ'):
