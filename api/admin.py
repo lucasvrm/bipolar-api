@@ -33,6 +33,27 @@ logger = logging.getLogger("bipolar-api.admin")
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
 
+def _log_db_error(operation: str, error: Exception) -> None:
+    """
+    Helper function to log database errors with enhanced details.
+    
+    Detects Pydantic ValidationErrors which indicate DB returned an error
+    instead of expected data, usually due to RLS/permission issues.
+    
+    Args:
+        operation: Description of the operation that failed (e.g., "fetching profiles")
+        error: The exception that was raised
+    """
+    logger.error(f"Error {operation}: {error}")
+    logger.error(f"Raw response (if available): {getattr(error, 'response', 'N/A')}")
+    
+    # Check if this is a Pydantic validation error
+    if "ValidationError" in str(type(error)):
+        logger.critical(f"Pydantic ValidationError detected! This likely means DB returned an error instead of data.")
+        logger.critical(f"Error details: {str(error)}")
+        logger.critical(f"This suggests RLS permission issue or query failure")
+
+
 class GenerateDataRequest(BaseModel):
     """Request body for data generation endpoint."""
     model_config = {"json_schema_extra": {
@@ -262,23 +283,14 @@ async def get_admin_stats(
             profiles_response = await supabase.table('profiles').select('*', count=CountMethod.exact, head=True).execute()
             total_users = profiles_response.count if profiles_response.count is not None else 0
         except Exception as e:
-            logger.error(f"Error fetching profiles count: {e}")
-            logger.error(f"Raw response (if available): {getattr(e, 'response', 'N/A')}")
-            # Check if this is a Pydantic validation error
-            if "ValidationError" in str(type(e)):
-                logger.critical(f"Pydantic ValidationError detected! This likely means DB returned an error instead of data.")
-                logger.critical(f"Error details: {str(e)}")
+            _log_db_error("fetching profiles count", e)
             raise
 
         try:
             checkins_response = await supabase.table('check_ins').select('*', count=CountMethod.exact, head=True).execute()
             total_checkins = checkins_response.count if checkins_response.count is not None else 0
         except Exception as e:
-            logger.error(f"Error fetching checkins count: {e}")
-            logger.error(f"Raw response (if available): {getattr(e, 'response', 'N/A')}")
-            if "ValidationError" in str(type(e)):
-                logger.critical(f"Pydantic ValidationError detected! This likely means DB returned an error instead of data.")
-                logger.critical(f"Error details: {str(e)}")
+            _log_db_error("fetching checkins count", e)
             raise
 
         # Get all profiles with is_test_patient flag - with enhanced error logging
@@ -290,15 +302,11 @@ async def get_admin_stats(
             logger.error(f"APIError fetching profiles: {e}")
             logger.critical(f"Database error - likely permission/RLS issue or invalid query")
             logger.critical(f"Error message: {str(e)}")
-            # Try to extract error details
             if hasattr(e, 'message'):
                 logger.critical(f"Error details: {e.message}")
             raise
         except Exception as e:
-            logger.error(f"Unexpected error fetching profiles: {e}")
-            if "ValidationError" in str(type(e)):
-                logger.critical(f"Pydantic ValidationError! DB returned error instead of expected data format")
-                logger.critical(f"This suggests RLS permission issue or query failure")
+            _log_db_error("fetching profiles", e)
             raise
 
         # Count synthetic vs real patients - use sets for O(1) lookup
@@ -323,9 +331,7 @@ async def get_admin_stats(
             ).gte('checkin_date', today_start.isoformat()).execute()
             checkins_today = checkins_today_response.count if checkins_today_response.count is not None else 0
         except Exception as e:
-            logger.error(f"Error fetching today's checkins: {e}")
-            if "ValidationError" in str(type(e)):
-                logger.critical(f"Pydantic ValidationError - DB returned error instead of data")
+            _log_db_error("fetching today's checkins", e)
             raise
 
         # Check-ins last 7 days - with enhanced error logging
@@ -335,9 +341,7 @@ async def get_admin_stats(
             ).gte('checkin_date', seven_days_ago.isoformat()).execute()
             checkins_last_7_days = checkins_7d_response.count if checkins_7d_response.count is not None else 0
         except Exception as e:
-            logger.error(f"Error fetching 7-day checkins: {e}")
-            if "ValidationError" in str(type(e)):
-                logger.critical(f"Pydantic ValidationError - DB returned error instead of data")
+            _log_db_error("fetching 7-day checkins", e)
             raise
 
         # Check-ins previous 7 days (for % variation) - with enhanced error logging
@@ -347,9 +351,7 @@ async def get_admin_stats(
             ).gte('checkin_date', fourteen_days_ago.isoformat()).lt('checkin_date', seven_days_ago.isoformat()).execute()
             checkins_last_7_days_previous = checkins_prev_7d_response.count if checkins_prev_7d_response.count is not None else 0
         except Exception as e:
-            logger.error(f"Error fetching previous 7-day checkins: {e}")
-            if "ValidationError" in str(type(e)):
-                logger.critical(f"Pydantic ValidationError - DB returned error instead of data")
+            _log_db_error("fetching previous 7-day checkins", e)
             raise
 
         # Get check-ins from last 30 days with full data for calculations - with enhanced error logging
@@ -359,9 +361,7 @@ async def get_admin_stats(
             ).gte('checkin_date', thirty_days_ago.isoformat()).execute()
             checkins_30d = checkins_30d_response.data if checkins_30d_response.data else []
         except Exception as e:
-            logger.error(f"Error fetching 30-day checkins: {e}")
-            if "ValidationError" in str(type(e)):
-                logger.critical(f"Pydantic ValidationError - DB returned error instead of data")
+            _log_db_error("fetching 30-day checkins", e)
             raise
 
         # Calculate avg check-ins per active patient (patients who checked in last 30 days)

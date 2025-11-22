@@ -93,10 +93,9 @@ async def get_supabase_service() -> AsyncGenerator[AsyncClient, None]:
     url: str = os.environ.get("SUPABASE_URL")
     key: str = os.environ.get("SUPABASE_SERVICE_KEY")
 
-    # CRITICAL: Log key configuration for debugging (masked for security)
+    # CRITICAL: Log key length for debugging (only length, not the actual key for security)
     key_length = len(key) if key else 0
-    print(f"DEBUG: Service Key length: {key_length}")
-    logger.critical(f"Service Key validation - Length: {key_length} chars")
+    logger.critical(f"Service Key validation - Length: {key_length} chars (key itself not logged)")
     
     if not url or not key:
         error_msg = "Variáveis de ambiente do Supabase não configuradas no servidor."
@@ -117,7 +116,6 @@ async def get_supabase_service() -> AsyncGenerator[AsyncClient, None]:
             f"Check your environment variables!"
         )
         logger.critical(error_msg)
-        print(f"ERROR: {error_msg}")
         raise RuntimeError(error_msg)
     
     logger.debug(f"Supabase service URL configured: {url[:30]}...")
@@ -127,7 +125,6 @@ async def get_supabase_service() -> AsyncGenerator[AsyncClient, None]:
     if not key.startswith('eyJ'):
         error_msg = "SUPABASE_SERVICE_KEY is not a valid JWT token - should start with 'eyJ'"
         logger.critical(error_msg)
-        print(f"ERROR: {error_msg}")
         raise RuntimeError(error_msg)
     
     client = None
