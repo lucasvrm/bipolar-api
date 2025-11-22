@@ -339,6 +339,17 @@ async def get_prediction_of_day(
                 label = metric.explanation.split("Predicted state:")[1].strip()
             elif "Heuristic:" in metric.explanation:
                 label = metric.explanation.split("Heuristic:")[1].strip()
+            # Se não conseguir extrair, usa o valor mapeado na métrica se disponível, ou o riskLevel?
+            # Metric riskLevel is not the label.
+            # But in run_prediction for mood_state we set metric.explanation = f"Predicted state: {label}"
+            # So parsing it back is a bit hacky but works for now.
+            # Ideally we should pass label in metric details or similar.
+            # But wait, run_prediction sets explanation.
+
+            # Fallback if parsing fails but value is set?
+            if label == "Desconhecido" and metric.riskLevel != "unknown":
+                # Try to reverse engineer from probability? No, that's bad.
+                pass
 
             return {
                 "type": "mood_state",
