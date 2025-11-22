@@ -14,7 +14,7 @@ from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
-from supabase import AsyncClient
+from supabase import Client
 from postgrest.exceptions import APIError
 from postgrest.types import CountMethod
 
@@ -59,7 +59,7 @@ def _log_db_error(operation: str, error: Exception) -> None:
 async def generate_synthetic_data(
     request: Request,
     data_request: GenerateDataRequest,
-    supabase: AsyncClient = Depends(get_supabase_service),
+    supabase: Client = Depends(get_supabase_service),
     is_admin: bool = Depends(verify_admin_authorization),
 ) -> Dict[str, Any]:
     # Check APP_ENV
@@ -164,7 +164,7 @@ async def generate_synthetic_data(
 # ----------------------------------------------------------------------
 @router.get("/stats", response_model=StatsResponse)
 async def get_admin_stats(
-    supabase: AsyncClient = Depends(get_supabase_service),
+    supabase: Client = Depends(get_supabase_service),
     is_admin: bool = Depends(verify_admin_authorization),
 ):
     logger.info("Requisição de estatísticas avançadas recebida")
@@ -345,7 +345,7 @@ async def cleanup_standard(
     request: Request,
     cleanup_request: CleanupDataRequest = None,
     dryRun: bool = False,
-    supabase: AsyncClient = Depends(get_supabase_service),
+    supabase: Client = Depends(get_supabase_service),
     is_admin: bool = Depends(verify_admin_authorization),
 ):
     """
@@ -407,7 +407,7 @@ async def cleanup_standard(
 async def danger_zone_cleanup(
     request: Request,
     cleanup_request: DangerZoneCleanupRequest,
-    supabase: AsyncClient = Depends(get_supabase_service),
+    supabase: Client = Depends(get_supabase_service),
     is_admin: bool = Depends(verify_admin_authorization),
 ):
     MOOD_VARIANCE_THRESHOLD = 2.0
@@ -534,7 +534,7 @@ async def danger_zone_cleanup(
 async def cleanup_data_legacy(
     request: Request,
     cleanup_request: CleanupDataRequest,
-    supabase: AsyncClient = Depends(get_supabase_service),
+    supabase: Client = Depends(get_supabase_service),
     is_admin: bool = Depends(verify_admin_authorization),
 ):
     return await cleanup_standard(request, cleanup_request, False, supabase, is_admin)
@@ -546,7 +546,7 @@ async def cleanup_data_legacy(
 async def clean_synthetic_data_legacy(
     request: Request,
     clean_request: DangerZoneCleanupRequest,
-    supabase: AsyncClient = Depends(get_supabase_service),
+    supabase: Client = Depends(get_supabase_service),
     is_admin: bool = Depends(verify_admin_authorization),
 ):
     return await danger_zone_cleanup(request, clean_request, supabase, is_admin)

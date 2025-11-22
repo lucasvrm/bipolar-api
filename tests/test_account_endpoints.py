@@ -142,7 +142,7 @@ def test_export_patient_data():
         "SUPABASE_URL": "https://test.supabase.co",
         "SUPABASE_SERVICE_KEY": "test-service-key"
     }):
-        with patch("api.dependencies.acreate_client", side_effect=mock_client_factory):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_client_factory):
             response = client.post(
                 "/account/export",
                 headers={"Authorization": "Bearer valid-token"}
@@ -218,7 +218,7 @@ def test_delete_request_therapist_with_patients():
         "SUPABASE_URL": "https://test.supabase.co",
         "SUPABASE_SERVICE_KEY": "test-service-key"
     }):
-        with patch("api.dependencies.acreate_client", side_effect=mock_client_factory):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_client_factory):
             response = client.post(
                 "/account/delete-request",
                 headers={"Authorization": "Bearer valid-token"}
@@ -280,7 +280,7 @@ def test_delete_request_patient_success():
         "SUPABASE_URL": "https://test.supabase.co",
         "SUPABASE_SERVICE_KEY": "test-service-key"
     }):
-        with patch("api.dependencies.acreate_client", side_effect=mock_client_factory):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_client_factory):
             response = client.post(
                 "/account/delete-request",
                 headers={"Authorization": "Bearer valid-token"}
@@ -306,7 +306,7 @@ def test_undo_delete_invalid_token():
         "SUPABASE_URL": "https://test.supabase.co",
         "SUPABASE_SERVICE_KEY": "test-service-key"
     }):
-        with patch("api.dependencies.acreate_client", side_effect=mock_client_factory):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_client_factory):
             response = client.post(
                 "/account/undo-delete",
                 json={"token": "123e4567-e89b-12d3-a456-426614174000"}
@@ -339,7 +339,7 @@ def test_undo_delete_success():
         "SUPABASE_URL": "https://test.supabase.co",
         "SUPABASE_SERVICE_KEY": "test-service-key"
     }):
-        with patch("api.dependencies.acreate_client", side_effect=mock_client_factory):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_client_factory):
             response = client.post(
                 "/account/undo-delete",
                 json={"token": test_token}
@@ -374,7 +374,7 @@ def test_undo_delete_expired():
         "SUPABASE_URL": "https://test.supabase.co",
         "SUPABASE_SERVICE_KEY": "test-service-key"
     }):
-        with patch("api.dependencies.acreate_client", side_effect=mock_client_factory):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_client_factory):
             response = client.post(
                 "/account/undo-delete",
                 json={"token": test_token}

@@ -14,7 +14,7 @@ from typing import Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from supabase import AsyncClient
+from supabase import Client
 from postgrest.exceptions import APIError
 
 from api.dependencies import get_supabase_client
@@ -39,7 +39,7 @@ class UndoDeleteRequest(BaseModel):
     token: str = Field(..., description="Deletion token received via email")
 
 
-async def get_user_from_token(authorization: Optional[str], supabase: AsyncClient) -> Dict[str, Any]:
+async def get_user_from_token(authorization: Optional[str], supabase: Client) -> Dict[str, Any]:
     """
     Extract and validate user from JWT token.
     
@@ -85,7 +85,7 @@ async def get_user_from_token(authorization: Optional[str], supabase: AsyncClien
 
 
 async def log_audit_event(
-    supabase: AsyncClient,
+    supabase: Client,
     user_id: str,
     action: str,
     details: Dict[str, Any],
@@ -119,7 +119,7 @@ async def log_audit_event(
 async def export_account_data(
     request: Request,
     anonymize: bool = False,
-    supabase: AsyncClient = Depends(get_supabase_client),
+    supabase: Client = Depends(get_supabase_client),
     authorization: Optional[str] = Header(None)
 ):
     """
@@ -317,7 +317,7 @@ async def export_account_data(
 @limiter.limit("3/hour")
 async def request_account_deletion(
     request: Request,
-    supabase: AsyncClient = Depends(get_supabase_client),
+    supabase: Client = Depends(get_supabase_client),
     authorization: Optional[str] = Header(None)
 ):
     """
@@ -457,7 +457,7 @@ async def request_account_deletion(
 @router.post("/undo-delete")
 async def undo_account_deletion(
     undo_request: UndoDeleteRequest,
-    supabase: AsyncClient = Depends(get_supabase_client)
+    supabase: Client = Depends(get_supabase_client)
 ):
     """
     Cancel a pending account deletion using the token received via email.
