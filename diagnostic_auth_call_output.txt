@@ -1,0 +1,25 @@
+Endpoint: https://gtjthmovvfpaekjtlxov.supabase.co/auth/v1/user
+ANON_KEY (masked): eyJhbGci... len=208
+SERVICE_KEY (masked): eyJhbGci... len=219
+TEST_JWT_TOKEN (first 80 chars): eyJhbGciOiJIUzI1NiIsImtpZCI6IllLakhSVlU0bFBpYjZJY0QiLCJ0eXAiOiJKV1QifQ.eyJpc3MiO ...
+
+================================================================================
+Test: ANON + Bearer(user JWT)
+Outgoing headers (masked): {'apikey': 'eyJhbGci...', 'Authorization': 'Bearer <token>'}
+Exception: [Errno -5] No address associated with hostname
+================================================================================
+Test: SERVICE + Bearer(user JWT)
+Outgoing headers (masked): {'apikey': 'eyJhbGci...', 'Authorization': 'Bearer <token>'}
+Exception: [Errno -5] No address associated with hostname
+================================================================================
+Test: NO apikey + Bearer(user JWT)
+Outgoing headers (masked): {'Authorization': 'Bearer <token>'}
+Exception: [Errno -5] No address associated with hostname
+================================================================================
+Test: ANON + No Authorization
+Outgoing headers (masked): {'apikey': 'eyJhbGci...'}
+Exception: [Errno -5] No address associated with hostname
+================================================================================
+Test: SERVICE + No Authorization
+Outgoing headers (masked): {'apikey': 'eyJhbGci...'}
+Exception: [Errno -5] No address associated with hostname

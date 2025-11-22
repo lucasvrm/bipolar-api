@@ -1,0 +1,1892 @@
+{
+  "acreate_client": [
+    {
+      "file": "api/dependencies.py",
+      "line": 6,
+      "content": "from supabase import acreate_client, AsyncClient, Client"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 67,
+      "content": "client = await acreate_client(url, key, options=supabase_options)"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 143,
+      "content": "client = await acreate_client(url, anon_key, options=supabase_options)"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 251,
+      "content": "client = await acreate_client(url, key, options=supabase_options)"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 337,
+      "content": "client = await acreate_client(url, key, options=supabase_options)"
+    },
+    {
+      "file": "jobs/scheduled_deletion.py",
+      "line": 11,
+      "content": "from supabase import acreate_client, AsyncClient"
+    },
+    {
+      "file": "jobs/scheduled_deletion.py",
+      "line": 31,
+      "content": "client = await acreate_client(url, key, options=options)"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 106,
+      "content": "async def mock_acreate_client(*args, **kwargs):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 114,
+      "content": "return mock_acreate_client"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 151,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 166,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 181,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 199,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 214,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 230,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 253,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 279,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=tracking_acreate):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 302,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 325,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 348,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 367,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 389,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 411,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 435,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 458,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 478,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 500,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 518,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 648,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 659,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 723,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create_stats):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 741,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 786,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create_zero):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 806,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 817,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 860,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create_users):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 882,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 917,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create_empty):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 1050,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 1064,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 1079,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 1095,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 1110,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 1125,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 1200,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 1271,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 1308,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_account_endpoints.py",
+      "line": 145,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_client_factory):"
+    },
+    {
+      "file": "tests/test_account_endpoints.py",
+      "line": 221,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_client_factory):"
+    },
+    {
+      "file": "tests/test_account_endpoints.py",
+      "line": 283,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_client_factory):"
+    },
+    {
+      "file": "tests/test_account_endpoints.py",
+      "line": 309,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_client_factory):"
+    },
+    {
+      "file": "tests/test_account_endpoints.py",
+      "line": 342,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_client_factory):"
+    },
+    {
+      "file": "tests/test_account_endpoints.py",
+      "line": 377,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_client_factory):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 120,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 134,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 149,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 164,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 185,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 206,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 219,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 233,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 249,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 268,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 278,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 291,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 309,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 327,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 345,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 355,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 368,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 383,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 402,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 412,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 433,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_privacy_endpoints.py",
+      "line": 54,
+      "content": "async def mock_acreate_client(*args, **kwargs):"
+    },
+    {
+      "file": "tests/test_privacy_endpoints.py",
+      "line": 96,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_client_factory):"
+    },
+    {
+      "file": "tests/test_privacy_endpoints.py",
+      "line": 208,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_client_factory):"
+    },
+    {
+      "file": "tests/test_privacy_endpoints.py",
+      "line": 301,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_client_factory):"
+    },
+    {
+      "file": "tests/test_uuid_validation.py",
+      "line": 90,
+      "content": "async def mock_acreate_client(*args, **kwargs):"
+    },
+    {
+      "file": "tests/test_uuid_validation.py",
+      "line": 97,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_acreate_client):"
+    },
+    {
+      "file": "tests/test_uuid_validation.py",
+      "line": 150,
+      "content": "async def mock_acreate_client(*args, **kwargs):"
+    },
+    {
+      "file": "tests/test_uuid_validation.py",
+      "line": 157,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_acreate_client):"
+    },
+    {
+      "file": "tests/test_uuid_validation.py",
+      "line": 188,
+      "content": "async def mock_acreate_client(*args, **kwargs):"
+    },
+    {
+      "file": "tests/test_uuid_validation.py",
+      "line": 195,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_acreate_client):"
+    },
+    {
+      "file": "tests/test_uuid_validation.py",
+      "line": 229,
+      "content": "async def mock_acreate_client(*args, **kwargs):"
+    },
+    {
+      "file": "tests/test_uuid_validation.py",
+      "line": 232,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_acreate_client):"
+    },
+    {
+      "file": "tests/test_uuid_validation.py",
+      "line": 281,
+      "content": "async def mock_acreate_client(*args, **kwargs):"
+    },
+    {
+      "file": "tests/test_uuid_validation.py",
+      "line": 288,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_acreate_client):"
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 64,
+      "content": "async def mock_acreate_client(*args, **kwargs):"
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 71,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_acreate_client):"
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 125,
+      "content": "async def mock_acreate_client(*args, **kwargs):"
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 132,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_acreate_client):"
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 183,
+      "content": "async def mock_acreate_client(*args, **kwargs):"
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 190,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_acreate_client):"
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 224,
+      "content": "async def mock_acreate_client(*args, **kwargs):"
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 231,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_acreate_client):"
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 271,
+      "content": "async def mock_acreate_client(*args, **kwargs):"
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 278,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_acreate_client):"
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 316,
+      "content": "async def mock_acreate_client(*args, **kwargs):"
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 323,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_acreate_client):"
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 369,
+      "content": "async def mock_acreate_client(*args, **kwargs):"
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 376,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_acreate_client):"
+    },
+    {
+      "file": "tests/test_observability_middleware.py",
+      "line": 82,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_get_client):"
+    }
+  ],
+  "create_client": [
+    {
+      "file": "data_generator.py",
+      "line": 11,
+      "content": "from supabase import AsyncClient, create_client"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 6,
+      "content": "from supabase import acreate_client, AsyncClient, Client"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 67,
+      "content": "client = await acreate_client(url, key, options=supabase_options)"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 143,
+      "content": "client = await acreate_client(url, anon_key, options=supabase_options)"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 251,
+      "content": "client = await acreate_client(url, key, options=supabase_options)"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 337,
+      "content": "client = await acreate_client(url, key, options=supabase_options)"
+    },
+    {
+      "file": "tools/list_users_with_checkins.py",
+      "line": 21,
+      "content": "from supabase import create_client, Client"
+    },
+    {
+      "file": "tools/list_users_with_checkins.py",
+      "line": 42,
+      "content": "return create_client(url, key)"
+    },
+    {
+      "file": "tools/seed_checkins.py",
+      "line": 26,
+      "content": "from supabase import create_client, Client"
+    },
+    {
+      "file": "tools/seed_checkins.py",
+      "line": 47,
+      "content": "return create_client(url, key)"
+    },
+    {
+      "file": "jobs/scheduled_deletion.py",
+      "line": 11,
+      "content": "from supabase import acreate_client, AsyncClient"
+    },
+    {
+      "file": "jobs/scheduled_deletion.py",
+      "line": 31,
+      "content": "client = await acreate_client(url, key, options=options)"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 106,
+      "content": "async def mock_acreate_client(*args, **kwargs):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 114,
+      "content": "return mock_acreate_client"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 151,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 166,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 181,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 199,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 214,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 230,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 253,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 279,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=tracking_acreate):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 302,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 325,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 348,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 367,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 389,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 411,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 435,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 458,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 478,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 500,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 518,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 648,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 659,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 723,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create_stats):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 741,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 786,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create_zero):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 806,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 817,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 860,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create_users):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 882,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 917,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create_empty):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 1050,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 1064,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 1079,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 1095,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 1110,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 1125,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 1200,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 1271,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 1308,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_account_endpoints.py",
+      "line": 145,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_client_factory):"
+    },
+    {
+      "file": "tests/test_account_endpoints.py",
+      "line": 221,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_client_factory):"
+    },
+    {
+      "file": "tests/test_account_endpoints.py",
+      "line": 283,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_client_factory):"
+    },
+    {
+      "file": "tests/test_account_endpoints.py",
+      "line": 309,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_client_factory):"
+    },
+    {
+      "file": "tests/test_account_endpoints.py",
+      "line": 342,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_client_factory):"
+    },
+    {
+      "file": "tests/test_account_endpoints.py",
+      "line": 377,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_client_factory):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 120,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 134,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 149,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 164,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 185,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 206,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 219,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 233,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 249,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 268,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 278,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 291,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 309,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 327,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 345,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 355,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 368,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 383,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 402,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 412,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 433,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):"
+    },
+    {
+      "file": "tests/test_privacy_endpoints.py",
+      "line": 54,
+      "content": "async def mock_acreate_client(*args, **kwargs):"
+    },
+    {
+      "file": "tests/test_privacy_endpoints.py",
+      "line": 96,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_client_factory):"
+    },
+    {
+      "file": "tests/test_privacy_endpoints.py",
+      "line": 208,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_client_factory):"
+    },
+    {
+      "file": "tests/test_privacy_endpoints.py",
+      "line": 301,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_client_factory):"
+    },
+    {
+      "file": "tests/test_uuid_validation.py",
+      "line": 90,
+      "content": "async def mock_acreate_client(*args, **kwargs):"
+    },
+    {
+      "file": "tests/test_uuid_validation.py",
+      "line": 97,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_acreate_client):"
+    },
+    {
+      "file": "tests/test_uuid_validation.py",
+      "line": 150,
+      "content": "async def mock_acreate_client(*args, **kwargs):"
+    },
+    {
+      "file": "tests/test_uuid_validation.py",
+      "line": 157,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_acreate_client):"
+    },
+    {
+      "file": "tests/test_uuid_validation.py",
+      "line": 188,
+      "content": "async def mock_acreate_client(*args, **kwargs):"
+    },
+    {
+      "file": "tests/test_uuid_validation.py",
+      "line": 195,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_acreate_client):"
+    },
+    {
+      "file": "tests/test_uuid_validation.py",
+      "line": 229,
+      "content": "async def mock_acreate_client(*args, **kwargs):"
+    },
+    {
+      "file": "tests/test_uuid_validation.py",
+      "line": 232,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_acreate_client):"
+    },
+    {
+      "file": "tests/test_uuid_validation.py",
+      "line": 281,
+      "content": "async def mock_acreate_client(*args, **kwargs):"
+    },
+    {
+      "file": "tests/test_uuid_validation.py",
+      "line": 288,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_acreate_client):"
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 64,
+      "content": "async def mock_acreate_client(*args, **kwargs):"
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 71,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_acreate_client):"
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 125,
+      "content": "async def mock_acreate_client(*args, **kwargs):"
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 132,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_acreate_client):"
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 183,
+      "content": "async def mock_acreate_client(*args, **kwargs):"
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 190,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_acreate_client):"
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 224,
+      "content": "async def mock_acreate_client(*args, **kwargs):"
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 231,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_acreate_client):"
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 271,
+      "content": "async def mock_acreate_client(*args, **kwargs):"
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 278,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_acreate_client):"
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 316,
+      "content": "async def mock_acreate_client(*args, **kwargs):"
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 323,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_acreate_client):"
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 369,
+      "content": "async def mock_acreate_client(*args, **kwargs):"
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 376,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_acreate_client):"
+    },
+    {
+      "file": "tests/test_observability_middleware.py",
+      "line": 82,
+      "content": "with patch(\"api.dependencies.acreate_client\", side_effect=mock_get_client):"
+    }
+  ],
+  "get_supabase_client": [
+    {
+      "file": "api/dependencies.py",
+      "line": 38,
+      "content": "async def get_supabase_client() -> AsyncClient:"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 168,
+      "content": "Key differences from get_supabase_client():"
+    },
+    {
+      "file": "api/admin.py",
+      "line": 19,
+      "content": "from api.dependencies import get_supabase_client, get_supabase_service, verify_admin_authorization"
+    },
+    {
+      "file": "api/account.py",
+      "line": 20,
+      "content": "from api.dependencies import get_supabase_client"
+    },
+    {
+      "file": "api/account.py",
+      "line": 122,
+      "content": "supabase: AsyncClient = Depends(get_supabase_client),"
+    },
+    {
+      "file": "api/account.py",
+      "line": 320,
+      "content": "supabase: AsyncClient = Depends(get_supabase_client),"
+    },
+    {
+      "file": "api/account.py",
+      "line": 460,
+      "content": "supabase: AsyncClient = Depends(get_supabase_client)"
+    },
+    {
+      "file": "api/privacy.py",
+      "line": 14,
+      "content": "from api.dependencies import get_supabase_client"
+    },
+    {
+      "file": "api/privacy.py",
+      "line": 72,
+      "content": "supabase: AsyncClient = Depends(get_supabase_client)"
+    },
+    {
+      "file": "api/privacy.py",
+      "line": 147,
+      "content": "supabase: AsyncClient = Depends(get_supabase_client),"
+    },
+    {
+      "file": "api/privacy.py",
+      "line": 214,
+      "content": "supabase: AsyncClient = Depends(get_supabase_client),"
+    },
+    {
+      "file": "api/privacy.py",
+      "line": 300,
+      "content": "supabase: AsyncClient = Depends(get_supabase_client),"
+    },
+    {
+      "file": "api/data.py",
+      "line": 6,
+      "content": "from api.dependencies import get_supabase_client"
+    },
+    {
+      "file": "api/data.py",
+      "line": 20,
+      "content": "supabase: AsyncClient = Depends(get_supabase_client)"
+    },
+    {
+      "file": "api/predictions.py",
+      "line": 14,
+      "content": "from api.dependencies import get_supabase_client"
+    },
+    {
+      "file": "api/predictions.py",
+      "line": 364,
+      "content": "supabase: AsyncClient = Depends(get_supabase_client)"
+    },
+    {
+      "file": "api/predictions.py",
+      "line": 532,
+      "content": "supabase: AsyncClient = Depends(get_supabase_client)"
+    },
+    {
+      "file": "tools/list_users_with_checkins.py",
+      "line": 24,
+      "content": "def get_supabase_client() -> Client:"
+    },
+    {
+      "file": "tools/list_users_with_checkins.py",
+      "line": 50,
+      "content": "client = get_supabase_client()"
+    },
+    {
+      "file": "tools/seed_checkins.py",
+      "line": 29,
+      "content": "def get_supabase_client() -> Client:"
+    },
+    {
+      "file": "tools/seed_checkins.py",
+      "line": 146,
+      "content": "client = get_supabase_client()"
+    },
+    {
+      "file": "tests/test_profile_endpoint.py",
+      "line": 10,
+      "content": "from api.dependencies import get_supabase_client"
+    },
+    {
+      "file": "tests/test_profile_endpoint.py",
+      "line": 81,
+      "content": "app.dependency_overrides[get_supabase_client] = override_get_supabase"
+    },
+    {
+      "file": "tests/test_profile_endpoint.py",
+      "line": 110,
+      "content": "app.dependency_overrides[get_supabase_client] = override_get_supabase"
+    },
+    {
+      "file": "tests/test_profile_endpoint.py",
+      "line": 129,
+      "content": "app.dependency_overrides[get_supabase_client] = override_get_supabase"
+    },
+    {
+      "file": "tests/test_profile_endpoint.py",
+      "line": 148,
+      "content": "app.dependency_overrides[get_supabase_client] = override_get_supabase"
+    },
+    {
+      "file": "tests/test_profile_endpoint.py",
+      "line": 167,
+      "content": "app.dependency_overrides[get_supabase_client] = override_get_supabase"
+    },
+    {
+      "file": "tests/test_profile_endpoint.py",
+      "line": 187,
+      "content": "app.dependency_overrides[get_supabase_client] = override_get_supabase"
+    },
+    {
+      "file": "tests/test_profile_endpoint.py",
+      "line": 205,
+      "content": "app.dependency_overrides[get_supabase_client] = override_get_supabase"
+    },
+    {
+      "file": "tests/test_profile_endpoint.py",
+      "line": 225,
+      "content": "app.dependency_overrides[get_supabase_client] = override_get_supabase"
+    },
+    {
+      "file": "tests/conftest.py",
+      "line": 124,
+      "content": "from api.dependencies import get_supabase_client"
+    },
+    {
+      "file": "tests/conftest.py",
+      "line": 139,
+      "content": "async def override_get_supabase_client():"
+    },
+    {
+      "file": "tests/conftest.py",
+      "line": 142,
+      "content": "app.dependency_overrides[get_supabase_client] = override_get_supabase_client"
+    }
+  ],
+  "get_supabase_service": [
+    {
+      "file": "api/dependencies.py",
+      "line": 40,
+      "content": "DEPRECATED: Use get_supabase_service_role_client() for admin operations."
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 47,
+      "content": "NOT be used for admin operations that bypass RLS. Use get_supabase_service_role_client()"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 86,
+      "content": "- Admin operations that bypass RLS (use get_supabase_service_role_client instead)"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 151,
+      "content": "async def get_supabase_service_role_client() -> AsyncClient:"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 188,
+      "content": "async def endpoint(supabase: AsyncClient = Depends(get_supabase_service_role_client)):"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 259,
+      "content": "async def get_supabase_service() -> AsyncGenerator[AsyncClient, None]:"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 280,
+      "content": "async def endpoint(supabase: AsyncClient = Depends(get_supabase_service)):"
+    },
+    {
+      "file": "api/admin.py",
+      "line": 19,
+      "content": "from api.dependencies import get_supabase_client, get_supabase_service, verify_admin_authorization"
+    },
+    {
+      "file": "api/admin.py",
+      "line": 114,
+      "content": "supabase: AsyncClient = Depends(get_supabase_service),"
+    },
+    {
+      "file": "api/admin.py",
+      "line": 124,
+      "content": "The endpoint uses a Supabase service role client (injected via get_supabase_service"
+    },
+    {
+      "file": "api/admin.py",
+      "line": 251,
+      "content": "supabase: AsyncClient = Depends(get_supabase_service),"
+    },
+    {
+      "file": "api/admin.py",
+      "line": 485,
+      "content": "supabase: AsyncClient = Depends(get_supabase_service),"
+    },
+    {
+      "file": "api/admin.py",
+      "line": 554,
+      "content": "supabase: AsyncClient = Depends(get_supabase_service),"
+    },
+    {
+      "file": "api/admin.py",
+      "line": 684,
+      "content": "supabase: AsyncClient = Depends(get_supabase_service),"
+    },
+    {
+      "file": "api/admin.py",
+      "line": 860,
+      "content": "supabase: AsyncClient = Depends(get_supabase_service),"
+    },
+    {
+      "file": "api/admin.py",
+      "line": 1053,
+      "content": "supabase: AsyncClient = Depends(get_supabase_service),"
+    },
+    {
+      "file": "api/admin.py",
+      "line": 1122,
+      "content": "supabase: AsyncClient = Depends(get_supabase_service),"
+    },
+    {
+      "file": "api/admin.py",
+      "line": 1175,
+      "content": "supabase: AsyncClient = Depends(get_supabase_service),"
+    }
+  ],
+  "get_supabase_anon_auth_client": [
+    {
+      "file": "api/dependencies.py",
+      "line": 74,
+      "content": "async def get_supabase_anon_auth_client() -> AsyncClient:"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 101,
+      "content": "async def endpoint(supabase_anon: AsyncClient = Depends(get_supabase_anon_auth_client)):"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 165,
+      "content": "- User JWT validation (use get_supabase_anon_auth_client instead)"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 354,
+      "content": "supabase_anon: AsyncClient = Depends(get_supabase_anon_auth_client)"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 359,
+      "content": "CRITICAL FIX: Now uses get_supabase_anon_auth_client() for user JWT validation."
+    }
+  ],
+  "get_supabase_service_role_client": [
+    {
+      "file": "api/dependencies.py",
+      "line": 40,
+      "content": "DEPRECATED: Use get_supabase_service_role_client() for admin operations."
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 47,
+      "content": "NOT be used for admin operations that bypass RLS. Use get_supabase_service_role_client()"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 86,
+      "content": "- Admin operations that bypass RLS (use get_supabase_service_role_client instead)"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 151,
+      "content": "async def get_supabase_service_role_client() -> AsyncClient:"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 188,
+      "content": "async def endpoint(supabase: AsyncClient = Depends(get_supabase_service_role_client)):"
+    }
+  ],
+  "verify_admin_authorization": [
+    {
+      "file": "api/dependencies.py",
+      "line": 352,
+      "content": "async def verify_admin_authorization("
+    },
+    {
+      "file": "api/admin.py",
+      "line": 19,
+      "content": "from api.dependencies import get_supabase_client, get_supabase_service, verify_admin_authorization"
+    },
+    {
+      "file": "api/admin.py",
+      "line": 115,
+      "content": "is_admin: bool = Depends(verify_admin_authorization)"
+    },
+    {
+      "file": "api/admin.py",
+      "line": 252,
+      "content": "is_admin: bool = Depends(verify_admin_authorization)"
+    },
+    {
+      "file": "api/admin.py",
+      "line": 486,
+      "content": "is_admin: bool = Depends(verify_admin_authorization)"
+    },
+    {
+      "file": "api/admin.py",
+      "line": 555,
+      "content": "is_admin: bool = Depends(verify_admin_authorization)"
+    },
+    {
+      "file": "api/admin.py",
+      "line": 685,
+      "content": "is_admin: bool = Depends(verify_admin_authorization)"
+    },
+    {
+      "file": "api/admin.py",
+      "line": 861,
+      "content": "is_admin: bool = Depends(verify_admin_authorization)"
+    },
+    {
+      "file": "api/admin.py",
+      "line": 1054,
+      "content": "is_admin: bool = Depends(verify_admin_authorization)"
+    },
+    {
+      "file": "api/admin.py",
+      "line": 1123,
+      "content": "is_admin: bool = Depends(verify_admin_authorization)"
+    },
+    {
+      "file": "api/admin.py",
+      "line": 1176,
+      "content": "is_admin: bool = Depends(verify_admin_authorization)"
+    }
+  ],
+  "SUPABASE_ANON_KEY": [
+    {
+      "file": "diagnostic_signup.py",
+      "line": 4,
+      "content": "ANON_KEY = os.getenv(\"SUPABASE_ANON_KEY\") or \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd0anRobW92dmZwYWVranRseG92Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM3NzE5NTksImV4cCI6MjA3OTEzMTk1OX0.B899huV7-OPoCugHEAGW2nk4F6PRo6ghR2J2iYA_g0k\""
+    },
+    {
+      "file": "diagnostic_signup.py",
+      "line": 9,
+      "content": "print(\"ERRO: defina SUPABASE_ANON_KEY no ambiente antes de rodar.\")"
+    },
+    {
+      "file": "diagnostic_auth_call.py",
+      "line": 4,
+      "content": "ANON_KEY = os.getenv(\"SUPABASE_ANON_KEY\") or \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd0anRobW92dmZwYWVranRseG92Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM3NzE5NTksImV4cCI6MjA3OTEzMTk1OX0.B899huV7-OPoCugHEAGW2nk4F6PRo6ghR2J2iYA_g0k\""
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 97,
+      "content": "HTTPException: If SUPABASE_URL or SUPABASE_ANON_KEY are not configured"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 108,
+      "content": "anon_key: str = os.environ.get(\"SUPABASE_ANON_KEY\")"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 115,
+      "content": "error_msg = \"Vari\u00e1veis de ambiente SUPABASE_URL ou SUPABASE_ANON_KEY n\u00e3o configuradas no servidor.\""
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 118,
+      "content": "logger.error(f\"SUPABASE_ANON_KEY configured: {bool(anon_key)}\")"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 124,
+      "content": "f\"SUPABASE_ANON_KEY inv\u00e1lida! \""
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 128,
+      "content": "raise HTTPException(status_code=500, detail=\"Configura\u00e7\u00e3o SUPABASE_ANON_KEY inv\u00e1lida\")"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 139,
+      "content": "monkeypatch.setenv(\"SUPABASE_ANON_KEY\", mock_anon_key)"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 247,
+      "content": "monkeypatch.delenv(\"SUPABASE_ANON_KEY\", raising=False)"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 262,
+      "content": "assert \"SUPABASE_ANON_KEY\" in response.json()[\"detail\"]"
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 108,
+      "content": "monkeypatch.setenv(\"SUPABASE_ANON_KEY\", mock_anon_key)"
+    }
+  ],
+  "SUPABASE_SERVICE_KEY": [
+    {
+      "file": "data_generator.py",
+      "line": 283,
+      "content": "detail=\"Invalid API key \u2013 cliente Supabase deve usar SUPABASE_SERVICE_KEY\""
+    },
+    {
+      "file": "diagnostic_auth_call.py",
+      "line": 5,
+      "content": "SERVICE_KEY = os.getenv(\"SUPABASE_SERVICE_KEY\") or \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd0anRobW92dmZwYWVranRseG92Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2Mzc3MTk1OSwiZXhwIjoyMDc5MTMxOTU5fQ.L6H-7slonmcB3ewyyN8eFIrXOQHcK9DskXaUhrJJrzQ\""
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 53,
+      "content": "key: str = os.environ.get(\"SUPABASE_SERVICE_KEY\")"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 59,
+      "content": "logger.error(f\"SUPABASE_SERVICE_KEY configured: {bool(key)}\")"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 195,
+      "content": "key: str = os.environ.get(\"SUPABASE_SERVICE_KEY\")"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 211,
+      "content": "logger.error(f\"SUPABASE_SERVICE_KEY configured: {bool(key)}\")"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 217,
+      "content": "f\"CRITICAL: SUPABASE_SERVICE_KEY appears to be invalid! \""
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 229,
+      "content": "error_msg = \"SUPABASE_SERVICE_KEY is not a valid JWT token - should start with 'eyJ'\""
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 264,
+      "content": "admin-level privileges using SUPABASE_SERVICE_KEY. This bypasses Row Level"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 287,
+      "content": "key: str = os.environ.get(\"SUPABASE_SERVICE_KEY\")"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 302,
+      "content": "logger.error(f\"SUPABASE_SERVICE_KEY configured: {bool(key)}\")"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 308,
+      "content": "f\"CRITICAL: SUPABASE_SERVICE_KEY appears to be invalid! \""
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 320,
+      "content": "error_msg = \"SUPABASE_SERVICE_KEY is not a valid JWT token - should start with 'eyJ'\""
+    },
+    {
+      "file": "api/admin.py",
+      "line": 157,
+      "content": "# Note: supabase parameter is a service client with admin privileges (uses SUPABASE_SERVICE_KEY)"
+    },
+    {
+      "file": "api/privacy.py",
+      "line": 49,
+      "content": "service_key = os.getenv(\"SUPABASE_SERVICE_KEY\")"
+    },
+    {
+      "file": "api/predictions.py",
+      "line": 398,
+      "content": "if not os.environ.get(\"SUPABASE_URL\") or not os.environ.get(\"SUPABASE_SERVICE_KEY\"):"
+    },
+    {
+      "file": "api/predictions.py",
+      "line": 402,
+      "content": "detail=\"Supabase environment variables (SUPABASE_URL, SUPABASE_SERVICE_KEY) not configured\""
+    },
+    {
+      "file": "api/predictions.py",
+      "line": 551,
+      "content": "if not os.environ.get(\"SUPABASE_URL\") or not os.environ.get(\"SUPABASE_SERVICE_KEY\"):"
+    },
+    {
+      "file": "api/predictions.py",
+      "line": 555,
+      "content": "detail=\"Supabase environment variables (SUPABASE_URL, SUPABASE_SERVICE_KEY) not configured\""
+    },
+    {
+      "file": "tools/list_users_with_checkins.py",
+      "line": 10,
+      "content": "- SUPABASE_SERVICE_KEY environment variable"
+    },
+    {
+      "file": "tools/list_users_with_checkins.py",
+      "line": 15,
+      "content": "export SUPABASE_SERVICE_KEY=\"your-service-role-key\""
+    },
+    {
+      "file": "tools/list_users_with_checkins.py",
+      "line": 35,
+      "content": "key = os.environ.get(\"SUPABASE_SERVICE_KEY\")"
+    },
+    {
+      "file": "tools/list_users_with_checkins.py",
+      "line": 39,
+      "content": "print(\"Please set SUPABASE_URL and SUPABASE_SERVICE_KEY\", file=sys.stderr)"
+    },
+    {
+      "file": "tools/seed_checkins.py",
+      "line": 10,
+      "content": "- SUPABASE_SERVICE_KEY environment variable"
+    },
+    {
+      "file": "tools/seed_checkins.py",
+      "line": 15,
+      "content": "export SUPABASE_SERVICE_KEY=\"your-service-role-key\""
+    },
+    {
+      "file": "tools/seed_checkins.py",
+      "line": 40,
+      "content": "key = os.environ.get(\"SUPABASE_SERVICE_KEY\")"
+    },
+    {
+      "file": "tools/seed_checkins.py",
+      "line": 44,
+      "content": "print(\"Please set SUPABASE_URL and SUPABASE_SERVICE_KEY\", file=sys.stderr)"
+    },
+    {
+      "file": "jobs/scheduled_deletion.py",
+      "line": 25,
+      "content": "key = os.environ.get(\"SUPABASE_SERVICE_KEY\")"
+    },
+    {
+      "file": "jobs/scheduled_deletion.py",
+      "line": 28,
+      "content": "raise ValueError(\"SUPABASE_URL and SUPABASE_SERVICE_KEY must be set\")"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 138,
+      "content": "monkeypatch.setenv(\"SUPABASE_SERVICE_KEY\", mock_service_key)"
+    },
+    {
+      "file": "tests/test_admin_endpoints.py",
+      "line": 245,
+      "content": "monkeypatch.setenv(\"SUPABASE_SERVICE_KEY\", mock_service_key)"
+    },
+    {
+      "file": "tests/test_account_endpoints.py",
+      "line": 87,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-service-key\""
+    },
+    {
+      "file": "tests/test_account_endpoints.py",
+      "line": 143,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-service-key\""
+    },
+    {
+      "file": "tests/test_account_endpoints.py",
+      "line": 161,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-service-key\""
+    },
+    {
+      "file": "tests/test_account_endpoints.py",
+      "line": 219,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-service-key\""
+    },
+    {
+      "file": "tests/test_account_endpoints.py",
+      "line": 281,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-service-key\""
+    },
+    {
+      "file": "tests/test_account_endpoints.py",
+      "line": 307,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-service-key\""
+    },
+    {
+      "file": "tests/test_account_endpoints.py",
+      "line": 340,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-service-key\""
+    },
+    {
+      "file": "tests/test_account_endpoints.py",
+      "line": 375,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-service-key\""
+    },
+    {
+      "file": "tests/test_account_endpoints.py",
+      "line": 391,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-service-key\""
+    },
+    {
+      "file": "tests/test_admin_endpoints_additional.py",
+      "line": 107,
+      "content": "monkeypatch.setenv(\"SUPABASE_SERVICE_KEY\", mock_service_key)"
+    },
+    {
+      "file": "tests/test_privacy_endpoints.py",
+      "line": 65,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-service-key\""
+    },
+    {
+      "file": "tests/test_privacy_endpoints.py",
+      "line": 94,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-service-key\""
+    },
+    {
+      "file": "tests/test_privacy_endpoints.py",
+      "line": 115,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-service-key\""
+    },
+    {
+      "file": "tests/test_privacy_endpoints.py",
+      "line": 133,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"correct-service-key\""
+    },
+    {
+      "file": "tests/test_privacy_endpoints.py",
+      "line": 152,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-service-key\""
+    },
+    {
+      "file": "tests/test_privacy_endpoints.py",
+      "line": 206,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-service-key\""
+    },
+    {
+      "file": "tests/test_privacy_endpoints.py",
+      "line": 239,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-service-key\""
+    },
+    {
+      "file": "tests/test_privacy_endpoints.py",
+      "line": 256,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-service-key\""
+    },
+    {
+      "file": "tests/test_privacy_endpoints.py",
+      "line": 299,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-service-key\""
+    },
+    {
+      "file": "tests/test_privacy_endpoints.py",
+      "line": 332,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-service-key\""
+    },
+    {
+      "file": "tests/test_uuid_validation.py",
+      "line": 58,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-key\""
+    },
+    {
+      "file": "tests/test_uuid_validation.py",
+      "line": 95,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-key\""
+    },
+    {
+      "file": "tests/test_uuid_validation.py",
+      "line": 112,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-key\""
+    },
+    {
+      "file": "tests/test_uuid_validation.py",
+      "line": 155,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-key\""
+    },
+    {
+      "file": "tests/test_uuid_validation.py",
+      "line": 193,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-key\""
+    },
+    {
+      "file": "tests/test_uuid_validation.py",
+      "line": 214,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-key\""
+    },
+    {
+      "file": "tests/test_uuid_validation.py",
+      "line": 243,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-key\""
+    },
+    {
+      "file": "tests/test_uuid_validation.py",
+      "line": 286,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-key\""
+    },
+    {
+      "file": "tests/test_rate_limiting.py",
+      "line": 13,
+      "content": "os.environ[\"SUPABASE_SERVICE_KEY\"] = \"test-key\""
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 69,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-key\""
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 130,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-key\""
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 188,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-key\""
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 229,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-key\""
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 244,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-key\""
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 276,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-key\""
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 321,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-key\""
+    },
+    {
+      "file": "tests/test_predictions_endpoint.py",
+      "line": 374,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-key\""
+    },
+    {
+      "file": "tests/conftest.py",
+      "line": 14,
+      "content": "os.environ[\"SUPABASE_SERVICE_KEY\"] = \"test-key\""
+    },
+    {
+      "file": "tests/test_observability_middleware.py",
+      "line": 58,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-key\""
+    },
+    {
+      "file": "tests/test_observability_middleware.py",
+      "line": 96,
+      "content": "\"SUPABASE_SERVICE_KEY\": \"test-service-key\""
+    }
+  ],
+  "/auth/v1/user": [
+    {
+      "file": "diagnostic_auth_call.py",
+      "line": 12,
+      "content": "endpoint = SUPABASE_URL.rstrip(\"/\") + \"/auth/v1/user\""
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 79,
+      "content": "It uses the ANON (public) key, which is the correct key type for the /auth/v1/user endpoint."
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 89,
+      "content": "The Supabase auth endpoint /auth/v1/user expects:"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 146,
+      "content": "logger.info(\"ANON client will call /auth/v1/user with apikey=ANON_KEY\")"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 166,
+      "content": "- The /auth/v1/user endpoint expects ANON KEY, not SERVICE KEY"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 360,
+      "content": "The /auth/v1/user endpoint requires ANON KEY (apikey header) + user JWT (Bearer token),"
+    },
+    {
+      "file": "api/dependencies.py",
+      "line": 397,
+      "content": "# This call goes to /auth/v1/user with:"
+    }
+  ]
+}

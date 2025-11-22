@@ -1,0 +1,583 @@
+[
+  {
+    "test_name": "test_export_patient_data",
+    "file": "unknown",
+    "line": "unknown",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\n    def test_export_patient_data():\n        \"\"\"Test exporting patient data\"\"\"\n        test_user_id = \"123e4567-e89b-12d3-a456-426614174000\"\n\n        profile_data = [{\n            \"id\": test_user_id,\n            \"email\": \"patient@example.com\",\n            \"role\": \"patient\",\n            \"is_admin\": False,\n            \"created_at\": \"2024-01-01T00:00:00Z\"\n        }]\n\n        mock_client = create_mock_supabase_client(\n            return_data=profile_data,\n            auth_user=MockUser(test_user_id"
+  },
+  {
+    "test_name": "test_delete_request_therapist_with_patients",
+    "file": "unknown",
+    "line": "unknown",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\n    def test_delete_request_therapist_with_patients():\n        \"\"\"Test that therapist with active patients cannot delete account\"\"\"\n        test_user_id = \"123e4567-e89b-12d3-a456-426614174000\"\n\n        profile_data = [{\n            \"id\": test_user_id,\n            \"email\": \"therapist@example.com\",\n            \"role\": \"therapist\"\n        }]\n\n        mock_client = create_mock_supabase_client(\n            return_data=profile_data,\n            auth_user=MockUser(test_user_id, \"therapist@example.co"
+  },
+  {
+    "test_name": "test_delete_request_patient_success",
+    "file": "unknown",
+    "line": "unknown",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\n    def test_delete_request_patient_success():\n        \"\"\"Test successful deletion request for patient\"\"\"\n        test_user_id = \"123e4567-e89b-12d3-a456-426614174000\"\n\n        profile_data = [{\n            \"id\": test_user_id,\n            \"email\": \"patient@example.com\",\n            \"role\": \"patient\"\n        }]\n\n        mock_client = create_mock_supabase_client(\n            return_data=profile_data,\n            auth_user=MockUser(test_user_id, \"patient@example.com\")\n        )\n\n        # Setup d"
+  },
+  {
+    "test_name": "test_undo_delete_invalid_token",
+    "file": "test_account_endpoints.py",
+    "line": "309",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\n    def test_undo_delete_invalid_token():\n        \"\"\"Test undo delete with invalid token\"\"\"\n        mock_client = create_mock_supabase_client(return_data=[])\n\n        async def mock_client_factory(*args, **kwargs):\n            return mock_client\n\n        with patch.dict(os.environ, {\n            \"SUPABASE_URL\": \"https://test.supabase.co\",\n            \"SUPABASE_SERVICE_KEY\": \"test-service-key\"\n        }):\n>           with patch(\"api.dependencies.acreate_client\", side_effect=mock_client_factory)"
+  },
+  {
+    "test_name": "test_undo_delete_success",
+    "file": "unknown",
+    "line": "unknown",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\n    def test_undo_delete_success():\n        \"\"\"Test successful undo of deletion\"\"\"\n        test_user_id = \"123e4567-e89b-12d3-a456-426614174000\"\n        test_token = \"abc12345-e89b-12d3-a456-426614174999\"\n\n        # Future deletion date (still in grace period)\n        future_date = (datetime.now(timezone.utc) + timedelta(days=10)).isoformat()\n\n        profile_data = [{\n            \"id\": test_user_id,\n            \"email\": \"patient@example.com\",\n            \"deletion_scheduled_at\": future_date\n "
+  },
+  {
+    "test_name": "test_undo_delete_expired",
+    "file": "unknown",
+    "line": "unknown",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\n    def test_undo_delete_expired():\n        \"\"\"Test undo delete with expired token (past deletion date)\"\"\"\n        test_user_id = \"123e4567-e89b-12d3-a456-426614174000\"\n        test_token = \"abc12345-e89b-12d3-a456-426614174999\"\n\n        # Past deletion date (grace period expired)\n        past_date = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()\n\n        profile_data = [{\n            \"id\": test_user_id,\n            \"email\": \"patient@example.com\",\n            \"deletion_scheduled_"
+  },
+  {
+    "test_name": "TestAdminAuthentication.test_generate_data_without_auth_returns_401",
+    "file": "test_admin_endpoints.py",
+    "line": "151",
+    "error_type": "401 Invalid API key",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestAdminAuthentication object at 0x00000230ABA2BB10>, client = <starlette.testclient.TestClient object at 0x00000230ABC70CB0>, mock_env = None\n\n    def test_generate_data_without_auth_returns_401(self, client, mock_env):\n        \"\"\"Test that request without authorization header is rejected.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return create_mock_supabase_client()\n\n>       with patch(\"api.dependencies.acreate_client\", side_effect=moc"
+  },
+  {
+    "test_name": "TestAdminAuthentication.test_generate_data_with_invalid_token_returns_401",
+    "file": "test_admin_endpoints.py",
+    "line": "166",
+    "error_type": "401 Invalid API key",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestAdminAuthentication object at 0x00000230AB990410>, client = <starlette.testclient.TestClient object at 0x00000230ABAEC5A0>, mock_env = None\n\n    def test_generate_data_with_invalid_token_returns_401(self, client, mock_env):\n        \"\"\"Test that request with invalid token (no user) is rejected.\"\"\"\n        async def mock_create(*args, **kwargs):\n            # Return client with no user (auth.get_user returns None)\n            return create_mock_supabase_cli"
+  },
+  {
+    "test_name": "TestAdminAuthentication.test_generate_data_with_admin_email_succeeds",
+    "file": "test_admin_endpoints.py",
+    "line": "181",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestAdminAuthentication object at 0x00000230ABFD8B00>, client = <starlette.testclient.TestClient object at 0x00000230ABAED6A0>, mock_env = None\nadmin_user = <tests.test_admin_endpoints.MockUser object at 0x00000230AD2F0050>\n\n    def test_generate_data_with_admin_email_succeeds(self, client, mock_env, admin_user):\n        \"\"\"Test that request with admin email succeeds.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return create_mock_supabase_c"
+  },
+  {
+    "test_name": "TestAdminAuthentication.test_generate_data_with_admin_role_succeeds",
+    "file": "test_admin_endpoints.py",
+    "line": "199",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestAdminAuthentication object at 0x00000230ABFD88A0>, client = <starlette.testclient.TestClient object at 0x00000230ABAECC00>, mock_env = None\n\n    def test_generate_data_with_admin_role_succeeds(self, client, mock_env):\n        \"\"\"Test that request with admin role in user_metadata succeeds.\"\"\"\n        # User with different email but admin role\n        admin_role_user = MockUser(email=\"other@domain.com\", user_metadata={\"role\": \"admin\"})\n\n        async def mo"
+  },
+  {
+    "test_name": "TestAdminAuthentication.test_generate_data_with_non_admin_user_returns_403",
+    "file": "test_admin_endpoints.py",
+    "line": "214",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestAdminAuthentication object at 0x00000230AB8AB9B0>, client = <starlette.testclient.TestClient object at 0x00000230ABAEC160>, mock_env = None\nnon_admin_user = <tests.test_admin_endpoints.MockUser object at 0x00000230ABCDE710>\n\n    def test_generate_data_with_non_admin_user_returns_403(self, client, mock_env, non_admin_user):\n        \"\"\"Test that request with non-admin user returns 403 Forbidden.\"\"\"\n        async def mock_create(*args, **kwargs):\n           "
+  },
+  {
+    "test_name": "TestAdminAuthentication.test_generate_data_without_bearer_prefix_returns_401",
+    "file": "test_admin_endpoints.py",
+    "line": "230",
+    "error_type": "401 Invalid API key",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestAdminAuthentication object at 0x00000230AB9338A0>, client = <starlette.testclient.TestClient object at 0x00000230ABAECF30>, mock_env = None\n\n    def test_generate_data_without_bearer_prefix_returns_401(self, client, mock_env):\n        \"\"\"Test that authorization header without Bearer prefix is rejected.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return create_mock_supabase_client()\n\n>       with patch(\"api.dependencies.acreate_client\", "
+  },
+  {
+    "test_name": "TestAdminAuthentication.test_admin_auth_missing_anon_key_returns_500",
+    "file": "unknown",
+    "line": "unknown",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestAdminAuthentication object at 0x00000230AB933790>, client = <starlette.testclient.TestClient object at 0x00000230ABAED150>\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000230AD2C7950>\n\n    def test_admin_auth_missing_anon_key_returns_500(self, client, monkeypatch):\n        \"\"\"Test that missing ANON key raises configuration error.\"\"\"\n        # Set up environment without ANON key\n        mock_service_key = \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVC"
+  },
+  {
+    "test_name": "TestAdminAuthentication.test_admin_auth_uses_anon_client_not_service",
+    "file": "unknown",
+    "line": "unknown",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestAdminAuthentication object at 0x00000230AB912E50>, client = <starlette.testclient.TestClient object at 0x00000230ABAEFCE0>, mock_env = None\nadmin_user = <tests.test_admin_endpoints.MockUser object at 0x00000230AC01BE10>\n\n    def test_admin_auth_uses_anon_client_not_service(self, client, mock_env, admin_user):\n        \"\"\"Test that admin authentication uses ANON client, not SERVICE client.\"\"\"\n        anon_client_used = []\n\n        async def tracking_acreate"
+  },
+  {
+    "test_name": "TestDataGeneration.test_generate_data_default_parameters",
+    "file": "test_admin_endpoints.py",
+    "line": "302",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestDataGeneration object at 0x00000230AB990690>, client = <starlette.testclient.TestClient object at 0x00000230ABAEF350>, mock_env = None\nadmin_user = <tests.test_admin_endpoints.MockUser object at 0x00000230AD2B4180>\n\n    def test_generate_data_default_parameters(self, client, mock_env, admin_user):\n        \"\"\"Test data generation with default parameters.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return create_mock_supabase_client(mock_"
+  },
+  {
+    "test_name": "TestDataGeneration.test_generate_data_custom_parameters",
+    "file": "test_admin_endpoints.py",
+    "line": "325",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestDataGeneration object at 0x00000230AB990550>, client = <starlette.testclient.TestClient object at 0x00000230ABAEFAC0>, mock_env = None\nadmin_user = <tests.test_admin_endpoints.MockUser object at 0x00000230AD244290>\n\n    def test_generate_data_custom_parameters(self, client, mock_env, admin_user):\n        \"\"\"Test data generation with custom parameters.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return create_mock_supabase_client(mock_us"
+  },
+  {
+    "test_name": "TestDataGeneration.test_generate_data_invalid_mood_pattern",
+    "file": "test_admin_endpoints.py",
+    "line": "348",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestDataGeneration object at 0x00000230ABFD8510>, client = <starlette.testclient.TestClient object at 0x00000230ABDFC270>, mock_env = None\nadmin_user = <tests.test_admin_endpoints.MockUser object at 0x00000230ABDFC380>\n\n    def test_generate_data_invalid_mood_pattern(self, client, mock_env, admin_user):\n        \"\"\"Test that invalid mood pattern is rejected.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return create_mock_supabase_client(mock_"
+  },
+  {
+    "test_name": "TestDataGeneration.test_generate_data_validates_num_users_range",
+    "file": "test_admin_endpoints.py",
+    "line": "367",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestDataGeneration object at 0x00000230ABFD82B0>, client = <starlette.testclient.TestClient object at 0x00000230ABDFC5A0>, mock_env = None\nadmin_user = <tests.test_admin_endpoints.MockUser object at 0x00000230ABDFC160>\n\n    def test_generate_data_validates_num_users_range(self, client, mock_env, admin_user):\n        \"\"\"Test that num_users is validated within range.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return create_mock_supabase_clie"
+  },
+  {
+    "test_name": "TestDataGeneration.test_generate_data_validates_checkins_per_user_range",
+    "file": "test_admin_endpoints.py",
+    "line": "389",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestDataGeneration object at 0x00000230AB8AB770>, client = <starlette.testclient.TestClient object at 0x00000230ABDFC7C0>, mock_env = None\nadmin_user = <tests.test_admin_endpoints.MockUser object at 0x00000230AD23E450>\n\n    def test_generate_data_validates_checkins_per_user_range(self, client, mock_env, admin_user):\n        \"\"\"Test that checkins_per_user is validated within range.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return create_mo"
+  },
+  {
+    "test_name": "TestDataGeneration.test_generate_data_returns_user_ids",
+    "file": "test_admin_endpoints.py",
+    "line": "411",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestDataGeneration object at 0x00000230ABFDC8D0>, client = <starlette.testclient.TestClient object at 0x00000230ABDFC9E0>, mock_env = None\nadmin_user = <tests.test_admin_endpoints.MockUser object at 0x00000230AD23EC50>\n\n    def test_generate_data_returns_user_ids(self, client, mock_env, admin_user):\n        \"\"\"Test that generated user IDs are returned in response.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return create_mock_supabase_clien"
+  },
+  {
+    "test_name": "TestDataGeneration.test_generate_data_with_patients_and_therapists",
+    "file": "test_admin_endpoints.py",
+    "line": "435",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestDataGeneration object at 0x00000230ABFDC9E0>, client = <starlette.testclient.TestClient object at 0x00000230ABDFCC00>, mock_env = None\nadmin_user = <tests.test_admin_endpoints.MockUser object at 0x00000230AD2F8230>\n\n    def test_generate_data_with_patients_and_therapists(self, client, mock_env, admin_user):\n        \"\"\"Test data generation with specific patient and therapist counts.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return crea"
+  },
+  {
+    "test_name": "TestDataGeneration.test_generate_data_only_patients",
+    "file": "test_admin_endpoints.py",
+    "line": "458",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestDataGeneration object at 0x00000230ABFD3350>, client = <starlette.testclient.TestClient object at 0x00000230ABDFCE20>, mock_env = None\nadmin_user = <tests.test_admin_endpoints.MockUser object at 0x00000230AD2F8F50>\n\n    def test_generate_data_only_patients(self, client, mock_env, admin_user):\n        \"\"\"Test data generation with only patients.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return create_mock_supabase_client(mock_user=admin"
+  },
+  {
+    "test_name": "TestDataGeneration.test_generate_data_only_therapists",
+    "file": "test_admin_endpoints.py",
+    "line": "478",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestDataGeneration object at 0x00000230ABFD3550>, client = <starlette.testclient.TestClient object at 0x00000230ABDFD040>, mock_env = None\nadmin_user = <tests.test_admin_endpoints.MockUser object at 0x00000230AD2FD010>\n\n    def test_generate_data_only_therapists(self, client, mock_env, admin_user):\n        \"\"\"Test data generation with only therapists.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return create_mock_supabase_client(mock_user=a"
+  },
+  {
+    "test_name": "TestDataGeneration.test_generate_data_rejects_zero_users",
+    "file": "test_admin_endpoints.py",
+    "line": "500",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestDataGeneration object at 0x00000230ABFCE120>, client = <starlette.testclient.TestClient object at 0x00000230ABDFD260>, mock_env = None\nadmin_user = <tests.test_admin_endpoints.MockUser object at 0x00000230AD2FD390>\n\n    def test_generate_data_rejects_zero_users(self, client, mock_env, admin_user):\n        \"\"\"Test that requesting zero patients and zero therapists is rejected.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return create_mock"
+  },
+  {
+    "test_name": "TestDataGeneration.test_generate_data_with_legacy_num_users",
+    "file": "test_admin_endpoints.py",
+    "line": "518",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestDataGeneration object at 0x00000230ABFCE300>, client = <starlette.testclient.TestClient object at 0x00000230ABDFD480>, mock_env = None\nadmin_user = <tests.test_admin_endpoints.MockUser object at 0x00000230ABAC7520>\n\n    def test_generate_data_with_legacy_num_users(self, client, mock_env, admin_user):\n        \"\"\"Test backward compatibility with legacy num_users parameter.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return create_mock_sup"
+  },
+  {
+    "test_name": "TestStatsEndpoint.test_stats_without_auth_returns_401",
+    "file": "test_admin_endpoints.py",
+    "line": "648",
+    "error_type": "401 Invalid API key",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestStatsEndpoint object at 0x00000230AB990B90>, client = <starlette.testclient.TestClient object at 0x00000230ABDFD6A0>, mock_env = None\n\n    def test_stats_without_auth_returns_401(self, client, mock_env):\n        \"\"\"Test that request without authorization header is rejected.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return create_mock_supabase_client()\n\n>       with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):\n   "
+  },
+  {
+    "test_name": "TestStatsEndpoint.test_stats_with_invalid_token_returns_401",
+    "file": "test_admin_endpoints.py",
+    "line": "659",
+    "error_type": "401 Invalid API key",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestStatsEndpoint object at 0x00000230AB990CD0>, client = <starlette.testclient.TestClient object at 0x00000230ABDFD8C0>, mock_env = None\n\n    def test_stats_with_invalid_token_returns_401(self, client, mock_env):\n        \"\"\"Test that request with invalid token is rejected.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return create_mock_supabase_client(mock_user=None)\n\n>       with patch(\"api.dependencies.acreate_client\", side_effect=mock_cr"
+  },
+  {
+    "test_name": "TestStatsEndpoint.test_stats_with_valid_admin_returns_counts",
+    "file": "unknown",
+    "line": "unknown",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestStatsEndpoint object at 0x00000230ABFD9350>, client = <starlette.testclient.TestClient object at 0x00000230ABDFDAE0>, mock_env = None\nadmin_user = <tests.test_admin_endpoints.MockUser object at 0x00000230ABD5FB90>\n\n    def test_stats_with_valid_admin_returns_counts(self, client, mock_env, admin_user):\n        \"\"\"Test that stats endpoint returns correct counts for admin user.\"\"\"\n        # Create mock that returns count data\n        mock_client = MagicMock("
+  },
+  {
+    "test_name": "TestStatsEndpoint.test_stats_with_non_admin_returns_403",
+    "file": "test_admin_endpoints.py",
+    "line": "741",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestStatsEndpoint object at 0x00000230ABFD95B0>, client = <starlette.testclient.TestClient object at 0x00000230ABDFDD00>, mock_env = None\nnon_admin_user = <tests.test_admin_endpoints.MockUser object at 0x00000230ABD5FF50>\n\n    def test_stats_with_non_admin_returns_403(self, client, mock_env, non_admin_user):\n        \"\"\"Test that non-admin user gets 403 Forbidden.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return create_mock_supabase_client"
+  },
+  {
+    "test_name": "TestStatsEndpoint.test_stats_handles_zero_counts",
+    "file": "unknown",
+    "line": "unknown",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestStatsEndpoint object at 0x00000230AB8AB1D0>, client = <starlette.testclient.TestClient object at 0x00000230ABDFDF20>, mock_env = None\nadmin_user = <tests.test_admin_endpoints.MockUser object at 0x00000230AD278AA0>\n\n    def test_stats_handles_zero_counts(self, client, mock_env, admin_user):\n        \"\"\"Test that stats endpoint handles zero counts correctly.\"\"\"\n        mock_client = MagicMock()\n\n        class MockCountResponse:\n            def __init__(self,"
+  },
+  {
+    "test_name": "TestUsersEndpoint.test_users_without_auth_returns_401",
+    "file": "test_admin_endpoints.py",
+    "line": "806",
+    "error_type": "401 Invalid API key",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestUsersEndpoint object at 0x00000230AB990E10>, client = <starlette.testclient.TestClient object at 0x00000230ABDFE140>, mock_env = None\n\n    def test_users_without_auth_returns_401(self, client, mock_env):\n        \"\"\"Test that request without authorization header is rejected.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return create_mock_supabase_client()\n\n>       with patch(\"api.dependencies.acreate_client\", side_effect=mock_create):\n   "
+  },
+  {
+    "test_name": "TestUsersEndpoint.test_users_with_invalid_token_returns_401",
+    "file": "test_admin_endpoints.py",
+    "line": "817",
+    "error_type": "401 Invalid API key",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestUsersEndpoint object at 0x00000230AB990F50>, client = <starlette.testclient.TestClient object at 0x00000230ABDFE360>, mock_env = None\n\n    def test_users_with_invalid_token_returns_401(self, client, mock_env):\n        \"\"\"Test that request with invalid token is rejected.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return create_mock_supabase_client(mock_user=None)\n\n>       with patch(\"api.dependencies.acreate_client\", side_effect=mock_cr"
+  },
+  {
+    "test_name": "TestUsersEndpoint.test_users_with_valid_admin_returns_users_list",
+    "file": "unknown",
+    "line": "unknown",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestUsersEndpoint object at 0x00000230ABFD96E0>, client = <starlette.testclient.TestClient object at 0x00000230ABDFE580>, mock_env = None\nadmin_user = <tests.test_admin_endpoints.MockUser object at 0x00000230AD279C80>\n\n    def test_users_with_valid_admin_returns_users_list(self, client, mock_env, admin_user):\n        \"\"\"Test that users endpoint returns list of users for admin.\"\"\"\n        mock_client = MagicMock()\n\n        # Mock users data\n        users_data "
+  },
+  {
+    "test_name": "TestUsersEndpoint.test_users_with_non_admin_returns_403",
+    "file": "test_admin_endpoints.py",
+    "line": "882",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestUsersEndpoint object at 0x00000230ABFD9810>, client = <starlette.testclient.TestClient object at 0x00000230ABDFE7A0>, mock_env = None\nnon_admin_user = <tests.test_admin_endpoints.MockUser object at 0x00000230AD274190>\n\n    def test_users_with_non_admin_returns_403(self, client, mock_env, non_admin_user):\n        \"\"\"Test that non-admin user gets 403 Forbidden.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return create_mock_supabase_client"
+  },
+  {
+    "test_name": "TestUsersEndpoint.test_users_returns_empty_list_when_no_users",
+    "file": "unknown",
+    "line": "unknown",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestUsersEndpoint object at 0x00000230ABFE0050>, client = <starlette.testclient.TestClient object at 0x00000230ABDFE9C0>, mock_env = None\nadmin_user = <tests.test_admin_endpoints.MockUser object at 0x00000230AD2745F0>\n\n    def test_users_returns_empty_list_when_no_users(self, client, mock_env, admin_user):\n        \"\"\"Test that users endpoint returns empty list when no users exist.\"\"\"\n        mock_client = MagicMock()\n\n        async def mock_execute():\n       "
+  },
+  {
+    "test_name": "TestDangerZoneCleanup.test_danger_zone_cleanup_without_auth_returns_401",
+    "file": "test_admin_endpoints.py",
+    "line": "1050",
+    "error_type": "401 Invalid API key",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestDangerZoneCleanup object at 0x00000230AB9911D0>, client = <starlette.testclient.TestClient object at 0x00000230ABDFEBE0>, mock_env = None\n\n    def test_danger_zone_cleanup_without_auth_returns_401(self, client, mock_env):\n        \"\"\"Test that request without authorization header is rejected.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return create_mock_supabase_client()\n\n>       with patch(\"api.dependencies.acreate_client\", side_effect"
+  },
+  {
+    "test_name": "TestDangerZoneCleanup.test_danger_zone_cleanup_with_non_admin_returns_403",
+    "file": "test_admin_endpoints.py",
+    "line": "1064",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestDangerZoneCleanup object at 0x00000230AB991310>, client = <starlette.testclient.TestClient object at 0x00000230ABDFEE00>, mock_env = None\nnon_admin_user = <tests.test_admin_endpoints.MockUser object at 0x00000230AD2945F0>\n\n    def test_danger_zone_cleanup_with_non_admin_returns_403(self, client, mock_env, non_admin_user):\n        \"\"\"Test that non-admin user gets 403 Forbidden.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return create_mo"
+  },
+  {
+    "test_name": "TestDangerZoneCleanup.test_danger_zone_cleanup_invalid_action_returns_400",
+    "file": "test_admin_endpoints.py",
+    "line": "1079",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestDangerZoneCleanup object at 0x00000230ABFD9BA0>, client = <starlette.testclient.TestClient object at 0x00000230ABDFF020>, mock_env = None\nadmin_user = <tests.test_admin_endpoints.MockUser object at 0x00000230AC0CD550>\n\n    def test_danger_zone_cleanup_invalid_action_returns_400(self, client, mock_env, admin_user):\n        \"\"\"Test that invalid action returns 422 (Pydantic validation error).\"\"\"\n        async def mock_create(*args, **kwargs):\n            ret"
+  },
+  {
+    "test_name": "TestDangerZoneCleanup.test_danger_zone_cleanup_delete_last_n_without_quantity_returns_400",
+    "file": "test_admin_endpoints.py",
+    "line": "1095",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestDangerZoneCleanup object at 0x00000230ABFD9CD0>, client = <starlette.testclient.TestClient object at 0x00000230ABDFF240>, mock_env = None\nadmin_user = <tests.test_admin_endpoints.MockUser object at 0x00000230AC064BD0>\n\n    def test_danger_zone_cleanup_delete_last_n_without_quantity_returns_400(self, client, mock_env, admin_user):\n        \"\"\"Test that delete_last_n without quantity returns 400.\"\"\"\n        async def mock_create(*args, **kwargs):\n           "
+  },
+  {
+    "test_name": "TestDangerZoneCleanup.test_danger_zone_cleanup_delete_by_mood_without_pattern_returns_400",
+    "file": "test_admin_endpoints.py",
+    "line": "1110",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestDangerZoneCleanup object at 0x00000230AB8AAD50>, client = <starlette.testclient.TestClient object at 0x00000230ABDFF460>, mock_env = None\nadmin_user = <tests.test_admin_endpoints.MockUser object at 0x00000230AD25CF30>\n\n    def test_danger_zone_cleanup_delete_by_mood_without_pattern_returns_400(self, client, mock_env, admin_user):\n        \"\"\"Test that delete_by_mood without mood_pattern returns 400.\"\"\"\n        async def mock_create(*args, **kwargs):\n      "
+  },
+  {
+    "test_name": "TestDangerZoneCleanup.test_danger_zone_cleanup_delete_before_date_without_date_returns_400",
+    "file": "test_admin_endpoints.py",
+    "line": "1125",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestDangerZoneCleanup object at 0x00000230AB933DF0>, client = <starlette.testclient.TestClient object at 0x00000230ABDFF680>, mock_env = None\nadmin_user = <tests.test_admin_endpoints.MockUser object at 0x00000230AD25E970>\n\n    def test_danger_zone_cleanup_delete_before_date_without_date_returns_400(self, client, mock_env, admin_user):\n        \"\"\"Test that delete_before_date without before_date returns 400.\"\"\"\n        async def mock_create(*args, **kwargs):\n  "
+  },
+  {
+    "test_name": "TestDangerZoneCleanup.test_danger_zone_cleanup_delete_all_success",
+    "file": "unknown",
+    "line": "unknown",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestDangerZoneCleanup object at 0x00000230ABFDC6B0>, client = <starlette.testclient.TestClient object at 0x00000230ABDFF8A0>, mock_env = None\nadmin_user = <tests.test_admin_endpoints.MockUser object at 0x00000230AD25DFD0>\n\n    def test_danger_zone_cleanup_delete_all_success(self, client, mock_env, admin_user):\n        \"\"\"Test successful delete_all action.\"\"\"\n        mock_client = MagicMock()\n\n        # Mock test patients\n        test_patients = [\n            "
+  },
+  {
+    "test_name": "TestDangerZoneCleanup.test_danger_zone_cleanup_delete_last_n_success",
+    "file": "unknown",
+    "line": "unknown",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestDangerZoneCleanup object at 0x00000230AB961350>, client = <starlette.testclient.TestClient object at 0x00000230ABDFFAC0>, mock_env = None\nadmin_user = <tests.test_admin_endpoints.MockUser object at 0x00000230AD25E740>\n\n    def test_danger_zone_cleanup_delete_last_n_success(self, client, mock_env, admin_user):\n        \"\"\"Test successful delete_last_n action.\"\"\"\n        mock_client = MagicMock()\n\n        # Mock test patients (5 total, delete 2 most recent)\n"
+  },
+  {
+    "test_name": "TestDangerZoneCleanup.test_danger_zone_cleanup_no_test_patients_found",
+    "file": "unknown",
+    "line": "unknown",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints.TestDangerZoneCleanup object at 0x00000230AB961550>, client = <starlette.testclient.TestClient object at 0x00000230ABDFFCE0>, mock_env = None\nadmin_user = <tests.test_admin_endpoints.MockUser object at 0x00000230AD25FA10>\n\n    def test_danger_zone_cleanup_no_test_patients_found(self, client, mock_env, admin_user):\n        \"\"\"Test when no test patients are found.\"\"\"\n        mock_client = MagicMock()\n\n        async def mock_execute():\n            return MockSup"
+  },
+  {
+    "test_name": "TestCleanupDataEndpoint.test_cleanup_data_without_auth_returns_401",
+    "file": "test_admin_endpoints_additional.py",
+    "line": "120",
+    "error_type": "401 Invalid API key",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints_additional.TestCleanupDataEndpoint object at 0x00000230AB991590>, client = <starlette.testclient.TestClient object at 0x00000230ABDFFF00>, mock_env = None\n\n    def test_cleanup_data_without_auth_returns_401(self, client, mock_env):\n        \"\"\"Test that request without authorization header is rejected.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return create_mock_supabase_client()\n\n>       with patch(\"api.dependencies.acreate_client\", side_"
+  },
+  {
+    "test_name": "TestCleanupDataEndpoint.test_cleanup_data_with_invalid_token_returns_401",
+    "file": "test_admin_endpoints_additional.py",
+    "line": "134",
+    "error_type": "401 Invalid API key",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints_additional.TestCleanupDataEndpoint object at 0x00000230AB991450>, client = <starlette.testclient.TestClient object at 0x00000230AD3E0160>, mock_env = None\n\n    def test_cleanup_data_with_invalid_token_returns_401(self, client, mock_env):\n        \"\"\"Test that request with invalid token is rejected.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return create_mock_supabase_client(mock_user=None)\n\n>       with patch(\"api.dependencies.acreate_clie"
+  },
+  {
+    "test_name": "TestCleanupDataEndpoint.test_cleanup_data_with_non_admin_returns_403",
+    "file": "test_admin_endpoints_additional.py",
+    "line": "149",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints_additional.TestCleanupDataEndpoint object at 0x00000230ABFD83E0>, client = <starlette.testclient.TestClient object at 0x00000230AD3E0380>, mock_env = None\nnon_admin_user = <tests.test_admin_endpoints_additional.MockUser object at 0x00000230AD3DC1A0>\n\n    def test_cleanup_data_with_non_admin_returns_403(self, client, mock_env, non_admin_user):\n        \"\"\"Test that non-admin user gets 403 Forbidden.\"\"\"\n        async def mock_create(*args, **kwargs):\n           "
+  },
+  {
+    "test_name": "TestCleanupDataEndpoint.test_cleanup_data_without_confirmation_returns_400",
+    "file": "test_admin_endpoints_additional.py",
+    "line": "164",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints_additional.TestCleanupDataEndpoint object at 0x00000230ABFDA520>, client = <starlette.testclient.TestClient object at 0x00000230AD3E05A0>, mock_env = None\nadmin_user = <tests.test_admin_endpoints_additional.MockUser object at 0x00000230ABCDFED0>\n\n    def test_cleanup_data_without_confirmation_returns_400(self, client, mock_env, admin_user):\n        \"\"\"Test that cleanup without confirmation is rejected.\"\"\"\n        async def mock_create(*args, **kwargs):\n      "
+  },
+  {
+    "test_name": "TestCleanupDataEndpoint.test_cleanup_data_success",
+    "file": "test_admin_endpoints_additional.py",
+    "line": "185",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints_additional.TestCleanupDataEndpoint object at 0x00000230ABFE1010>, client = <starlette.testclient.TestClient object at 0x00000230AD3E07C0>, mock_env = None\nadmin_user = <tests.test_admin_endpoints_additional.MockUser object at 0x00000230AD340050>\n\n    def test_cleanup_data_success(self, client, mock_env, admin_user):\n        \"\"\"Test successful cleanup operation.\"\"\"\n        # Mock synthetic users\n        synthetic_users = [\n            {\"id\": \"user-1\", \"email\":"
+  },
+  {
+    "test_name": "TestSyntheticDataCleanEndpoint.test_synthetic_clean_without_auth_returns_401",
+    "file": "test_admin_endpoints_additional.py",
+    "line": "206",
+    "error_type": "401 Invalid API key",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints_additional.TestSyntheticDataCleanEndpoint object at 0x00000230AB9916D0>, client = <starlette.testclient.TestClient object at 0x00000230AD3E09E0>, mock_env = None\n\n    def test_synthetic_clean_without_auth_returns_401(self, client, mock_env):\n        \"\"\"Test that request without authorization header is rejected.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return create_mock_supabase_client()\n\n>       with patch(\"api.dependencies.acreate_clie"
+  },
+  {
+    "test_name": "TestSyntheticDataCleanEndpoint.test_synthetic_clean_with_non_admin_returns_403",
+    "file": "test_admin_endpoints_additional.py",
+    "line": "219",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints_additional.TestSyntheticDataCleanEndpoint object at 0x00000230AB991810>, client = <starlette.testclient.TestClient object at 0x00000230AD3E0C00>, mock_env = None\nnon_admin_user = <tests.test_admin_endpoints_additional.MockUser object at 0x00000230AD2B6D70>\n\n    def test_synthetic_clean_with_non_admin_returns_403(self, client, mock_env, non_admin_user):\n        \"\"\"Test that non-admin user gets 403 Forbidden.\"\"\"\n        async def mock_create(*args, **kwargs):\n "
+  },
+  {
+    "test_name": "TestSyntheticDataCleanEndpoint.test_synthetic_clean_delete_all_success",
+    "file": "test_admin_endpoints_additional.py",
+    "line": "233",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints_additional.TestSyntheticDataCleanEndpoint object at 0x00000230ABFDA650>, client = <starlette.testclient.TestClient object at 0x00000230AD3E0E20>, mock_env = None\nadmin_user = <tests.test_admin_endpoints_additional.MockUser object at 0x00000230AD2B6FD0>\n\n    def test_synthetic_clean_delete_all_success(self, client, mock_env, admin_user):\n        \"\"\"Test successful delete_all action.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return create_m"
+  },
+  {
+    "test_name": "TestSyntheticDataCleanEndpoint.test_synthetic_clean_delete_last_n_without_quantity_returns_400",
+    "file": "test_admin_endpoints_additional.py",
+    "line": "249",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints_additional.TestSyntheticDataCleanEndpoint object at 0x00000230ABFDA780>, client = <starlette.testclient.TestClient object at 0x00000230AD3E1040>, mock_env = None\nadmin_user = <tests.test_admin_endpoints_additional.MockUser object at 0x00000230AD359C70>\n\n    def test_synthetic_clean_delete_last_n_without_quantity_returns_400(self, client, mock_env, admin_user):\n        \"\"\"Test that delete_last_n without quantity returns 400.\"\"\"\n        async def mock_create(*a"
+  },
+  {
+    "test_name": "TestSyntheticDataExportEndpoint.test_export_without_auth_returns_401",
+    "file": "test_admin_endpoints_additional.py",
+    "line": "268",
+    "error_type": "401 Invalid API key",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints_additional.TestSyntheticDataExportEndpoint object at 0x00000230AB991950>, client = <starlette.testclient.TestClient object at 0x00000230ABFDEAD0>, mock_env = None\n\n    def test_export_without_auth_returns_401(self, client, mock_env):\n        \"\"\"Test that request without authorization header is rejected.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return create_mock_supabase_client()\n\n>       with patch(\"api.dependencies.acreate_client\", sid"
+  },
+  {
+    "test_name": "TestSyntheticDataExportEndpoint.test_export_with_non_admin_returns_403",
+    "file": "test_admin_endpoints_additional.py",
+    "line": "278",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints_additional.TestSyntheticDataExportEndpoint object at 0x00000230AB991A90>, client = <starlette.testclient.TestClient object at 0x00000230ABDFCF30>, mock_env = None\nnon_admin_user = <tests.test_admin_endpoints_additional.MockUser object at 0x00000230ABDFCD10>\n\n    def test_export_with_non_admin_returns_403(self, client, mock_env, non_admin_user):\n        \"\"\"Test that non-admin user gets 403 Forbidden.\"\"\"\n        async def mock_create(*args, **kwargs):\n         "
+  },
+  {
+    "test_name": "TestSyntheticDataExportEndpoint.test_export_invalid_format_returns_400",
+    "file": "test_admin_endpoints_additional.py",
+    "line": "291",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints_additional.TestSyntheticDataExportEndpoint object at 0x00000230ABFDA8B0>, client = <starlette.testclient.TestClient object at 0x00000230ABDFC6B0>, mock_env = None\nadmin_user = <tests.test_admin_endpoints_additional.MockUser object at 0x00000230ABDFC490>\n\n    def test_export_invalid_format_returns_400(self, client, mock_env, admin_user):\n        \"\"\"Test that invalid format returns 400.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return creat"
+  },
+  {
+    "test_name": "TestSyntheticDataExportEndpoint.test_export_json_success",
+    "file": "test_admin_endpoints_additional.py",
+    "line": "309",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints_additional.TestSyntheticDataExportEndpoint object at 0x00000230ABFDA9E0>, client = <starlette.testclient.TestClient object at 0x00000230ABDFC380>, mock_env = None\nadmin_user = <tests.test_admin_endpoints_additional.MockUser object at 0x00000230AD2D0450>\n\n    def test_export_json_success(self, client, mock_env, admin_user):\n        \"\"\"Test successful JSON export.\"\"\"\n        synthetic_users = [\n            {\"id\": \"user-1\", \"email\": \"test1@example.com\", \"is_test"
+  },
+  {
+    "test_name": "TestSyntheticDataExportEndpoint.test_export_csv_success",
+    "file": "test_admin_endpoints_additional.py",
+    "line": "327",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints_additional.TestSyntheticDataExportEndpoint object at 0x00000230ABFE1250>, client = <starlette.testclient.TestClient object at 0x00000230ABAEEBE0>, mock_env = None\nadmin_user = <tests.test_admin_endpoints_additional.MockUser object at 0x00000230AD2C7750>\n\n    def test_export_csv_success(self, client, mock_env, admin_user):\n        \"\"\"Test successful CSV export.\"\"\"\n        synthetic_users = [\n            {\"id\": \"user-1\", \"email\": \"test1@example.com\", \"is_test_p"
+  },
+  {
+    "test_name": "TestToggleTestFlagEndpoint.test_toggle_flag_without_auth_returns_401",
+    "file": "test_admin_endpoints_additional.py",
+    "line": "345",
+    "error_type": "401 Invalid API key",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints_additional.TestToggleTestFlagEndpoint object at 0x00000230AB991BD0>, client = <starlette.testclient.TestClient object at 0x00000230ABAED370>, mock_env = None\n\n    def test_toggle_flag_without_auth_returns_401(self, client, mock_env):\n        \"\"\"Test that request without authorization header is rejected.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return create_mock_supabase_client()\n\n>       with patch(\"api.dependencies.acreate_client\", sid"
+  },
+  {
+    "test_name": "TestToggleTestFlagEndpoint.test_toggle_flag_with_non_admin_returns_403",
+    "file": "test_admin_endpoints_additional.py",
+    "line": "355",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints_additional.TestToggleTestFlagEndpoint object at 0x00000230AB991D10>, client = <starlette.testclient.TestClient object at 0x00000230ABAECE20>, mock_env = None\nnon_admin_user = <tests.test_admin_endpoints_additional.MockUser object at 0x00000230AD2CF890>\n\n    def test_toggle_flag_with_non_admin_returns_403(self, client, mock_env, non_admin_user):\n        \"\"\"Test that non-admin user gets 403 Forbidden.\"\"\"\n        async def mock_create(*args, **kwargs):\n         "
+  },
+  {
+    "test_name": "TestToggleTestFlagEndpoint.test_toggle_flag_patient_not_found_returns_404",
+    "file": "test_admin_endpoints_additional.py",
+    "line": "368",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints_additional.TestToggleTestFlagEndpoint object at 0x00000230ABFDAB10>, client = <starlette.testclient.TestClient object at 0x00000230ABAEC6B0>, mock_env = None\nadmin_user = <tests.test_admin_endpoints_additional.MockUser object at 0x00000230AD2CEB70>\n\n    def test_toggle_flag_patient_not_found_returns_404(self, client, mock_env, admin_user):\n        \"\"\"Test that non-existent patient returns 404.\"\"\"\n        async def mock_create(*args, **kwargs):\n            ret"
+  },
+  {
+    "test_name": "TestToggleTestFlagEndpoint.test_toggle_flag_success",
+    "file": "test_admin_endpoints_additional.py",
+    "line": "383",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints_additional.TestToggleTestFlagEndpoint object at 0x00000230ABFDAC40>, client = <starlette.testclient.TestClient object at 0x00000230ABAEC380>, mock_env = None\nadmin_user = <tests.test_admin_endpoints_additional.MockUser object at 0x00000230ABDC3690>\n\n    def test_toggle_flag_success(self, client, mock_env, admin_user):\n        \"\"\"Test successful flag toggle.\"\"\"\n        patient_data = [{\"id\": \"patient-123\", \"is_test_patient\": False}]\n\n        async def mock_cre"
+  },
+  {
+    "test_name": "TestRunDeletionJobEndpoint.test_deletion_job_without_auth_returns_401",
+    "file": "test_admin_endpoints_additional.py",
+    "line": "402",
+    "error_type": "401 Invalid API key",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints_additional.TestRunDeletionJobEndpoint object at 0x00000230AB991E50>, client = <starlette.testclient.TestClient object at 0x00000230ABAEC270>, mock_env = None\n\n    def test_deletion_job_without_auth_returns_401(self, client, mock_env):\n        \"\"\"Test that request without authorization header is rejected.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return create_mock_supabase_client()\n\n>       with patch(\"api.dependencies.acreate_client\", si"
+  },
+  {
+    "test_name": "TestRunDeletionJobEndpoint.test_deletion_job_with_non_admin_returns_403",
+    "file": "test_admin_endpoints_additional.py",
+    "line": "412",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints_additional.TestRunDeletionJobEndpoint object at 0x00000230AB991F90>, client = <starlette.testclient.TestClient object at 0x00000230ABFDF020>, mock_env = None\nnon_admin_user = <tests.test_admin_endpoints_additional.MockUser object at 0x00000230ABDC2430>\n\n    def test_deletion_job_with_non_admin_returns_403(self, client, mock_env, non_admin_user):\n        \"\"\"Test that non-admin user gets 403 Forbidden.\"\"\"\n        async def mock_create(*args, **kwargs):\n        "
+  },
+  {
+    "test_name": "TestRunDeletionJobEndpoint.test_deletion_job_success",
+    "file": "test_admin_endpoints_additional.py",
+    "line": "433",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_admin_endpoints_additional.TestRunDeletionJobEndpoint object at 0x00000230ABFDAD70>, client = <starlette.testclient.TestClient object at 0x00000230ABFDF130>, mock_env = None\nadmin_user = <tests.test_admin_endpoints_additional.MockUser object at 0x00000230AC0E1090>\n\n    def test_deletion_job_success(self, client, mock_env, admin_user):\n        \"\"\"Test successful deletion job execution.\"\"\"\n        async def mock_create(*args, **kwargs):\n            return create_mock_supabase_"
+  },
+  {
+    "test_name": "TestCreateUserWithRetry.test_failure_after_max_retries",
+    "file": "unknown",
+    "line": "unknown",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\nself = <tests.test_data_generator_retry.TestCreateUserWithRetry object at 0x00000230ABFDB100>\n\n    @pytest.mark.asyncio\n    async def test_failure_after_max_retries(self):\n        \"\"\"Test that it fails after max retries are exhausted.\"\"\"\n        from data_generator import create_user_with_retry\n\n        mock_client = MagicMock()\n\n        # Mock auth\n        async def mock_create_user(*args, **kwargs):\n            return MockAuthResponse(\"test-uuid-123\")\n\n        mock_auth = MagicMock()\n       "
+  },
+  {
+    "test_name": "test_middleware_works_with_predictions_endpoint",
+    "file": "unknown",
+    "line": "unknown",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\n    def test_middleware_works_with_predictions_endpoint():\n        \"\"\"Test that middleware works correctly with predictions endpoint\"\"\"\n        test_user_id = \"123e4567-e89b-12d3-a456-426614174000\"\n\n        with patch.dict(os.environ, {\n            \"SUPABASE_URL\": \"https://test.supabase.co\",\n            \"SUPABASE_SERVICE_KEY\": \"test-key\"\n        }):\n            # Mock the supabase client to avoid actual DB calls\n            from unittest.mock import MagicMock, AsyncMock\n\n            mock_clien"
+  },
+  {
+    "test_name": "test_predictions_endpoint_no_checkins",
+    "file": "test_predictions_endpoint.py",
+    "line": "71",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\n    def test_predictions_endpoint_no_checkins():\n        \"\"\"Test endpoint with user that has no check-ins\"\"\"\n        test_user_id = \"123e4567-e89b-12d3-a456-426614174000\"\n        mock_client = create_mock_supabase_client([])\n\n        async def mock_acreate_client(*args, **kwargs):\n            return mock_client\n\n        with patch.dict(os.environ, {\n            \"SUPABASE_URL\": \"https://test.supabase.co\",\n            \"SUPABASE_SERVICE_KEY\": \"test-key\"\n        }):\n>           with patch(\"api.dep"
+  },
+  {
+    "test_name": "test_predictions_endpoint_with_checkin",
+    "file": "unknown",
+    "line": "unknown",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\n    def test_predictions_endpoint_with_checkin():\n        \"\"\"Test endpoint with user that has one check-in\"\"\"\n        test_user_id = \"223e4567-e89b-12d3-a456-426614174001\"\n        # Mock check-in data\n        checkin_data = {\n            \"id\": \"test-checkin-123\",\n            \"user_id\": test_user_id,\n            \"checkin_date\": \"2024-01-15T10:30:00Z\",\n            \"hoursSlept\": 6.5,\n            \"sleepQuality\": 6,\n            \"energyLevel\": 5,\n            \"depressedMood\": 4,\n            \"anxietyS"
+  },
+  {
+    "test_name": "test_predictions_endpoint_with_type_filter",
+    "file": "unknown",
+    "line": "unknown",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\n    def test_predictions_endpoint_with_type_filter():\n        \"\"\"Test endpoint with specific prediction types\"\"\"\n        test_user_id = \"323e4567-e89b-12d3-a456-426614174002\"\n        checkin_data = {\n            \"id\": \"test-checkin-123\",\n            \"user_id\": test_user_id,\n            \"checkin_date\": \"2024-01-15T10:30:00Z\",\n            \"hoursSlept\": 6.5,\n            \"sleepQuality\": 6,\n            \"energyLevel\": 5,\n            \"depressedMood\": 4,\n            \"anxietyStress\": 6,\n            \"me"
+  },
+  {
+    "test_name": "test_predictions_endpoint_with_window_days",
+    "file": "unknown",
+    "line": "unknown",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\n    def test_predictions_endpoint_with_window_days():\n        \"\"\"Test endpoint with custom window_days parameter\"\"\"\n        test_user_id = \"423e4567-e89b-12d3-a456-426614174003\"\n        checkin_data = {\n            \"id\": \"test-checkin-123\",\n            \"user_id\": test_user_id,\n            \"checkin_date\": \"2024-01-15T10:30:00Z\",\n            \"hoursSlept\": 6.5,\n            \"sleepQuality\": 6,\n            \"energyLevel\": 5,\n            \"depressedMood\": 4,\n            \"anxietyStress\": 6,\n            "
+  },
+  {
+    "test_name": "test_prediction_of_day_endpoint_no_checkins",
+    "file": "test_predictions_endpoint.py",
+    "line": "278",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\n    def test_prediction_of_day_endpoint_no_checkins():\n        \"\"\"Test prediction_of_day endpoint with user that has no check-ins\"\"\"\n        valid_uuid = \"123e4567-e89b-12d3-a456-426614174000\"\n        mock_client = create_mock_supabase_client([])\n\n        async def mock_acreate_client(*args, **kwargs):\n            return mock_client\n\n        with patch.dict(os.environ, {\n            \"SUPABASE_URL\": \"https://test.supabase.co\",\n            \"SUPABASE_SERVICE_KEY\": \"test-key\"\n        }):\n>        "
+  },
+  {
+    "test_name": "test_prediction_of_day_endpoint_with_checkin",
+    "file": "unknown",
+    "line": "unknown",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\n    def test_prediction_of_day_endpoint_with_checkin():\n        \"\"\"Test prediction_of_day endpoint with user that has one check-in\"\"\"\n        valid_uuid = \"223e4567-e89b-12d3-a456-426614174001\"\n        # Mock check-in data\n        checkin_data = {\n            \"id\": \"test-checkin-123\",\n            \"user_id\": valid_uuid,\n            \"checkin_date\": \"2024-01-15T10:30:00Z\",\n            \"hoursSlept\": 6.5,\n            \"sleepQuality\": 6,\n            \"energyLevel\": 5,\n            \"depressedMood\": 4,\n "
+  },
+  {
+    "test_name": "test_prediction_of_day_endpoint_probability_normalization",
+    "file": "unknown",
+    "line": "unknown",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\n    def test_prediction_of_day_endpoint_probability_normalization():\n        \"\"\"Test that probabilities are properly normalized and subnormals handled\"\"\"\n        valid_uuid = \"323e4567-e89b-12d3-a456-426614174002\"\n        # Mock check-in data with extreme values\n        checkin_data = {\n            \"id\": \"test-checkin-extreme\",\n            \"user_id\": valid_uuid,\n            \"checkin_date\": \"2024-01-15T10:30:00Z\",\n            \"hoursSlept\": 10,\n            \"sleepQuality\": 10,\n            \"energy"
+  },
+  {
+    "test_name": "test_prediction_of_day_endpoint_missing_env_vars",
+    "file": "test_predictions_endpoint.py",
+    "line": "397",
+    "error_type": "AssertionError",
+    "stacktrace_snippet": "\n\n    def test_prediction_of_day_endpoint_missing_env_vars():\n        \"\"\"Test prediction_of_day endpoint with missing environment variables\"\"\"\n        with patch.dict(os.environ, {}, clear=True):\n            response = client.get(\"/data/prediction_of_day/test-user-123\")\n\n            # Should return 500 with clear error message\n>           assert response.status_code == 500\nE           assert 400 == 500\nE            +  where 400 = <Response [400 Bad Request]>.status_code\n\ntests\\test_predictions_e"
+  },
+  {
+    "test_name": "test_consent_endpoint_with_auth",
+    "file": "test_privacy_endpoints.py",
+    "line": "96",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\n    def test_consent_endpoint_with_auth():\n        \"\"\"Test consent endpoint with proper authorization\"\"\"\n        test_user_id = \"123e4567-e89b-12d3-a456-426614174000\"\n        consent_record = {\n            \"user_id\": test_user_id,\n            \"analytics\": True,\n            \"research\": False,\n            \"personalization\": True,\n            \"updated_at\": \"2024-01-15T10:30:00Z\"\n        }\n\n        mock_client = create_mock_supabase_client([consent_record])\n\n        async def mock_client_factory(*"
+  },
+  {
+    "test_name": "test_export_endpoint_with_auth",
+    "file": "unknown",
+    "line": "unknown",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\n    def test_export_endpoint_with_auth():\n        \"\"\"Test export endpoint with proper authorization\"\"\"\n        test_user_id = \"223e4567-e89b-12d3-a456-426614174001\"\n\n        # Create mock data\n        checkin_data = {\n            \"id\": \"checkin-1\",\n            \"user_id\": test_user_id,\n            \"checkin_date\": \"2024-01-15T10:30:00Z\",\n            \"hoursSlept\": 7.5\n        }\n\n        consent_data = {\n            \"user_id\": test_user_id,\n            \"analytics\": True,\n            \"research\": Fa"
+  },
+  {
+    "test_name": "test_erase_endpoint_with_auth",
+    "file": "unknown",
+    "line": "unknown",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\n    def test_erase_endpoint_with_auth():\n        \"\"\"Test erase endpoint with proper authorization\"\"\"\n        test_user_id = \"323e4567-e89b-12d3-a456-426614174002\"\n\n        # Create mock data for deletion\n        deleted_checkins = [{\"id\": \"checkin-1\"}, {\"id\": \"checkin-2\"}]\n        deleted_consent = [{\"user_id\": test_user_id}]\n\n        # Create a mock client\n        mock_client = MagicMock()\n\n        async def mock_execute_delete_checkins():\n            return MockSupabaseResponse(deleted_check"
+  },
+  {
+    "test_name": "test_latest_checkin_valid_uuid_calls_supabase",
+    "file": "test_uuid_validation.py",
+    "line": "97",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\n    def test_latest_checkin_valid_uuid_calls_supabase():\n        \"\"\"Test that valid UUID successfully calls Supabase\"\"\"\n        valid_uuid = \"123e4567-e89b-12d3-a456-426614174000\"\n\n        checkin_data = {\n            \"id\": \"checkin-123\",\n            \"user_id\": valid_uuid,\n            \"checkin_date\": \"2024-01-15T10:30:00Z\",\n            \"hoursSlept\": 7.5,\n            \"sleepQuality\": 8\n        }\n\n        mock_client = create_mock_supabase_client([checkin_data])\n\n        async def mock_acreate_cl"
+  },
+  {
+    "test_name": "test_predictions_valid_uuid_calls_supabase",
+    "file": "unknown",
+    "line": "unknown",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\n    def test_predictions_valid_uuid_calls_supabase():\n        \"\"\"Test that valid UUID successfully calls Supabase\"\"\"\n        valid_uuid = \"123e4567-e89b-12d3-a456-426614174000\"\n\n        checkin_data = {\n            \"id\": \"checkin-123\",\n            \"user_id\": valid_uuid,\n            \"checkin_date\": \"2024-01-15T10:30:00Z\",\n            \"hoursSlept\": 6.5,\n            \"sleepQuality\": 6,\n            \"energyLevel\": 5,\n            \"depressedMood\": 4,\n            \"anxietyStress\": 6,\n            \"medica"
+  },
+  {
+    "test_name": "test_predictions_valid_uuid_with_query_params",
+    "file": "unknown",
+    "line": "unknown",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\n    def test_predictions_valid_uuid_with_query_params():\n        \"\"\"Test that valid UUID with query parameters works correctly\"\"\"\n        valid_uuid = \"123e4567-e89b-12d3-a456-426614174000\"\n\n        checkin_data = {\n            \"id\": \"checkin-123\",\n            \"user_id\": valid_uuid,\n            \"checkin_date\": \"2024-01-15T10:30:00Z\",\n            \"hoursSlept\": 6.5,\n            \"sleepQuality\": 6,\n            \"energyLevel\": 5,\n            \"depressedMood\": 4,\n            \"anxietyStress\": 6,\n      "
+  },
+  {
+    "test_name": "test_uuid_edge_cases",
+    "file": "unknown",
+    "line": "unknown",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\n    def test_uuid_edge_cases():\n        \"\"\"Test edge cases for UUID validation\"\"\"\n        with patch.dict(os.environ, {\n            \"SUPABASE_URL\": \"https://test.supabase.co\",\n            \"SUPABASE_SERVICE_KEY\": \"test-key\"\n        }):\n            edge_cases = [\n                \"\",  # empty string\n                \" \",  # whitespace\n            ]\n\n            # Empty and whitespace should return 400\n            for test_case in edge_cases:\n                response = client.get(f\"/data/prediction"
+  },
+  {
+    "test_name": "test_prediction_of_day_valid_uuid_calls_supabase",
+    "file": "unknown",
+    "line": "unknown",
+    "error_type": "Unknown",
+    "stacktrace_snippet": "\n\n    def test_prediction_of_day_valid_uuid_calls_supabase():\n        \"\"\"Test that valid UUID successfully calls Supabase\"\"\"\n        valid_uuid = \"123e4567-e89b-12d3-a456-426614174000\"\n\n        checkin_data = {\n            \"id\": \"checkin-123\",\n            \"user_id\": valid_uuid,\n            \"checkin_date\": \"2024-01-15T10:30:00Z\",\n            \"hoursSlept\": 6.5,\n            \"sleepQuality\": 6,\n            \"energyLevel\": 5,\n            \"depressedMood\": 4,\n            \"anxietyStress\": 6,\n            \""
+  }
+]
