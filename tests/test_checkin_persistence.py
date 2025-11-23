@@ -22,7 +22,8 @@ def client():
 class MockUser:
     """Mock Supabase User object"""
     def __init__(self, email):
-        self.id = "test-user-id"
+        import uuid
+        self.id = str(uuid.uuid4())
         self.email = email
         self.user_metadata = {"role": "admin"}
 

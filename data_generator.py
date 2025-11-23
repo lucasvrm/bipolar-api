@@ -620,7 +620,9 @@ async def generate_and_populate_data(
                             inserted_count += len(resp.data)
                             logger.debug("[SyntheticGen] Chunk inserted: %d check-ins", len(resp.data))
                         else:
-                            # If no data returned but no error, assume success (some Supabase configs)
+                            # Some Supabase configurations don't return data on successful insert
+                            # This fallback assumes success if no error was raised
+                            # TODO: Make this configurable based on Supabase configuration
                             inserted_count += len(chunk)
                             logger.warning("[SyntheticGen] Insert returned no data for chunk, assuming success")
                     except Exception as chunk_error:
