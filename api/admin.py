@@ -8,6 +8,7 @@ import os
 import io
 import csv
 import json
+import time
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
 
@@ -39,6 +40,26 @@ logger = logging.getLogger("bipolar-api.admin")
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
 
+# ================== CONFIG SINTÉTICO CONTROLADO (PRODUÇÃO) ==================
+SYN_MAX_PATIENTS_PROD = int(os.getenv("SYNTHETIC_MAX_PATIENTS_PROD", "50"))
+SYN_MAX_THERAPISTS_PROD = int(os.getenv("SYNTHETIC_MAX_THERAPISTS_PROD", "10"))
+SYN_MAX_CHECKINS_PER_USER_PROD = int(os.getenv("SYNTHETIC_MAX_CHECKINS_PER_USER_PROD", "20"))
+SYN_ALLOWED_DOMAINS = [
+    d.strip() for d in os.getenv("SYNTHETIC_ALLOWED_DOMAINS", "@example.com,@example.org").split(",")
+    if d.strip()
+]
+
+def _is_production() -> bool:
+    return os.getenv("APP_ENV") == "production"
+
+def _synthetic_generation_enabled() -> bool:
+    """
+    Retorna True somente se explicitamente habilitado para produção.
+    Exige variável ALLOW_SYNTHETIC_IN_PROD e APP_ENV=production.
+    """
+    return _is_production() and bool(os.getenv("ALLOW_SYNTHETIC_IN_PROD"))
+
+
 # ----------------------------------------------------------------------
 # Utils
 # ----------------------------------------------------------------------
@@ -52,7 +73,7 @@ def _log_db_error(operation: str, error: Exception) -> None:
 
 
 # ----------------------------------------------------------------------
-# Endpoint: geração de dados sintéticos
+# Endpoint: geração de dados sintéticos (CONTROLADO EM PRODUÇÃO)
 # ----------------------------------------------------------------------
 @router.post("/generate-data", response_model=SyntheticDataGenerationResponse)
 @limiter.limit("5/hour")
@@ -62,62 +83,87 @@ async def generate_synthetic_data(
     supabase: Client = Depends(get_supabase_service),
     is_admin: bool = Depends(verify_admin_authorization),
 ) -> Dict[str, Any]:
-    # Check APP_ENV
-    if os.getenv("APP_ENV") == "production" and not os.getenv("ALLOW_SYNTHETIC_IN_PROD"):
-        raise HTTPException(
-            status_code=403,
-            detail="Synthetic data generation is disabled in production environment."
-        )
+    """
+    Geração controlada de dados sintéticos.
+
+    Regras (produção):
+    - Necessário APP_ENV=production e ALLOW_SYNTHETIC_IN_PROD definido para permitir geração.
+    - Exige testMode=true no payload (campo em GenerateDataRequest).
+    - clearDb é bloqueado em produção.
+    - Limites máximos configuráveis via env:
+        SYNTHETIC_MAX_PATIENTS_PROD, SYNTHETIC_MAX_THERAPISTS_PROD, SYNTHETIC_MAX_CHECKINS_PER_USER_PROD
+    - Emails gerados devem usar domínios em SYNTHETIC_ALLOWED_DOMAINS.
+    - Todos os pacientes gerados terão is_test_patient=true.
+    - Resultado permanece compatível com o schema anterior (status + statistics + generatedAt).
+
+    Sobre SYNTHETIC_ALLOWED_DOMAINS:
+    Lista de domínios válidos para e‑mails sintéticos (ex.: @example.com,@example.org).
+    Serve para:
+      - Diferenciar dados de teste dos reais.
+      - Facilitar limpeza posterior.
+      - Evitar poluição de métricas com e-mails reais.
+
+    Se o campo 'testMode' não existir em GenerateDataRequest, adicione-o como:
+        testMode: bool = False
+    """
+    # Segurança em produção
+    if _is_production():
+        if not _synthetic_generation_enabled():
+            raise HTTPException(
+                status_code=403,
+                detail="Synthetic data generation disabled: defina ALLOW_SYNTHETIC_IN_PROD para habilitar testMode controlado."
+            )
+        if not getattr(data_request, "testMode", False):
+            raise HTTPException(
+                status_code=403,
+                detail="Falta 'testMode=true' para gerar dados sintéticos em produção."
+            )
+        if data_request.clearDb:
+            raise HTTPException(
+                status_code=403,
+                detail="clearDb não permitido em produção."
+            )
+        if (data_request.patientsCount or 0) > SYN_MAX_PATIENTS_PROD:
+            raise HTTPException(
+                status_code=400,
+                detail=f"patientsCount excede limite de produção ({SYN_MAX_PATIENTS_PROD})."
+            )
+        if (data_request.therapistsCount or 0) > SYN_MAX_THERAPISTS_PROD:
+            raise HTTPException(
+                status_code=400,
+                detail=f"therapistsCount excede limite de produção ({SYN_MAX_THERAPISTS_PROD})."
+            )
+        if (data_request.checkinsPerUser or 0) > SYN_MAX_CHECKINS_PER_USER_PROD:
+            raise HTTPException(
+                status_code=400,
+                detail=f"checkinsPerUser excede limite de produção ({SYN_MAX_CHECKINS_PER_USER_PROD})."
+            )
 
     valid_patterns = ["stable", "cycling", "random", "manic", "depressive"]
     if data_request.moodPattern not in valid_patterns:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid moodPattern. Must be one of: {', '.join(valid_patterns)}",
+            detail=f"Invalid moodPattern. Must be one of: {', '.join(valid_patterns)}"
         )
 
     patients_count = data_request.patientsCount or 0
     therapists_count = data_request.therapistsCount or 0
-
     if patients_count == 0 and therapists_count == 0:
         raise HTTPException(
             status_code=400,
-            detail="É necessário ao menos 1 patient ou 1 therapist para gerar.",
-        )
-
-    if patients_count > 500:
-        raise HTTPException(
-            status_code=400,
-            detail="Max limit of 500 patients exceeded.",
+            detail="É necessário ao menos 1 patient ou 1 therapist."
         )
 
     logger.info(
-        f"Solicitação geração dados: patients={patients_count}, therapists={therapists_count}, "
-        f"checkins={data_request.checkinsPerUser}, pattern={data_request.moodPattern}, "
-        f"seed={data_request.seed}, clearDb={data_request.clearDb}"
+        f"[SyntheticGen] start testMode={getattr(data_request,'testMode',False)} "
+        f"patients={patients_count} therapists={therapists_count} checkinsPerUser={data_request.checkinsPerUser} "
+        f"pattern={data_request.moodPattern} seed={data_request.seed} clearDb={data_request.clearDb}"
     )
     start_ts = datetime.now(timezone.utc)
 
     try:
-        if data_request.clearDb:
-            logger.info("Limpando dados sintéticos antes de gerar...")
-            synthetic_domains = ["@example.com", "@example.org", "@example.net"]
-            resp_profiles = supabase.table("profiles").select("id,email").execute()
-            if resp_profiles.data:
-                synthetic_ids = [
-                    p["id"]
-                    for p in resp_profiles.data
-                    if p.get("email") and any(d in p["email"] for d in synthetic_domains)
-                ]
-                if synthetic_ids:
-                    # Batch deletion
-                    chunk_size = 100
-                    for i in range(0, len(synthetic_ids), chunk_size):
-                        chunk = synthetic_ids[i:i + chunk_size]
-                        supabase.table("check_ins").delete().in_("user_id", chunk).execute()
-                        supabase.table("profiles").delete().in_("id", chunk).execute()
-                    logger.info(f"Limpou {len(synthetic_ids)} perfis sintéticos.")
-
+        # Chamamos a função geradora (ajuste sua assinatura se necessário para aceitar novos argumentos)
+        # force_test_patient/allowed_domains/test_mode devem ser suportados pelo data_generator.
         result = await generate_and_populate_data(
             supabase=supabase,
             patients_count=patients_count,
@@ -125,37 +171,54 @@ async def generate_synthetic_data(
             checkins_per_patient=data_request.checkinsPerUser,
             pattern=data_request.moodPattern,
             clear_db=data_request.clearDb,
-            seed=data_request.seed
+            seed=data_request.seed,
+            test_mode=getattr(data_request, "testMode", False),
+            force_test_patient=True,
+            allowed_domains=SYN_ALLOWED_DOMAINS
         )
 
-        stats = result.get("statistics", {})
+        stats = result.get("statistics", {}) if isinstance(result, dict) else {}
+        duration_ms = (datetime.now(timezone.utc) - start_ts).total_seconds() * 1000
 
-        # Ensure stats has all fields
+        # Garantir campos mínimos originais + adicionais
         stats_obj = {
-            "users_created": stats.get("users_created", 0),
-            "patients_created": stats.get("patients_created", 0),
-            "therapists_created": stats.get("therapists_created", 0),
+            "users_created": stats.get("users_created", patients_count + therapists_count),
+            "patients_created": stats.get("patients_created", patients_count),
+            "therapists_created": stats.get("therapists_created", therapists_count),
             "total_checkins": stats.get("total_checkins", 0),
-            "mood_pattern": stats.get("mood_pattern", "unknown"),
-            "checkins_per_user": stats.get("checkins_per_user", 0),
-            "generated_at": stats.get("generated_at", datetime.now(timezone.utc).isoformat())
+            "mood_pattern": stats.get("mood_pattern", data_request.moodPattern),
+            "checkins_per_user": stats.get("checkins_per_user", data_request.checkinsPerUser),
+            "generated_at": stats.get("generated_at", datetime.now(timezone.utc).isoformat()),
+            # Campos extras de controle:
+            "test_mode": getattr(data_request, "testMode", False),
+            "duration_ms": round(duration_ms, 2),
+            "limits_applied": {
+                "max_patients_prod": SYN_MAX_PATIENTS_PROD,
+                "max_therapists_prod": SYN_MAX_THERAPISTS_PROD,
+                "max_checkins_per_user_prod": SYN_MAX_CHECKINS_PER_USER_PROD
+            },
+            "domains_used": SYN_ALLOWED_DOMAINS
         }
 
-        duration_ms = (datetime.now(timezone.utc) - start_ts).total_seconds() * 1000
         logger.info(
-            "Geração concluída em %.2fms", duration_ms
+            "[SyntheticGen] concluída em %.2fms (patients=%d, therapists=%d, testMode=%s)",
+            duration_ms, patients_count, therapists_count, getattr(data_request, "testMode", False)
         )
+
         return {
             "status": "success",
             "statistics": stats_obj,
             "generatedAt": datetime.now(timezone.utc).isoformat()
         }
 
+    except ValidationError as ve:
+        logger.error(f"Validation error generating synthetic data: {ve}")
+        raise HTTPException(status_code=400, detail="Validation error in synthetic data request.")
     except APIError as e:
         logger.exception("Erro de banco na geração de dados")
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     except Exception as e:
-        logger.exception("Erro inesperado na geração de dados")
+        logger.exception("Erro inesperado na geração de dados sintéticos")
         raise HTTPException(status_code=500, detail=f"Error generating synthetic data: {str(e)}")
 
 
@@ -169,20 +232,10 @@ async def get_admin_stats(
 ):
     """
     Retorna estatísticas completas do sistema para o dashboard admin.
-    
-    Inclui:
-    - Contagens de usuários (total, pacientes reais, pacientes sintéticos)
-    - Check-ins (hoje, últimos 7 dias, últimos 30 dias)
-    - Métricas agregadas (adesão medicamentosa, humor médio)
-    - Distribuição de estados de humor
-    - Alertas críticos
-    
-    Sempre retorna uma resposta válida, mesmo que parcial, em caso de erros.
     """
     logger.info("Requisição de estatísticas avançadas recebida")
     start_ts = datetime.now(timezone.utc)
 
-    # Initialize default values
     total_users = 0
     total_checkins = 0
     real_patients_count = 0
@@ -192,7 +245,7 @@ async def get_admin_stats(
     checkins_last_7_days_previous = 0
     avg_checkins_per_active_patient = 0.0
     avg_adherence_last_30d = 0.0
-    avg_current_mood = 3.0  # Neutral default
+    avg_current_mood = 3.0
     mood_counts = {
         "stable": 0,
         "hypomania": 0,
@@ -210,7 +263,7 @@ async def get_admin_stats(
         fourteen_days_ago = now - timedelta(days=14)
         thirty_days_ago = now - timedelta(days=30)
 
-        # Contagem total de perfis (with error handling)
+        # Total perfis
         try:
             profiles_head = supabase.table("profiles").select(
                 "*", count=CountMethod.exact, head=True
@@ -219,7 +272,7 @@ async def get_admin_stats(
         except Exception as e:
             logger.warning(f"Error fetching total users count: {e}")
 
-        # Contagem total de check-ins (with error handling)
+        # Total check-ins
         try:
             checkins_head = supabase.table("check_ins").select(
                 "*", count=CountMethod.exact, head=True
@@ -228,7 +281,7 @@ async def get_admin_stats(
         except Exception as e:
             logger.warning(f"Error fetching total checkins count: {e}")
 
-        # Perfil completo para separar real vs sintético
+        # Perfis completos (real vs sintético)
         try:
             synthetic_domains = ["@example.com", "@example.org", "@example.net"]
             profiles_resp = supabase.table("profiles").select(
@@ -270,7 +323,7 @@ async def get_admin_stats(
         except Exception as e:
             logger.warning(f"Error fetching last 7 days checkins: {e}")
 
-        # 7 dias anteriores aos últimos 7
+        # 7 dias anteriores
         try:
             prev7_resp = supabase.table("check_ins").select(
                 "*", count=CountMethod.exact, head=True
@@ -281,21 +334,19 @@ async def get_admin_stats(
         except Exception as e:
             logger.warning(f"Error fetching previous 7 days checkins: {e}")
 
-        # Check-ins últimos 30 dias (for detailed analysis)
+        # Últimos 30 dias para métricas agregadas
         try:
             last30_resp = supabase.table("check_ins").select(
-                "user_id, checkin_date, mood_data, meds_context_data, appetite_impulse_data"
+                "user_id, checkin_date, mood_data, meds_context_data, appetite_impulse_data, symptoms_data"
             ).gte("checkin_date", thirty_days_ago.isoformat()).execute()
             checkins_30d = last30_resp.data or []
 
-            # Pacientes ativos
             active_patients = {c["user_id"] for c in checkins_30d}
             active_patient_count = len(active_patients)
             avg_checkins_per_active_patient = (
                 len(checkins_30d) / active_patient_count if active_patient_count > 0 else 0.0
             )
 
-            # Adesão
             adherence_values = []
             for c in checkins_30d:
                 meds = c.get("meds_context_data", {})
@@ -308,7 +359,6 @@ async def get_admin_stats(
             )
 
             mood_values: List[float] = []
-
             for c in checkins_30d:
                 mood = c.get("mood_data", {})
                 if isinstance(mood, dict):
@@ -335,7 +385,6 @@ async def get_admin_stats(
 
             avg_current_mood = sum(mood_values) / len(mood_values) if mood_values else 3.0
 
-            # Alerts críticos
             for c in checkins_30d:
                 md = c.get("mood_data", {})
                 sd = c.get("symptoms_data", {})
@@ -379,7 +428,6 @@ async def get_admin_stats(
         )
 
     except Exception as e:
-        # Even if there's a major error, return default/partial stats
         logger.exception("Erro crítico ao obter stats - retornando valores padrão")
         return StatsResponse(
             total_users=total_users,
@@ -398,7 +446,6 @@ async def get_admin_stats(
         )
 
 
-
 # ----------------------------------------------------------------------
 # Endpoint: cleanup (padronizado)
 # ----------------------------------------------------------------------
@@ -413,7 +460,6 @@ async def cleanup_standard(
 ):
     """
     Endpoint simples para limpeza de dados sintéticos.
-    Suporta query params para dryRun.
     """
     is_dry_run = dryRun
     if cleanup_request:
@@ -441,12 +487,11 @@ async def cleanup_standard(
             ]
 
         if not is_dry_run and ids_to_remove:
-             # Batch deletion
-            chunk_size = 100
-            for i in range(0, len(ids_to_remove), chunk_size):
-                chunk = ids_to_remove[i:i + chunk_size]
-                supabase.table("check_ins").delete().in_("user_id", chunk).execute()
-                supabase.table("profiles").delete().in_("id", chunk).execute()
+             chunk_size = 100
+             for i in range(0, len(ids_to_remove), chunk_size):
+                 chunk = ids_to_remove[i:i + chunk_size]
+                 supabase.table("check_ins").delete().in_("user_id", chunk).execute()
+                 supabase.table("profiles").delete().in_("id", chunk).execute()
 
         return CleanupResponse(
             status="ok",
@@ -484,7 +529,6 @@ async def danger_zone_cleanup(
         raise HTTPException(status_code=400, detail="before_date required for delete_before_date")
 
     try:
-        # Find candidates (is_test_patient=true)
         profiles_resp = supabase.table("profiles").select(
             "id,email,created_at,is_test_patient,deleted_at"
         ).eq("is_test_patient", True).is_("deleted_at", "null").execute()
@@ -492,7 +536,6 @@ async def danger_zone_cleanup(
         test_patients = profiles_resp.data or []
         patients_to_delete = test_patients.copy()
 
-        # Apply filters
         if cleanup_request.action == "delete_last_n":
             patients_to_delete.sort(key=lambda x: x.get("created_at", ""), reverse=True)
             patients_to_delete = patients_to_delete[: cleanup_request.quantity]
@@ -548,11 +591,9 @@ async def danger_zone_cleanup(
         ids_to_delete = [p["id"] for p in patients_to_delete]
 
         if not cleanup_request.dryRun and ids_to_delete:
-             # Batch deletion
             chunk_size = 100
             for i in range(0, len(ids_to_delete), chunk_size):
                 chunk = ids_to_delete[i:i + chunk_size]
-                # Child tables
                 supabase.table("check_ins").delete().in_("user_id", chunk).execute()
                 try:
                     supabase.table("crisis_plan").delete().in_("user_id", chunk).execute()
@@ -563,7 +604,6 @@ async def danger_zone_cleanup(
                     pass
                 supabase.table("profiles").delete().in_("id", chunk).execute()
 
-            # Audit log
             try:
                 supabase.table("audit_log").insert({
                     "action": "danger_zone_cleanup",
@@ -591,7 +631,7 @@ async def danger_zone_cleanup(
 
 
 # ----------------------------------------------------------------------
-# Legacy support for /cleanup-data (redirect/wrapper)
+# Legacy support for /cleanup-data
 # ----------------------------------------------------------------------
 @router.post("/cleanup-data", response_model=CleanupResponse)
 async def cleanup_data_legacy(
@@ -602,8 +642,9 @@ async def cleanup_data_legacy(
 ):
     return await cleanup_standard(request, cleanup_request, False, supabase, is_admin)
 
+
 # ----------------------------------------------------------------------
-# Legacy/Compatibility endpoints (kept to avoid breaking frontend if any)
+# Legacy synthetic-data clean wrapper
 # ----------------------------------------------------------------------
 @router.post("/synthetic-data/clean", response_model=CleanDataResponse)
 async def clean_synthetic_data_legacy(
@@ -636,38 +677,29 @@ async def create_user(
 ):
     """
     Cria um novo usuário (paciente ou terapeuta) via admin dashboard.
-    
-    Este endpoint:
-    1. Cria o usuário no Supabase Auth
-    2. Cria o perfil correspondente na tabela profiles
-    3. Retorna os dados do usuário criado
-    
-    Requer autenticação de admin.
     """
     logger.info(f"Admin creating user: email={user_request.email}, role={user_request.role}")
-    
+
     try:
-        # 1. Create user in Supabase Auth using admin API
         auth_response = supabase.auth.admin.create_user({
             "email": user_request.email,
             "password": user_request.password,
-            "email_confirm": True,  # Auto-confirm email
+            "email_confirm": True,
             "user_metadata": {
                 "role": user_request.role,
                 "full_name": user_request.full_name or "",
                 "created_by_admin": True
             }
         })
-        
+
         if not auth_response or not auth_response.user:
             raise HTTPException(
                 status_code=500,
                 detail="Falha ao criar usuário no sistema de autenticação"
             )
-        
+
         user_id = auth_response.user.id
-        
-        # 2. Create profile in profiles table
+
         profile_data = {
             "id": user_id,
             "email": user_request.email,
@@ -675,11 +707,11 @@ async def create_user(
             "is_test_patient": False,
             "created_at": datetime.now(timezone.utc).isoformat()
         }
-        
+
         supabase.table("profiles").insert(profile_data).execute()
-        
+
         logger.info(f"User created successfully: id={user_id}, email={user_request.email}")
-        
+
         return CreateUserResponse(
             status="success",
             message=f"Usuário {user_request.role} criado com sucesso",
@@ -687,7 +719,7 @@ async def create_user(
             email=user_request.email,
             role=user_request.role
         )
-        
+
     except HTTPException:
         raise
     except APIError as e:
@@ -699,14 +731,13 @@ async def create_user(
     except Exception as e:
         logger.exception(f"Unexpected error creating user: {e}")
         error_msg = str(e)
-        
-        # Handle common errors
+
         if "already registered" in error_msg.lower() or "duplicate" in error_msg.lower():
             raise HTTPException(
                 status_code=409,
                 detail=f"Email {user_request.email} já está registrado"
             )
-        
+
         raise HTTPException(
             status_code=500,
             detail=f"Erro ao criar usuário: {error_msg}"
@@ -724,28 +755,18 @@ async def list_users(
     is_admin: bool = Depends(verify_admin_authorization),
 ):
     """
-    Lista todos os usuários do sistema.
-    
-    Parâmetros opcionais:
-    - role: Filtrar por role (patient, therapist)
-    - limit: Número máximo de resultados (padrão: 50, máx: 200)
-    - offset: Offset para paginação (padrão: 0)
-    
-    Requer autenticação de admin.
+    Lista usuários (pagina simples).
     """
     logger.info(f"Admin listing users: role={role}, limit={limit}, offset={offset}")
-    
+
     try:
-        # Validate limit
         if limit > 200:
             limit = 200
-        
-        # Build query
+
         query = supabase.table("profiles").select(
             "id, email, role, created_at, is_test_patient"
         )
-        
-        # Apply role filter if provided
+
         if role:
             if role not in ["patient", "therapist"]:
                 raise HTTPException(
@@ -753,15 +774,11 @@ async def list_users(
                     detail="Role deve ser 'patient' ou 'therapist'"
                 )
             query = query.eq("role", role)
-        
-        # Apply pagination and ordering
+
         query = query.order("created_at", desc=True).range(offset, offset + limit - 1)
-        
         response = query.execute()
-        
         users_data = response.data or []
-        
-        # Convert to UserListItem objects
+
         users = [
             UserListItem(
                 id=u["id"],
@@ -772,13 +789,13 @@ async def list_users(
             )
             for u in users_data
         ]
-        
+
         return ListUsersResponse(
             status="success",
             users=users,
             total=len(users)
         )
-        
+
     except HTTPException:
         raise
     except APIError as e:
