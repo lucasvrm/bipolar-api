@@ -248,6 +248,9 @@ async def get_predictions(
     """
     Endpoint para obter predições para um usuário.
     Retorna estrutura padronizada: status, userId, windowDays, metrics.
+    
+    Sempre retorna uma resposta válida, mesmo que seja com dados padrão quando
+    não há check-ins disponíveis.
     """
     request_start_time = time.time()
     
@@ -259,17 +262,22 @@ async def get_predictions(
         requested_types = [t.strip() for t in types.split(",")]
         invalid_types = [t for t in requested_types if t not in SUPPORTED_TYPES]
         if invalid_types:
-            raise HTTPException(status_code=400, detail=f"Invalid types: {invalid_types}")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Tipos de predição inválidos: {invalid_types}. Use: {', '.join(SUPPORTED_TYPES)}"
+            )
     else:
         requested_types = SUPPORTED_TYPES.copy()
     
     # Cache check
-    cache = get_cache()
-    cached_result = await cache.get(user_id, window_days, requested_types)
-    if cached_result:
-        # Need to ensure cached result matches Pydantic model structure if it was stored as dict
-        logger.info(f"Cache HIT for user {user_id}")
-        return cached_result
+    try:
+        cache = get_cache()
+        cached_result = await cache.get(user_id, window_days, requested_types)
+        if cached_result:
+            logger.info(f"Cache HIT for user {user_id}")
+            return cached_result
+    except Exception as e:
+        logger.warning(f"Cache error (continuing without cache): {e}")
     
     try:
         response = await supabase.table('check_ins')\
@@ -285,11 +293,26 @@ async def get_predictions(
         
         if checkins:
             latest_checkin = checkins[0]
+            logger.info(f"Found latest check-in for user {user_id}, generating predictions")
+            
             for pred_type in requested_types:
-                metric = await run_prediction_with_timeout(latest_checkin, pred_type, window_days)
-                metrics.append(metric)
+                try:
+                    metric = await run_prediction_with_timeout(latest_checkin, pred_type, window_days)
+                    metrics.append(metric)
+                except Exception as e:
+                    logger.error(f"Error generating prediction {pred_type}: {e}")
+                    # Add default metric for this prediction type
+                    metrics.append(PredictionsMetric(
+                        name=pred_type,
+                        value=0.0,
+                        label="Erro",
+                        riskLevel="unknown",
+                        confidence=0.0,
+                        explanation=f"Erro ao gerar predição: {str(e)[:100]}"
+                    ))
         else:
             # Return empty/default metrics if no data
+            logger.info(f"No check-ins found for user {user_id}, returning default metrics")
             for pred_type in requested_types:
                 metrics.append(PredictionsMetric(
                     name=pred_type,
@@ -297,7 +320,7 @@ async def get_predictions(
                     label="Sem dados",
                     riskLevel="unknown",
                     confidence=0.0,
-                    explanation="No check-in data available"
+                    explanation="Nenhum check-in disponível para gerar predições"
                 ))
 
         result = PredictionsResponse(
@@ -309,19 +332,62 @@ async def get_predictions(
         )
         
         # Cache the result model
-        await cache.set(user_id, window_days, requested_types, result.model_dump(), CACHE_TTL_SECONDS)
+        try:
+            cache = get_cache()
+            await cache.set(user_id, window_days, requested_types, result.model_dump(), CACHE_TTL_SECONDS)
+        except Exception as e:
+            logger.warning(f"Failed to cache result: {e}")
+        
+        duration_ms = (time.time() - request_start_time) * 1000
+        logger.info(f"Predictions generated for user {user_id} in {duration_ms:.2f}ms")
         
         return result
         
     except HTTPException:
         raise
     except (APIError, ValidationError) as e:
-        # Pass both APIError and Pydantic validation errors to handle_postgrest_error
-        # The new handle_postgrest_error knows how to handle both gracefully
-        handle_postgrest_error(e, user_id)
+        logger.exception(f"Database/validation error for user {user_id}: {e}")
+        # Return a valid response with error indication
+        metrics = [
+            PredictionsMetric(
+                name=pred_type,
+                value=0.0,
+                label="Erro no banco de dados",
+                riskLevel="unknown",
+                confidence=0.0,
+                explanation="Erro ao acessar dados do usuário"
+            )
+            for pred_type in requested_types
+        ]
+        return PredictionsResponse(
+            status="ok",
+            userId=user_id,
+            windowDays=window_days,
+            metrics=metrics,
+            generatedAt=datetime.now(timezone.utc).isoformat()
+        )
     except Exception as e:
-        logger.exception(f"Error processing predictions for user_id={user_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Error processing predictions: {str(e)}")
+        logger.exception(f"Unexpected error processing predictions for user_id={user_id}: {e}")
+        # Return a valid response with error indication
+        metrics = [
+            PredictionsMetric(
+                name=pred_type,
+                value=0.0,
+                label="Erro inesperado",
+                riskLevel="unknown",
+                confidence=0.0,
+                explanation="Erro inesperado ao gerar predições"
+            )
+            for pred_type in requested_types
+        ]
+        return PredictionsResponse(
+            status="ok",
+            userId=user_id,
+            windowDays=window_days,
+            metrics=metrics,
+            generatedAt=datetime.now(timezone.utc).isoformat()
+        )
+
 
 
 @router.get("/prediction_of_day/{user_id}", response_model=MoodPredictionResponse)
@@ -333,8 +399,13 @@ async def get_prediction_of_day(
 ):
     """
     Endpoint otimizado para dashboard (mood_state apenas).
+    
+    Sempre retorna uma resposta válida, mesmo quando não há dados disponíveis.
+    Isso previne o dashboard de alternar entre estados de erro.
     """
     validate_uuid_or_400(user_id, "user_id")
+    
+    logger.info(f"GET /data/prediction_of_day/{user_id}")
     
     try:
         response = await supabase.table('check_ins')\
@@ -347,10 +418,12 @@ async def get_prediction_of_day(
         checkins = response.data if response.data else []
         
         if checkins:
+            logger.info(f"Generating mood prediction for user {user_id}")
             metric = await run_prediction_with_timeout(checkins[0], "mood_state", window_days=3)
+            
             # Extrair label da explanation ou usar lógica do valor
             label = "Desconhecido"
-            if metric.label != "Unknown":
+            if metric.label and metric.label not in ["Unknown", "Error"]:
                 label = metric.label
             elif "Predicted state:" in metric.explanation:
                 label = metric.explanation.split("Predicted state:")[1].strip()
@@ -363,13 +436,29 @@ async def get_prediction_of_day(
                 "probability": metric.value
             }
         else:
+            logger.info(f"No check-ins found for user {user_id}")
             return {
                 "type": "mood_state",
-                "label": "Dados insuficientes",
+                "label": "Sem dados suficientes",
                 "probability": 0.0
             }
+            
+    except HTTPException:
+        raise
     except (APIError, ValidationError) as e:
-         handle_postgrest_error(e, user_id)
+        logger.error(f"Database error in prediction_of_day for user {user_id}: {e}")
+        # Return valid default response instead of raising error
+        return {
+            "type": "mood_state",
+            "label": "Erro ao carregar dados",
+            "probability": 0.0
+        }
     except Exception as e:
-        logger.exception("Error processing prediction_of_day")
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+        logger.exception(f"Unexpected error in prediction_of_day for user {user_id}: {e}")
+        # Return valid default response instead of raising error
+        return {
+            "type": "mood_state",
+            "label": "Erro inesperado",
+            "probability": 0.0
+        }
+

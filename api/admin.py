@@ -167,8 +167,41 @@ async def get_admin_stats(
     supabase: Client = Depends(get_supabase_service),
     is_admin: bool = Depends(verify_admin_authorization),
 ):
+    """
+    Retorna estatísticas completas do sistema para o dashboard admin.
+    
+    Inclui:
+    - Contagens de usuários (total, pacientes reais, pacientes sintéticos)
+    - Check-ins (hoje, últimos 7 dias, últimos 30 dias)
+    - Métricas agregadas (adesão medicamentosa, humor médio)
+    - Distribuição de estados de humor
+    - Alertas críticos
+    
+    Sempre retorna uma resposta válida, mesmo que parcial, em caso de erros.
+    """
     logger.info("Requisição de estatísticas avançadas recebida")
     start_ts = datetime.now(timezone.utc)
+
+    # Initialize default values
+    total_users = 0
+    total_checkins = 0
+    real_patients_count = 0
+    synthetic_patients_count = 0
+    checkins_today = 0
+    checkins_last_7_days = 0
+    checkins_last_7_days_previous = 0
+    avg_checkins_per_active_patient = 0.0
+    avg_adherence_last_30d = 0.0
+    avg_current_mood = 3.0  # Neutral default
+    mood_counts = {
+        "stable": 0,
+        "hypomania": 0,
+        "mania": 0,
+        "depression": 0,
+        "mixed": 0,
+        "euthymic": 0,
+    }
+    critical_alerts_last_30d = 0
 
     try:
         now = datetime.now(timezone.utc)
@@ -177,139 +210,156 @@ async def get_admin_stats(
         fourteen_days_ago = now - timedelta(days=14)
         thirty_days_ago = now - timedelta(days=30)
 
-        # Contagem total de perfis
-        profiles_head = await supabase.table("profiles").select(
-            "*", count=CountMethod.exact, head=True
-        ).execute()
-        total_users = profiles_head.count or 0
+        # Contagem total de perfis (with error handling)
+        try:
+            profiles_head = await supabase.table("profiles").select(
+                "*", count=CountMethod.exact, head=True
+            ).execute()
+            total_users = profiles_head.count or 0
+        except Exception as e:
+            logger.warning(f"Error fetching total users count: {e}")
 
-        # Contagem total de check-ins
-        checkins_head = await supabase.table("check_ins").select(
-            "*", count=CountMethod.exact, head=True
-        ).execute()
-        total_checkins = checkins_head.count or 0
+        # Contagem total de check-ins (with error handling)
+        try:
+            checkins_head = await supabase.table("check_ins").select(
+                "*", count=CountMethod.exact, head=True
+            ).execute()
+            total_checkins = checkins_head.count or 0
+        except Exception as e:
+            logger.warning(f"Error fetching total checkins count: {e}")
 
         # Perfil completo para separar real vs sintético
-        synthetic_domains = ["@example.com", "@example.org", "@example.net"]
-        profiles_resp = await supabase.table("profiles").select(
-            "id,email,is_test_patient,role"
-        ).execute()
-        profiles_all = profiles_resp.data or []
+        try:
+            synthetic_domains = ["@example.com", "@example.org", "@example.net"]
+            profiles_resp = await supabase.table("profiles").select(
+                "id,email,is_test_patient,role"
+            ).execute()
+            profiles_all = profiles_resp.data or []
 
-        synthetic_patient_ids = set()
-        real_patient_ids = set()
-        for p in profiles_all:
-            if p.get("role") == "patient":
-                if p.get("is_test_patient") is True or (
-                    p.get("email") and any(d in p["email"] for d in synthetic_domains)
-                ):
-                    synthetic_patient_ids.add(p["id"])
-                else:
-                    real_patient_ids.add(p["id"])
+            synthetic_patient_ids = set()
+            real_patient_ids = set()
+            for p in profiles_all:
+                if p.get("role") == "patient":
+                    if p.get("is_test_patient") is True or (
+                        p.get("email") and any(d in p["email"] for d in synthetic_domains)
+                    ):
+                        synthetic_patient_ids.add(p["id"])
+                    else:
+                        real_patient_ids.add(p["id"])
 
-        real_patients_count = len(real_patient_ids)
-        synthetic_patients_count = len(synthetic_patient_ids)
+            real_patients_count = len(real_patient_ids)
+            synthetic_patients_count = len(synthetic_patient_ids)
+        except Exception as e:
+            logger.warning(f"Error categorizing patients: {e}")
 
         # Check-ins hoje
-        today_resp = await supabase.table("check_ins").select(
-            "*", count=CountMethod.exact, head=True
-        ).gte("checkin_date", today_start.isoformat()).execute()
-        checkins_today = today_resp.count or 0
+        try:
+            today_resp = await supabase.table("check_ins").select(
+                "*", count=CountMethod.exact, head=True
+            ).gte("checkin_date", today_start.isoformat()).execute()
+            checkins_today = today_resp.count or 0
+        except Exception as e:
+            logger.warning(f"Error fetching today's checkins: {e}")
 
         # Últimos 7 dias
-        last7_resp = await supabase.table("check_ins").select(
-            "*", count=CountMethod.exact, head=True
-        ).gte("checkin_date", seven_days_ago.isoformat()).execute()
-        checkins_last_7_days = last7_resp.count or 0
+        try:
+            last7_resp = await supabase.table("check_ins").select(
+                "*", count=CountMethod.exact, head=True
+            ).gte("checkin_date", seven_days_ago.isoformat()).execute()
+            checkins_last_7_days = last7_resp.count or 0
+        except Exception as e:
+            logger.warning(f"Error fetching last 7 days checkins: {e}")
 
         # 7 dias anteriores aos últimos 7
-        prev7_resp = await supabase.table("check_ins").select(
-            "*", count=CountMethod.exact, head=True
-        ).gte("checkin_date", fourteen_days_ago.isoformat()).lt(
-            "checkin_date", seven_days_ago.isoformat()
-        ).execute()
-        checkins_last_7_days_previous = prev7_resp.count or 0
+        try:
+            prev7_resp = await supabase.table("check_ins").select(
+                "*", count=CountMethod.exact, head=True
+            ).gte("checkin_date", fourteen_days_ago.isoformat()).lt(
+                "checkin_date", seven_days_ago.isoformat()
+            ).execute()
+            checkins_last_7_days_previous = prev7_resp.count or 0
+        except Exception as e:
+            logger.warning(f"Error fetching previous 7 days checkins: {e}")
 
-        # Check-ins últimos 30 dias
-        last30_resp = await supabase.table("check_ins").select(
-            "user_id, checkin_date, mood_data, meds_context_data, appetite_impulse_data"
-        ).gte("checkin_date", thirty_days_ago.isoformat()).execute()
-        checkins_30d = last30_resp.data or []
+        # Check-ins últimos 30 dias (for detailed analysis)
+        try:
+            last30_resp = await supabase.table("check_ins").select(
+                "user_id, checkin_date, mood_data, meds_context_data, appetite_impulse_data"
+            ).gte("checkin_date", thirty_days_ago.isoformat()).execute()
+            checkins_30d = last30_resp.data or []
 
-        # Pacientes ativos
-        active_patients = {c["user_id"] for c in checkins_30d}
-        active_patient_count = len(active_patients)
-        avg_checkins_per_active_patient = (
-            len(checkins_30d) / active_patient_count if active_patient_count > 0 else 0.0
-        )
+            # Pacientes ativos
+            active_patients = {c["user_id"] for c in checkins_30d}
+            active_patient_count = len(active_patients)
+            avg_checkins_per_active_patient = (
+                len(checkins_30d) / active_patient_count if active_patient_count > 0 else 0.0
+            )
 
-        # Adesão
-        adherence_values = []
-        for c in checkins_30d:
-            meds = c.get("meds_context_data", {})
-            if isinstance(meds, dict):
-                val = meds.get("medicationAdherence") or meds.get("medication_adherence")
-                if isinstance(val, (int, float)):
-                    adherence_values.append(val)
-        avg_adherence_last_30d = (
-            sum(adherence_values) / len(adherence_values) if adherence_values else 0.0
-        )
+            # Adesão
+            adherence_values = []
+            for c in checkins_30d:
+                meds = c.get("meds_context_data", {})
+                if isinstance(meds, dict):
+                    val = meds.get("medicationAdherence") or meds.get("medication_adherence")
+                    if isinstance(val, (int, float)):
+                        adherence_values.append(val)
+            avg_adherence_last_30d = (
+                sum(adherence_values) / len(adherence_values) if adherence_values else 0.0
+            )
 
-        mood_counts = {
-            "stable": 0,
-            "hypomania": 0,
-            "mania": 0,
-            "depression": 0,
-            "mixed": 0,
-            "euthymic": 0,
-        }
-        mood_values: List[float] = []
+            mood_values: List[float] = []
 
-        for c in checkins_30d:
-            mood = c.get("mood_data", {})
-            if isinstance(mood, dict):
-                elevation = mood.get("elevation", 0)
-                depression = mood.get("depressedMood", 0)
-                activation = mood.get("activation", 0)
-                energy = mood.get("energyLevel")
+            for c in checkins_30d:
+                mood = c.get("mood_data", {})
+                if isinstance(mood, dict):
+                    elevation = mood.get("elevation", 0)
+                    depression = mood.get("depressedMood", 0)
+                    activation = mood.get("activation", 0)
+                    energy = mood.get("energyLevel")
 
-                if depression > 7 and elevation > 5:
-                    mood_counts["mixed"] += 1
-                    mood_values.append(3)
-                elif elevation > 8 or (activation > 8 and (energy or 0) > 7):
-                    mood_counts["mania"] += 1
-                    mood_values.append(4)
-                elif elevation > 5 or activation > 6:
-                    mood_counts["hypomania"] += 1
-                    mood_values.append(3.5)
-                elif depression > 7:
-                    mood_counts["depression"] += 1
-                    mood_values.append(2)
-                else:
-                    mood_counts["euthymic"] += 1
-                    mood_values.append(3)
+                    if depression > 7 and elevation > 5:
+                        mood_counts["mixed"] += 1
+                        mood_values.append(3)
+                    elif elevation > 8 or (activation > 8 and (energy or 0) > 7):
+                        mood_counts["mania"] += 1
+                        mood_values.append(4)
+                    elif elevation > 5 or activation > 6:
+                        mood_counts["hypomania"] += 1
+                        mood_values.append(3.5)
+                    elif depression > 7:
+                        mood_counts["depression"] += 1
+                        mood_values.append(2)
+                    else:
+                        mood_counts["euthymic"] += 1
+                        mood_values.append(3)
 
-        avg_current_mood = sum(mood_values) / len(mood_values) if mood_values else 3.0
+            avg_current_mood = sum(mood_values) / len(mood_values) if mood_values else 3.0
 
-        # Alerts críticos
-        critical_alerts_last_30d = 0
-        for c in checkins_30d:
-            md = c.get("mood_data", {})
-            sd = c.get("symptoms_data", {})
-            if isinstance(md, dict):
-                if (
-                    md.get("depressedMood", 0) >= 9
-                    or md.get("activation", 0) >= 9
-                    or md.get("elevation", 0) >= 9
-                    or md.get("anxietyStress", 0) >= 8
-                    or md.get("energyLevel", 0) >= 9
-                    or (isinstance(sd, dict) and sd.get("thoughtSpeed", 0) >= 9)
-                ):
-                    critical_alerts_last_30d += 1
+            # Alerts críticos
+            for c in checkins_30d:
+                md = c.get("mood_data", {})
+                sd = c.get("symptoms_data", {})
+                if isinstance(md, dict):
+                    if (
+                        md.get("depressedMood", 0) >= 9
+                        or md.get("activation", 0) >= 9
+                        or md.get("elevation", 0) >= 9
+                        or md.get("anxietyStress", 0) >= 8
+                        or md.get("energyLevel", 0) >= 9
+                        or (isinstance(sd, dict) and sd.get("thoughtSpeed", 0) >= 9)
+                    ):
+                        critical_alerts_last_30d += 1
+        except Exception as e:
+            logger.warning(f"Error analyzing last 30 days data: {e}")
 
         duration_ms = (datetime.now(timezone.utc) - start_ts).total_seconds() * 1000
         logger.info(
-            "Stats calculadas em %.2fms", duration_ms
+            "Stats calculadas em %.2fms: users=%d, checkins=%d, real_patients=%d, synthetic=%d",
+            duration_ms,
+            total_users,
+            total_checkins,
+            real_patients_count,
+            synthetic_patients_count
         )
 
         return StatsResponse(
@@ -328,12 +378,25 @@ async def get_admin_stats(
             patients_with_recent_radar=0,
         )
 
-    except APIError as e:
-        logger.exception("Erro de banco ao obter stats")
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     except Exception as e:
-        logger.exception("Erro inesperado em stats")
-        raise HTTPException(status_code=500, detail=f"Error retrieving statistics: {str(e)}")
+        # Even if there's a major error, return default/partial stats
+        logger.exception("Erro crítico ao obter stats - retornando valores padrão")
+        return StatsResponse(
+            total_users=total_users,
+            total_checkins=total_checkins,
+            real_patients_count=real_patients_count,
+            synthetic_patients_count=synthetic_patients_count,
+            checkins_today=checkins_today,
+            checkins_last_7_days=checkins_last_7_days,
+            checkins_last_7_days_previous=checkins_last_7_days_previous,
+            avg_checkins_per_active_patient=round(avg_checkins_per_active_patient, 2),
+            avg_adherence_last_30d=round(avg_adherence_last_30d, 2),
+            avg_current_mood=round(avg_current_mood, 2),
+            mood_distribution=mood_counts,
+            critical_alerts_last_30d=critical_alerts_last_30d,
+            patients_with_recent_radar=0,
+        )
+
 
 
 # ----------------------------------------------------------------------
@@ -550,6 +613,186 @@ async def clean_synthetic_data_legacy(
     is_admin: bool = Depends(verify_admin_authorization),
 ):
     return await danger_zone_cleanup(request, clean_request, supabase, is_admin)
+
+
+# ----------------------------------------------------------------------
+# User Management Endpoints
+# ----------------------------------------------------------------------
+from api.schemas.admin_users import (
+    CreateUserRequest,
+    CreateUserResponse,
+    ListUsersResponse,
+    UserListItem
+)
+
+
+@router.post("/users/create", response_model=CreateUserResponse)
+@limiter.limit("10/hour")
+async def create_user(
+    request: Request,
+    user_request: CreateUserRequest,
+    supabase: Client = Depends(get_supabase_service),
+    is_admin: bool = Depends(verify_admin_authorization),
+):
+    """
+    Cria um novo usuário (paciente ou terapeuta) via admin dashboard.
+    
+    Este endpoint:
+    1. Cria o usuário no Supabase Auth
+    2. Cria o perfil correspondente na tabela profiles
+    3. Retorna os dados do usuário criado
+    
+    Requer autenticação de admin.
+    """
+    logger.info(f"Admin creating user: email={user_request.email}, role={user_request.role}")
+    
+    try:
+        # 1. Create user in Supabase Auth using admin API
+        auth_response = await supabase.auth.admin.create_user({
+            "email": user_request.email,
+            "password": user_request.password,
+            "email_confirm": True,  # Auto-confirm email
+            "user_metadata": {
+                "role": user_request.role,
+                "full_name": user_request.full_name or "",
+                "created_by_admin": True
+            }
+        })
+        
+        if not auth_response or not auth_response.user:
+            raise HTTPException(
+                status_code=500,
+                detail="Falha ao criar usuário no sistema de autenticação"
+            )
+        
+        user_id = auth_response.user.id
+        
+        # 2. Create profile in profiles table
+        profile_data = {
+            "id": user_id,
+            "email": user_request.email,
+            "role": user_request.role,
+            "is_test_patient": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await supabase.table("profiles").insert(profile_data).execute()
+        
+        logger.info(f"User created successfully: id={user_id}, email={user_request.email}")
+        
+        return CreateUserResponse(
+            status="success",
+            message=f"Usuário {user_request.role} criado com sucesso",
+            user_id=user_id,
+            email=user_request.email,
+            role=user_request.role
+        )
+        
+    except HTTPException:
+        raise
+    except APIError as e:
+        logger.exception(f"Database error creating user: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro ao criar perfil do usuário: {str(e)}"
+        )
+    except Exception as e:
+        logger.exception(f"Unexpected error creating user: {e}")
+        error_msg = str(e)
+        
+        # Handle common errors
+        if "already registered" in error_msg.lower() or "duplicate" in error_msg.lower():
+            raise HTTPException(
+                status_code=409,
+                detail=f"Email {user_request.email} já está registrado"
+            )
+        
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro ao criar usuário: {error_msg}"
+        )
+
+
+@router.get("/users", response_model=ListUsersResponse)
+@limiter.limit("30/minute")
+async def list_users(
+    request: Request,
+    role: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+    supabase: Client = Depends(get_supabase_service),
+    is_admin: bool = Depends(verify_admin_authorization),
+):
+    """
+    Lista todos os usuários do sistema.
+    
+    Parâmetros opcionais:
+    - role: Filtrar por role (patient, therapist)
+    - limit: Número máximo de resultados (padrão: 50, máx: 200)
+    - offset: Offset para paginação (padrão: 0)
+    
+    Requer autenticação de admin.
+    """
+    logger.info(f"Admin listing users: role={role}, limit={limit}, offset={offset}")
+    
+    try:
+        # Validate limit
+        if limit > 200:
+            limit = 200
+        
+        # Build query
+        query = supabase.table("profiles").select(
+            "id, email, role, created_at, is_test_patient"
+        )
+        
+        # Apply role filter if provided
+        if role:
+            if role not in ["patient", "therapist"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Role deve ser 'patient' ou 'therapist'"
+                )
+            query = query.eq("role", role)
+        
+        # Apply pagination and ordering
+        query = query.order("created_at", desc=True).range(offset, offset + limit - 1)
+        
+        response = await query.execute()
+        
+        users_data = response.data or []
+        
+        # Convert to UserListItem objects
+        users = [
+            UserListItem(
+                id=u["id"],
+                email=u["email"],
+                role=u["role"],
+                created_at=u["created_at"],
+                is_test_patient=u.get("is_test_patient", False)
+            )
+            for u in users_data
+        ]
+        
+        return ListUsersResponse(
+            status="success",
+            users=users,
+            total=len(users)
+        )
+        
+    except HTTPException:
+        raise
+    except APIError as e:
+        logger.exception(f"Database error listing users: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro ao listar usuários: {str(e)}"
+        )
+    except Exception as e:
+        logger.exception(f"Unexpected error listing users: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro inesperado ao listar usuários: {str(e)}"
+        )
 
 
 __all__ = ["router"]

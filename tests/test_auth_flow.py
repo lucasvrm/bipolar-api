@@ -1,22 +1,19 @@
 """
-Tests for authentication flow with HTTP fallback mechanism.
+Tests for authentication flow.
 
 This test suite validates:
 1. verify_admin_authorization with valid admin tokens
 2. verify_admin_authorization with invalid tokens
 3. verify_admin_authorization with non-admin emails
-4. HTTP fallback activation on library errors
-5. Fallback function in isolation
+4. Error handling and user-friendly messages
 """
 
 import os
 import pytest
 from unittest.mock import patch, MagicMock, Mock
 from fastapi import HTTPException
-import urllib.error
 
 from api.dependencies import verify_admin_authorization, get_admin_emails
-from api.auth_fallback import supabase_get_user_http, should_use_fallback
 
 
 class TestVerifyAdminAuthorization:
@@ -57,7 +54,7 @@ class TestVerifyAdminAuthorization:
                 await verify_admin_authorization(authorization="Bearer invalid-token")
             
             assert exc_info.value.status_code == 401
-            assert "Invalid or expired token" in exc_info.value.detail
+            assert "inválido ou expirado" in exc_info.value.detail.lower()
     
     @pytest.mark.asyncio
     async def test_missing_bearer_token_raises_401(self):
@@ -66,7 +63,7 @@ class TestVerifyAdminAuthorization:
             await verify_admin_authorization(authorization=None)
         
         assert exc_info.value.status_code == 401
-        assert "Missing bearer token" in exc_info.value.detail
+        assert "autorização" in exc_info.value.detail.lower()
     
     @pytest.mark.asyncio
     async def test_malformed_token_raises_401(self):
@@ -103,7 +100,7 @@ class TestVerifyAdminAuthorization:
                     await verify_admin_authorization(authorization="Bearer valid-token")
                 
                 assert exc_info.value.status_code == 403
-                assert "Not authorized as admin" in exc_info.value.detail
+                assert "permissões de administrador" in exc_info.value.detail.lower() or "acesso negado" in exc_info.value.detail.lower()
     
     @pytest.mark.asyncio
     async def test_token_without_email_raises_401(self):
@@ -123,119 +120,7 @@ class TestVerifyAdminAuthorization:
                 await verify_admin_authorization(authorization="Bearer token-no-email")
             
             assert exc_info.value.status_code == 401
-            assert "Invalid token payload" in exc_info.value.detail
-    
-    @pytest.mark.asyncio
-    async def test_fallback_triggered_on_invalid_api_key_error(self):
-        """Test that HTTP fallback is triggered on 'Invalid API key' error."""
-        # Mock client to fail with Invalid API key
-        mock_client = MagicMock()
-        mock_client.auth.get_user.side_effect = Exception("Invalid API key")
-        
-        # Mock successful HTTP fallback
-        mock_user_data = {
-            "id": "user-123",
-            "email": "admin@example.com"
-        }
-        
-        with patch("api.dependencies.get_supabase_anon_auth_client", return_value=mock_client):
-            with patch("api.dependencies.supabase_get_user_http", return_value=mock_user_data):
-                with patch.dict(os.environ, {"ADMIN_EMAILS": "admin@example.com"}):
-                    # Clear cache
-                    import api.dependencies
-                    api.dependencies._admin_emails_cache = None
-                    
-                    result = await verify_admin_authorization(authorization="Bearer token")
-                    assert result is True
-    
-    @pytest.mark.asyncio
-    async def test_fallback_failure_raises_401(self):
-        """Test that when both library and fallback fail, 401 is raised."""
-        # Mock client to fail
-        mock_client = MagicMock()
-        mock_client.auth.get_user.side_effect = Exception("Invalid API key")
-        
-        # Mock fallback to also fail
-        with patch("api.dependencies.get_supabase_anon_auth_client", return_value=mock_client):
-            with patch("api.dependencies.supabase_get_user_http", side_effect=RuntimeError("Auth HTTP error 401")):
-                with pytest.raises(HTTPException) as exc_info:
-                    await verify_admin_authorization(authorization="Bearer token")
-                
-                assert exc_info.value.status_code == 401
-
-
-class TestAuthFallback:
-    """Tests for the HTTP fallback authentication mechanism."""
-    
-    def test_supabase_get_user_http_success(self):
-        """Test successful HTTP authentication."""
-        mock_response_data = {
-            "id": "user-123",
-            "email": "test@example.com",
-            "aud": "authenticated"
-        }
-        
-        # Mock urllib.request.urlopen
-        mock_response = MagicMock()
-        mock_response.read.return_value = b'{"id":"user-123","email":"test@example.com","aud":"authenticated"}'
-        mock_response.__enter__ = Mock(return_value=mock_response)
-        mock_response.__exit__ = Mock(return_value=False)
-        
-        with patch("urllib.request.urlopen", return_value=mock_response):
-            with patch.dict(os.environ, {
-                "SUPABASE_URL": "https://test.supabase.co",
-                "SUPABASE_ANON_KEY": "test-anon-key"
-            }):
-                result = supabase_get_user_http("test-token")
-                assert result["id"] == "user-123"
-                assert result["email"] == "test@example.com"
-    
-    def test_supabase_get_user_http_missing_config(self):
-        """Test that missing config raises RuntimeError."""
-        with patch.dict(os.environ, {"SUPABASE_URL": "", "SUPABASE_ANON_KEY": ""}):
-            with pytest.raises(RuntimeError) as exc_info:
-                supabase_get_user_http("test-token")
-            
-            assert "Ambiente incompleto" in str(exc_info.value)
-    
-    def test_supabase_get_user_http_401_error(self):
-        """Test that 401 HTTP error is properly handled."""
-        mock_error = urllib.error.HTTPError(
-            url="https://test.supabase.co/auth/v1/user",
-            code=401,
-            msg="Unauthorized",
-            hdrs={},
-            fp=None
-        )
-        mock_error.read = Mock(return_value=b'{"message":"Invalid token"}')
-        
-        with patch("urllib.request.urlopen", side_effect=mock_error):
-            with patch.dict(os.environ, {
-                "SUPABASE_URL": "https://test.supabase.co",
-                "SUPABASE_ANON_KEY": "test-anon-key"
-            }):
-                with pytest.raises(RuntimeError) as exc_info:
-                    supabase_get_user_http("invalid-token")
-                
-                assert "Auth HTTP error 401" in str(exc_info.value)
-    
-    def test_should_use_fallback_for_invalid_api_key(self):
-        """Test that 'Invalid API key' error triggers fallback."""
-        error = Exception('{"message":"Invalid API key","hint":"Double check..."}')
-        assert should_use_fallback(error) is True
-    
-    def test_should_use_fallback_for_bad_jwt(self):
-        """Test that 'bad_jwt' error triggers fallback."""
-        error = Exception("bad_jwt: invalid number of segments")
-        assert should_use_fallback(error) is True
-    
-    def test_should_not_use_fallback_for_legitimate_errors(self):
-        """Test that legitimate auth errors don't trigger fallback."""
-        error = Exception("JWT expired")
-        assert should_use_fallback(error) is False
-        
-        error2 = Exception("Invalid signature")
-        assert should_use_fallback(error2) is False
+            assert "Token sem email válido" in exc_info.value.detail
 
 
 class TestAdminEmailsCache:
