@@ -73,7 +73,7 @@ def create_mock_supabase_client(return_data=None, mock_user=None):
     mock_client.table = MagicMock(return_value=create_chain())
     
     # Mock auth.get_user() method
-    async def mock_get_user(jwt=None):
+    def mock_get_user(jwt=None):
         if mock_user:
             return MockUserResponse(mock_user)
         return None
@@ -114,7 +114,7 @@ class TestCleanupDataEndpoint:
 
     def test_cleanup_data_without_auth_returns_401(self, client, mock_env):
         """Test that request without authorization header is rejected."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client()
         
         with patch("api.dependencies.acreate_client", side_effect=mock_create):
@@ -128,7 +128,7 @@ class TestCleanupDataEndpoint:
 
     def test_cleanup_data_with_invalid_token_returns_401(self, client, mock_env):
         """Test that request with invalid token is rejected."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=None)
         
         with patch("api.dependencies.acreate_client", side_effect=mock_create):
@@ -143,7 +143,7 @@ class TestCleanupDataEndpoint:
 
     def test_cleanup_data_with_non_admin_returns_403(self, client, mock_env, non_admin_user):
         """Test that non-admin user gets 403 Forbidden."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=non_admin_user)
         
         with patch("api.dependencies.acreate_client", side_effect=mock_create):
@@ -158,7 +158,7 @@ class TestCleanupDataEndpoint:
 
     def test_cleanup_data_without_confirmation_returns_400(self, client, mock_env, admin_user):
         """Test that cleanup without confirmation is rejected."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=admin_user)
         
         with patch("api.dependencies.acreate_client", side_effect=mock_create):
@@ -179,7 +179,7 @@ class TestCleanupDataEndpoint:
             {"id": "user-2", "email": "test2@example.org"},
         ]
         
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(return_data=synthetic_users, mock_user=admin_user)
         
         with patch("api.dependencies.acreate_client", side_effect=mock_create):
@@ -200,7 +200,7 @@ class TestSyntheticDataCleanEndpoint:
 
     def test_synthetic_clean_without_auth_returns_401(self, client, mock_env):
         """Test that request without authorization header is rejected."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client()
         
         with patch("api.dependencies.acreate_client", side_effect=mock_create):
@@ -213,7 +213,7 @@ class TestSyntheticDataCleanEndpoint:
 
     def test_synthetic_clean_with_non_admin_returns_403(self, client, mock_env, non_admin_user):
         """Test that non-admin user gets 403 Forbidden."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=non_admin_user)
         
         with patch("api.dependencies.acreate_client", side_effect=mock_create):
@@ -227,7 +227,7 @@ class TestSyntheticDataCleanEndpoint:
 
     def test_synthetic_clean_delete_all_success(self, client, mock_env, admin_user):
         """Test successful delete_all action."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(return_data=[], mock_user=admin_user)
         
         with patch("api.dependencies.acreate_client", side_effect=mock_create):
@@ -243,7 +243,7 @@ class TestSyntheticDataCleanEndpoint:
 
     def test_synthetic_clean_delete_last_n_without_quantity_returns_400(self, client, mock_env, admin_user):
         """Test that delete_last_n without quantity returns 400."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=admin_user)
         
         with patch("api.dependencies.acreate_client", side_effect=mock_create):
@@ -262,7 +262,7 @@ class TestSyntheticDataExportEndpoint:
 
     def test_export_without_auth_returns_401(self, client, mock_env):
         """Test that request without authorization header is rejected."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client()
         
         with patch("api.dependencies.acreate_client", side_effect=mock_create):
@@ -272,7 +272,7 @@ class TestSyntheticDataExportEndpoint:
 
     def test_export_with_non_admin_returns_403(self, client, mock_env, non_admin_user):
         """Test that non-admin user gets 403 Forbidden."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=non_admin_user)
         
         with patch("api.dependencies.acreate_client", side_effect=mock_create):
@@ -285,7 +285,7 @@ class TestSyntheticDataExportEndpoint:
 
     def test_export_invalid_format_returns_400(self, client, mock_env, admin_user):
         """Test that invalid format returns 400."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=admin_user)
         
         with patch("api.dependencies.acreate_client", side_effect=mock_create):
@@ -303,7 +303,7 @@ class TestSyntheticDataExportEndpoint:
             {"id": "user-1", "email": "test1@example.com", "is_test_patient": True, "created_at": "2024-01-01T00:00:00Z"}
         ]
         
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(return_data=synthetic_users, mock_user=admin_user)
         
         with patch("api.dependencies.acreate_client", side_effect=mock_create):
@@ -321,7 +321,7 @@ class TestSyntheticDataExportEndpoint:
             {"id": "user-1", "email": "test1@example.com", "is_test_patient": True, "created_at": "2024-01-01T00:00:00Z"}
         ]
         
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(return_data=synthetic_users, mock_user=admin_user)
         
         with patch("api.dependencies.acreate_client", side_effect=mock_create):
@@ -339,7 +339,7 @@ class TestToggleTestFlagEndpoint:
 
     def test_toggle_flag_without_auth_returns_401(self, client, mock_env):
         """Test that request without authorization header is rejected."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client()
         
         with patch("api.dependencies.acreate_client", side_effect=mock_create):
@@ -349,7 +349,7 @@ class TestToggleTestFlagEndpoint:
 
     def test_toggle_flag_with_non_admin_returns_403(self, client, mock_env, non_admin_user):
         """Test that non-admin user gets 403 Forbidden."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=non_admin_user)
         
         with patch("api.dependencies.acreate_client", side_effect=mock_create):
@@ -362,7 +362,7 @@ class TestToggleTestFlagEndpoint:
 
     def test_toggle_flag_patient_not_found_returns_404(self, client, mock_env, admin_user):
         """Test that non-existent patient returns 404."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(return_data=[], mock_user=admin_user)
         
         with patch("api.dependencies.acreate_client", side_effect=mock_create):
@@ -377,7 +377,7 @@ class TestToggleTestFlagEndpoint:
         """Test successful flag toggle."""
         patient_data = [{"id": "patient-123", "is_test_patient": False}]
         
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(return_data=patient_data, mock_user=admin_user)
         
         with patch("api.dependencies.acreate_client", side_effect=mock_create):
@@ -396,7 +396,7 @@ class TestRunDeletionJobEndpoint:
 
     def test_deletion_job_without_auth_returns_401(self, client, mock_env):
         """Test that request without authorization header is rejected."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client()
         
         with patch("api.dependencies.acreate_client", side_effect=mock_create):
@@ -406,7 +406,7 @@ class TestRunDeletionJobEndpoint:
 
     def test_deletion_job_with_non_admin_returns_403(self, client, mock_env, non_admin_user):
         """Test that non-admin user gets 403 Forbidden."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=non_admin_user)
         
         with patch("api.dependencies.acreate_client", side_effect=mock_create):
@@ -419,11 +419,11 @@ class TestRunDeletionJobEndpoint:
 
     def test_deletion_job_success(self, client, mock_env, admin_user):
         """Test successful deletion job execution."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=admin_user)
         
         # Mock the process_scheduled_deletions function
-        async def mock_process_deletions():
+        def mock_process_deletions():
             return {
                 "processed": 5,
                 "deleted": 2,

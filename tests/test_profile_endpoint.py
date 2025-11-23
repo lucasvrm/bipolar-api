@@ -27,7 +27,7 @@ class MockSupabaseTable:
         """Support for is_() method used in soft-delete filtering"""
         return self
     
-    async def execute(self):
+    def execute(self):
         result = MagicMock()
         result.data = self.data
         return result
@@ -75,7 +75,7 @@ def mock_profile(test_user_id):
 def test_get_user_profile_success(test_user_id, mock_profile):
     """Test successful profile fetch."""
     # Override dependency
-    async def override_get_supabase():
+    def override_get_supabase():
         return MockSupabase(mock_profile)
     
     app.dependency_overrides[get_supabase_client] = override_get_supabase
@@ -104,7 +104,7 @@ def test_get_user_profile_non_admin(test_user_id):
     }]
     
     # Override dependency
-    async def override_get_supabase():
+    def override_get_supabase():
         return MockSupabase(mock_profile)
     
     app.dependency_overrides[get_supabase_client] = override_get_supabase
@@ -123,7 +123,7 @@ def test_get_user_profile_non_admin(test_user_id):
 def test_get_user_profile_not_found(test_user_id):
     """Test profile not found."""
     # Override dependency with empty data
-    async def override_get_supabase():
+    def override_get_supabase():
         return MockSupabase([])
     
     app.dependency_overrides[get_supabase_client] = override_get_supabase
@@ -142,7 +142,7 @@ def test_get_user_profile_not_found(test_user_id):
 def test_get_user_profile_invalid_uuid():
     """Test invalid UUID validation."""
     # Override dependency to avoid DB connection
-    async def override_get_supabase():
+    def override_get_supabase():
         return MockSupabase([])
     
     app.dependency_overrides[get_supabase_client] = override_get_supabase
@@ -161,7 +161,7 @@ def test_get_user_profile_invalid_uuid():
 def test_get_user_profile_empty_uuid():
     """Test empty UUID validation."""
     # Override dependency to avoid DB connection
-    async def override_get_supabase():
+    def override_get_supabase():
         return MockSupabase([])
     
     app.dependency_overrides[get_supabase_client] = override_get_supabase
@@ -181,7 +181,7 @@ def test_get_user_profile_malformed_uuid():
     malformed_uuid = "00000000-0000-0000-0000-000000000000"
     
     # Override dependency
-    async def override_get_supabase():
+    def override_get_supabase():
         return MockSupabase([])
     
     app.dependency_overrides[get_supabase_client] = override_get_supabase
@@ -199,7 +199,7 @@ def test_get_user_profile_malformed_uuid():
 def test_profile_endpoint_no_auth_required(test_user_id, mock_profile):
     """Test that profile endpoint does not require authentication."""
     # Override dependency
-    async def override_get_supabase():
+    def override_get_supabase():
         return MockSupabase(mock_profile)
     
     app.dependency_overrides[get_supabase_client] = override_get_supabase
@@ -219,7 +219,7 @@ def test_profile_endpoint_no_auth_required(test_user_id, mock_profile):
 def test_profile_endpoint_returns_expected_fields(test_user_id, mock_profile):
     """Test that profile endpoint returns all expected fields."""
     # Override dependency
-    async def override_get_supabase():
+    def override_get_supabase():
         return MockSupabase(mock_profile)
     
     app.dependency_overrides[get_supabase_client] = override_get_supabase

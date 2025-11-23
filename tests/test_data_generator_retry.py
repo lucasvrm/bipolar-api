@@ -41,14 +41,14 @@ class TestCreateUserWithRetry:
         mock_auth = MagicMock()
         mock_auth.admin = MagicMock()
         
-        async def mock_create_user(*args, **kwargs):
+        def mock_create_user(*args, **kwargs):
             return MockAuthResponse("test-uuid-123")
         
         mock_auth.admin.create_user = mock_create_user
         mock_client.auth = mock_auth
         
         # Mock table insert
-        async def mock_insert_execute():
+        def mock_insert_execute():
             return MockSupabaseResponse(data=[{"id": "test-uuid-123"}])
         
         mock_insert_chain = MagicMock()
@@ -77,7 +77,7 @@ class TestCreateUserWithRetry:
         # Mock auth to return different UUIDs
         call_count = [0]
         
-        async def mock_create_user(*args, **kwargs):
+        def mock_create_user(*args, **kwargs):
             call_count[0] += 1
             return MockAuthResponse(f"test-uuid-{call_count[0]}")
         
@@ -89,7 +89,7 @@ class TestCreateUserWithRetry:
         # Mock table insert - fail first time, succeed second time
         insert_call_count = [0]
         
-        async def mock_insert_execute():
+        def mock_insert_execute():
             insert_call_count[0] += 1
             if insert_call_count[0] == 1:
                 # First attempt: raise duplicate error
@@ -121,7 +121,7 @@ class TestCreateUserWithRetry:
         mock_client = MagicMock()
         
         # Mock auth
-        async def mock_create_user(*args, **kwargs):
+        def mock_create_user(*args, **kwargs):
             return MockAuthResponse("test-uuid-123")
         
         mock_auth = MagicMock()
@@ -130,7 +130,7 @@ class TestCreateUserWithRetry:
         mock_client.auth = mock_auth
         
         # Mock table insert - always fail with duplicate error
-        async def mock_insert_execute():
+        def mock_insert_execute():
             raise APIError({"message": "duplicate key value violates unique constraint"})
         
         mock_insert_chain = MagicMock()
@@ -157,7 +157,7 @@ class TestCreateUserWithRetry:
         mock_client = MagicMock()
         
         # Mock auth
-        async def mock_create_user(*args, **kwargs):
+        def mock_create_user(*args, **kwargs):
             return MockAuthResponse("test-uuid-123")
         
         mock_auth = MagicMock()
@@ -166,7 +166,7 @@ class TestCreateUserWithRetry:
         mock_client.auth = mock_auth
         
         # Mock table insert - fail with non-duplicate error
-        async def mock_insert_execute():
+        def mock_insert_execute():
             raise APIError({"message": "connection timeout"})
         
         mock_insert_chain = MagicMock()

@@ -26,7 +26,7 @@ def create_mock_supabase_client(data):
     """Create a mock Supabase client that returns the given data"""
     mock_client = MagicMock()
     
-    async def mock_execute():
+    def mock_execute():
         return MockSupabaseResponse(data)
     
     # Create the chain

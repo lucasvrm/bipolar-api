@@ -87,7 +87,7 @@ def create_mock_supabase_client(return_data=None, num_records=30, mock_user=None
         return None
     
     # Mock auth.admin.create_user() method (async)
-    async def mock_create_user(user_data):
+    def mock_create_user(user_data):
         # Generate a unique user ID for each call
         user_id = str(uuid.uuid4())
         return MockAuthResponse(user_id=user_id)
@@ -1142,13 +1142,13 @@ class TestDangerZoneCleanup:
             {"id": "test-2", "email": "test2@example.com", "is_test_patient": True, "deleted_at": None, "created_at": "2024-01-02T00:00:00Z"},
         ]
         
-        async def mock_profiles_execute():
+        def mock_profiles_execute():
             return MockSupabaseResponse(test_patients)
         
-        async def mock_delete_execute():
+        def mock_delete_execute():
             return MockSupabaseResponse([])
         
-        async def mock_audit_execute():
+        def mock_audit_execute():
             return MockSupabaseResponse([{"id": "audit-1"}])
         
         # Setup mock chain for profiles select
@@ -1220,13 +1220,13 @@ class TestDangerZoneCleanup:
             for i in range(1, 6)
         ]
         
-        async def mock_profiles_execute():
+        def mock_profiles_execute():
             return MockSupabaseResponse(test_patients)
         
-        async def mock_delete_execute():
+        def mock_delete_execute():
             return MockSupabaseResponse([])
         
-        async def mock_audit_execute():
+        def mock_audit_execute():
             return MockSupabaseResponse([{"id": "audit-1"}])
         
         profiles_chain = MagicMock()

@@ -287,7 +287,7 @@ def test_predictions_endpoint_invalid_api_key_response():
 
     # Create a mock that RAISES an APIError resembling the one in production
     mock_client = MagicMock()
-    async def mock_execute_raising_error():
+    def mock_execute_raising_error():
         from postgrest.exceptions import APIError
         # Create error with the specific details seen in logs
         error = APIError({
