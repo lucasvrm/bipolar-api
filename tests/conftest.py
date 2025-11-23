@@ -12,6 +12,8 @@ import os
 # Set environment variables before importing main
 os.environ["SUPABASE_URL"] = "https://test.supabase.co"
 os.environ["SUPABASE_SERVICE_KEY"] = "test-key"
+# Add ANON key for tests - use realistic length JWT token
+os.environ["SUPABASE_ANON_KEY"] = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9." + "test" * 30  # 120+ chars
 # Use memory storage for tests (not Redis)
 os.environ["RATE_LIMIT_STORAGE_URI"] = "memory://"
 # Set aggressive rate limits for testing
