@@ -1,5 +1,15 @@
 # Bipolar AI Engine - Expanded Analytics Platform
 
+## 🚨 URGENT: API Failing with Infinite Recursion Error?
+
+**If your API is returning 500 errors with "infinite recursion detected in policy for relation 'profiles'":**
+
+👉 **[CLICK HERE FOR IMMEDIATE FIX](URGENT_FIX_INFINITE_RECURSION.md)** 👈
+
+This is caused by a Supabase database migration issue. The fix takes less than 2 minutes.
+
+---
+
 ## Visão Geral
 
 A **Bipolar AI Engine** é uma plataforma completa de análise clínica e autoconhecimento para transtorno bipolar, expandida de um sistema simples de alerta de crise para uma solução abrangente com 10 análises preditivas diferentes.
