@@ -1,0 +1,22 @@
+{
+  "timestamp": "2025-11-23T20:46:00Z",
+  "hasProfileEndpoint": true,
+  "profileEndpoints": [
+    "GET /api/profile",
+    "PATCH /api/profile",
+    "POST /api/profile/promote",
+    "GET /api/profile/summary",
+    "GET /api/profile/health"
+  ],
+  "lintStatus": "n/a",
+  "lintNote": "No linters configured in requirements.txt (flake8, pylint, black not present)",
+  "testsStatus": "partial-fail",
+  "testsTotal": 268,
+  "testsPassed": 180,
+  "testsFailed": 88,
+  "testsNote": "88 tests failing - most are unrelated to profile endpoint (missing other endpoints, schema validation, i18n issues)",
+  "routingCorrect": true,
+  "routingNote": "main.py correctly includes routers AFTER app creation (line 117-124)",
+  "rlsPolicyIssue": true,
+  "rlsPolicyNote": "Migration 009 uses subselects on profiles table in admin policies which can cause infinite recursion. Need SECURITY DEFINER function is_admin(uuid)."
+}
