@@ -18,7 +18,139 @@ Before running any tools, ensure you have:
 
 ## Available Tools
 
-### 1. List Users with Check-ins
+### 1. Admin Endpoint Production Testing
+
+**Script:** `test_admin_endpoints_production.py`
+
+Executes a controlled battery of validations on administrative endpoints in PRODUCTION to confirm availability, proper authorization, basic consistency, and latencies, without modifying critical data.
+
+**Features:**
+- ✅ Generates unique correlation ID (UUID + timestamp)
+- ✅ Tests positive authorization (smoke test)
+- ✅ Tests negative authorization (security validation)
+- ✅ Lists and validates users endpoint
+- ✅ Cross-validates statistics between endpoints
+- ✅ Tests filter robustness
+- ✅ Measures and analyzes latencies (mean, P95, max, min, std dev)
+- ✅ Validates response structures
+- ✅ Generates detailed JSON report
+- ✅ Generates comprehensive ROADMAP in Markdown
+
+**Prerequisites:**
+```bash
+pip install requests
+```
+
+**Required Token:**
+
+You need a valid admin JWT token. See **[BIPOLAR_ADMIN_TOKEN_GUIDE.md](BIPOLAR_ADMIN_TOKEN_GUIDE.md)** for detailed instructions on:
+- What is BIPOLAR_ADMIN_TOKEN
+- How to obtain the token
+- How to validate it
+- Security best practices
+
+**Quick Setup:**
+```bash
+# Option 1: Login via API to get token
+TOKEN=$(curl -s -X POST https://bipolar-api.onrender.com/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@example.com","password":"your-password"}' \
+  | jq -r '.access_token')
+
+# Option 2: Use existing token
+TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+# Export the token
+export BIPOLAR_ADMIN_TOKEN="$TOKEN"
+```
+
+**Usage:**
+```bash
+export BIPOLAR_ADMIN_TOKEN="your-admin-jwt-token"
+export BIPOLAR_API_URL="https://bipolar-api.onrender.com"  # Optional, defaults to production
+python tools/test_admin_endpoints_production.py
+```
+
+**Output Files:**
+- `report_admin_endpoints.json`: Detailed JSON report with all test results
+- `ROADMAP_ADMIN_ENDPOINT_TESTS.md`: Comprehensive analysis and roadmap
+
+**Output Example:**
+```
+======================================================================
+🚀 ADMIN ENDPOINTS PRODUCTION TEST SUITE
+======================================================================
+Correlation ID: 123e4567-e89b-12d3-a456-426614174000-1700000000
+Start Time: 2024-01-15T10:30:00.000000+00:00
+Base URL: https://bipolar-api.onrender.com
+======================================================================
+
+🔐 [Test 1] Authorization Positive - Smoke Test
+  ✅ Status: 200, Latency: 245.32ms
+  📊 total_users=123, total_checkins=456
+
+🔒 [Test 2] Authorization Negative - Security Test
+  ✅ Correctly rejected with 401
+
+👥 [Test 3] List Users (limit=50)
+  ✅ Status: 200, Latency: 198.45ms
+  📋 Users returned: 50, Total: 123
+
+🔍 [Test 4] Cross-Validation: Stats vs Users
+  📊 /api/admin/stats: total_users = 123
+  📊 /api/admin/users: total = 123
+  📊 Difference: 0 (tolerance: 2)
+  ✅ Consistent (within tolerance)
+
+🧪 [Test 5] Filter Robustness Tests
+  5a. Filter by role=patient
+    ✅ Returned 95 patients, Latency: 210.12ms
+  5b. Filter by role=therapist
+    ✅ Returned 28 therapists, Latency: 189.67ms
+  5c. Invalid role filter (expect 400)
+    ✅ Correctly rejected with 400
+
+📈 [Test 6] Latency Statistics
+  📊 Successful requests: 7
+  📊 Mean latency: 215.34ms
+  📊 P95 latency: 245.32ms
+  📊 Max latency: 245.32ms
+  📊 Min latency: 189.67ms
+  📊 Std deviation: 20.45ms
+
+======================================================================
+📋 TEST SUMMARY
+======================================================================
+Total tests: 8
+Successful: 7
+Failed: 0
+Overall Status: OK
+Structural Issues: 0
+Inconsistencies: 0
+======================================================================
+
+💾 Report saved to: report_admin_endpoints.json
+📄 ROADMAP saved to: ROADMAP_ADMIN_ENDPOINT_TESTS.md
+```
+
+**Exit Codes:**
+- `0`: All tests passed (OK)
+- `1`: Some warnings found (WARN)
+- `2`: Critical failures (FAIL)
+- `3`: Unexpected error during execution
+- `130`: Interrupted by user (Ctrl+C)
+
+**Methodology:**
+- **Mathematical:** All comparisons cite exact numbers
+- **Engineering:** Organized logs and clear result structure
+- **Data Engineering:** Consistency validation between metrics
+
+**Safety:**
+- ⚠️ Does NOT create, modify, or delete any data
+- ⚠️ Read-only operations only
+- ⚠️ Safe for production use
+
+### 2. List Users with Check-ins
 
 **Script:** `list_users_with_checkins.py`
 
@@ -51,7 +183,7 @@ user-yza-345-bcd                                25
 ------------------------------------------------------------
 ```
 
-### 2. Seed Test Check-ins
+### 3. Seed Test Check-ins
 
 **Script:** `seed_checkins.py`
 
