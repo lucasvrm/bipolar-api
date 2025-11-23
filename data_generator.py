@@ -581,25 +581,62 @@ async def generate_and_populate_data(
     total_checkins = 0
     if patient_ids and checkins_per_patient > 0:
         logger.info("[SyntheticGen] Generating check-ins for %d patients...", len(patient_ids))
+        
+        # Validate that all patient IDs exist in profiles table before generating check-ins
+        valid_patient_ids = patient_ids  # Default to all patients
+        try:
+            profiles_resp = supabase.table("profiles").select("id").in_("id", patient_ids).execute()
+            found_ids = {p["id"] for p in (profiles_resp.data or [])}
+            missing_ids = set(patient_ids) - found_ids
+            if missing_ids:
+                logger.error("[SyntheticGen] Missing profiles for patient IDs: %s", missing_ids)
+                logger.warning("[SyntheticGen] Only generating check-ins for %d/%d patients with valid profiles", 
+                             len(found_ids), len(patient_ids))
+                valid_patient_ids = list(found_ids)  # Only use validated IDs for check-ins
+        except Exception as e:
+            logger.warning("[SyntheticGen] Could not validate patient IDs: %s", e)
+        
         batch: List[Dict[str, Any]] = []
-        for pid in patient_ids:
+        for pid in valid_patient_ids:  # Use validated IDs only
             sub = generate_user_checkin_history(
                 pid,
                 num_checkins=checkins_per_patient,
                 mood_pattern=pattern.lower(),
             )
             batch.extend(sub)
-        total_checkins = len(batch)
+        
+        # Only count after successful insert, not before
         if batch:
             try:
                 # Insert in chunks of 100
                 chunk_size = 100
+                inserted_count = 0
                 for i in range(0, len(batch), chunk_size):
                     chunk = batch[i:i + chunk_size]
-                    supabase.table("check_ins").insert(chunk).execute()
-                logger.info("[SyntheticGen] Inserted %d check-ins", total_checkins)
+                    try:
+                        resp = supabase.table("check_ins").insert(chunk).execute()
+                        # Verify the insert was successful
+                        if resp.data:
+                            inserted_count += len(resp.data)
+                            logger.debug("[SyntheticGen] Chunk inserted: %d check-ins", len(resp.data))
+                        else:
+                            # If no data returned but no error, assume success (some Supabase configs)
+                            inserted_count += len(chunk)
+                            logger.warning("[SyntheticGen] Insert returned no data for chunk, assuming success")
+                    except Exception as chunk_error:
+                        logger.error("[SyntheticGen] Failed to insert check-in chunk %d-%d: %s", 
+                                   i, i + len(chunk), str(chunk_error))
+                        # Don't count failed chunks
+                        
+                total_checkins = inserted_count
+                logger.info("[SyntheticGen] Successfully inserted %d/%d check-ins", total_checkins, len(batch))
+                
+                if total_checkins < len(batch):
+                    logger.warning("[SyntheticGen] Only %d/%d check-ins were successfully inserted", 
+                                 total_checkins, len(batch))
             except Exception as e:
-                logger.warning("[SyntheticGen] Falha ao inserir check-ins: %s", e)
+                logger.error("[SyntheticGen] Critical failure inserting check-ins: %s", e)
+                total_checkins = 0  # Ensure count reflects reality
 
     generated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
