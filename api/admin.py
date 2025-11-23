@@ -1,19 +1,15 @@
 """
 Admin endpoints for privileged operations.
 
-These endpoints require admin authentication via JWT token with admin role.
+Endpoints exigem autenticação via token JWT com role admin.
 """
+
 import logging
 import os
-import io
-import csv
-import json
-import time
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
 from supabase import Client
 from postgrest.exceptions import APIError
@@ -42,13 +38,12 @@ from api.schemas.admin_users import (
 from data_generator import generate_and_populate_data
 
 logger = logging.getLogger("bipolar-api.admin")
-
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
-# ================== CONFIG SINTÉTICO CONTROLADO (PRODUÇÃO) ==================
+# ================== CONFIG SINTÉTICA (PRODUÇÃO) ==================
 SYN_MAX_PATIENTS_PROD = int(os.getenv("SYNTHETIC_MAX_PATIENTS_PROD", "50"))
 SYN_MAX_THERAPISTS_PROD = int(os.getenv("SYNTHETIC_MAX_THERAPISTS_PROD", "10"))
-SYN_MAX_CHECKINS_PER_USER_PROD = int(os.getenv("SYNTHETIC_MAX_CHECKINS_PER_USER_PROD", "20"))
+SYN_MAX_CHECKINS_PER_USER_PROD = int(os.getenv("SYNTHETIC_MAX_CHECKINS_PER_USER_PROD", "60"))
 SYN_ALLOWED_DOMAINS = [
     d.strip() for d in os.getenv("SYNTHETIC_ALLOWED_DOMAINS", "@example.com,@example.org").split(",")
     if d.strip()
@@ -63,15 +58,7 @@ def _synthetic_generation_enabled() -> bool:
     return bool(os.getenv("ALLOW_SYNTHETIC_IN_PROD"))
 
 # ----------------------------------------------------------------------
-# Utils
-# ----------------------------------------------------------------------
-def _log_db_error(operation: str, error: Exception) -> None:
-    logger.error(f"Erro em {operation}: {error}")
-    if hasattr(error, "response"):
-        logger.error(f"Raw response: {error.response}")
-
-# ----------------------------------------------------------------------
-# Geração sintética (sem testMode)
+# Geração de dados sintéticos
 # ----------------------------------------------------------------------
 @router.post("/generate-data", response_model=SyntheticDataGenerationResponse)
 @limiter.limit("5/hour")
@@ -81,35 +68,30 @@ async def generate_synthetic_data(
     supabase: Client = Depends(get_supabase_service),
     is_admin: bool = Depends(verify_admin_authorization),
 ) -> Dict[str, Any]:
+
     if _is_production():
         if not _synthetic_generation_enabled():
-            raise HTTPException(
-                status_code=403,
-                detail="Synthetic data generation disabled em produção: defina ALLOW_SYNTHETIC_IN_PROD."
-            )
+            raise HTTPException(status_code=403, detail="Synthetic disabled em produção.")
         if data_request.clearDb:
             raise HTTPException(status_code=403, detail="clearDb não permitido em produção.")
         if (data_request.patientsCount or 0) > SYN_MAX_PATIENTS_PROD:
-            raise HTTPException(status_code=400, detail=f"patientsCount excede limite ({SYN_MAX_PATIENTS_PROD}).")
+            raise HTTPException(status_code=400, detail=f"patientsCount excede limite {SYN_MAX_PATIENTS_PROD}.")
         if (data_request.therapistsCount or 0) > SYN_MAX_THERAPISTS_PROD:
-            raise HTTPException(status_code=400, detail=f"therapistsCount excede limite ({SYN_MAX_THERAPISTS_PROD}).")
+            raise HTTPException(status_code=400, detail=f"therapistsCount excede limite {SYN_MAX_THERAPISTS_PROD}.")
         if (data_request.checkinsPerUser or 0) > SYN_MAX_CHECKINS_PER_USER_PROD:
-            raise HTTPException(status_code=400, detail=f"checkinsPerUser excede limite ({SYN_MAX_CHECKINS_PER_USER_PROD}).")
+            raise HTTPException(status_code=400, detail=f"checkinsPerUser excede limite {SYN_MAX_CHECKINS_PER_USER_PROD}.")
 
-    valid_patterns = ["stable", "cycling", "random", "manic", "depressive"]
-    if data_request.moodPattern not in valid_patterns:
-        raise HTTPException(status_code=400, detail=f"Invalid moodPattern. Must be one of: {', '.join(valid_patterns)}")
+    patterns = ["stable", "cycling", "random", "manic", "depressive"]
+    if data_request.moodPattern not in patterns:
+        raise HTTPException(status_code=400, detail=f"moodPattern inválido. Use: {', '.join(patterns)}")
 
     patients_count = data_request.patientsCount or 0
     therapists_count = data_request.therapistsCount or 0
     if patients_count == 0 and therapists_count == 0:
         raise HTTPException(status_code=400, detail="É necessário ao menos 1 patient ou 1 therapist.")
 
-    logger.info(
-        f"[SyntheticGen] start patients={patients_count} therapists={therapists_count} "
-        f"checkinsPerUser={data_request.checkinsPerUser} pattern={data_request.moodPattern} seed={data_request.seed} clearDb={data_request.clearDb}"
-    )
     start_ts = datetime.now(timezone.utc)
+    logger.info(f"[SyntheticGen] start patients={patients_count} therapists={therapists_count} checkinsPerUser={data_request.checkinsPerUser} pattern={data_request.moodPattern}")
 
     try:
         result = await generate_and_populate_data(
@@ -119,16 +101,17 @@ async def generate_synthetic_data(
             checkins_per_patient=data_request.checkinsPerUser,
             pattern=data_request.moodPattern,
             clear_db=data_request.clearDb,
-            seed=data_request.seed
+            seed=data_request.seed,
+            allowed_domains=SYN_ALLOWED_DOMAINS,
         )
 
         stats = result.get("statistics", {}) if isinstance(result, dict) else {}
         duration_ms = (datetime.now(timezone.utc) - start_ts).total_seconds() * 1000
 
         stats_obj = {
-            "users_created": stats.get("users_created", patients_count + therapists_count),
-            "patients_created": stats.get("patients_created", patients_count),
-            "therapists_created": stats.get("therapists_created", therapists_count),
+            "users_created": stats.get("users_created", 0),
+            "patients_created": stats.get("patients_created", 0),
+            "therapists_created": stats.get("therapists_created", 0),
             "total_checkins": stats.get("total_checkins", 0),
             "mood_pattern": stats.get("mood_pattern", data_request.moodPattern),
             "checkins_per_user": stats.get("checkins_per_user", data_request.checkinsPerUser),
@@ -142,11 +125,7 @@ async def generate_synthetic_data(
             "domains_used": SYN_ALLOWED_DOMAINS
         }
 
-        logger.info(
-            "[SyntheticGen] concluída em %.2fms (patients=%d, therapists=%d)",
-            duration_ms, patients_count, therapists_count
-        )
-
+        logger.info(f"[SyntheticGen] done patients={stats_obj['patients_created']} therapists={stats_obj['therapists_created']} checkins={stats_obj['total_checkins']}")
         return {
             "status": "success",
             "statistics": stats_obj,
@@ -154,14 +133,16 @@ async def generate_synthetic_data(
         }
 
     except ValidationError as ve:
-        logger.error(f"Validation error generating synthetic data: {ve}")
-        raise HTTPException(status_code=400, detail="Validation error in synthetic data request.")
+        logger.error(f"Validation error: {ve}")
+        raise HTTPException(status_code=400, detail="Erro de validação.")
     except APIError as e:
-        logger.exception("Erro de banco na geração de dados")
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+        logger.exception("Erro banco geração sintética")
+        raise HTTPException(status_code=500, detail=f"Erro banco: {e}")
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.exception("Erro inesperado na geração de dados sintéticos")
-        raise HTTPException(status_code=500, detail=f"Error generating synthetic data: {str(e)}")
+        logger.exception("Erro inesperado geração sintética")
+        raise HTTPException(status_code=500, detail=f"Erro inesperado: {e}")
 
 # ----------------------------------------------------------------------
 # Estatísticas
@@ -171,8 +152,9 @@ async def get_admin_stats(
     supabase: Client = Depends(get_supabase_service),
     is_admin: bool = Depends(verify_admin_authorization),
 ):
-    logger.info("Requisição de estatísticas avançadas recebida")
+    logger.info("[AdminStats] Requisição recebida")
     start_ts = datetime.now(timezone.utc)
+
     total_users = 0
     total_checkins = 0
     real_patients_count = 0
@@ -193,102 +175,109 @@ async def get_admin_stats(
         fourteen_days_ago = now - timedelta(days=14)
         thirty_days_ago = now - timedelta(days=30)
 
+        # Total perfis
         try:
-            profiles_head = supabase.table("profiles").select("*", count=CountMethod.exact, head=True).execute()
-            total_users = profiles_head.count or 0
+            head_profiles = supabase.table("profiles").select("*", count=CountMethod.exact, head=True).execute()
+            total_users = head_profiles.count or 0
         except Exception as e:
-            logger.warning(f"Error fetching total users count: {e}")
+            logger.warning(f"[AdminStats] Falha total_users: {e}")
 
+        # Total check-ins
         try:
-            checkins_head = supabase.table("check_ins").select("*", count=CountMethod.exact, head=True).execute()
-            total_checkins = checkins_head.count or 0
+            head_checkins = supabase.table("check_ins").select("*", count=CountMethod.exact, head=True).execute()
+            total_checkins = head_checkins.count or 0
         except Exception as e:
-            logger.warning(f"Error fetching total checkins count: {e}")
+            logger.warning(f"[AdminStats] Falha total_checkins: {e}")
 
+        # Real vs sintético
         try:
             synthetic_domains = ["@example.com", "@example.org", "@example.net"]
-            profiles_resp = supabase.table("profiles").select("id,email,is_test_patient,role").execute()
-            profiles_all = profiles_resp.data or []
-            synthetic_patient_ids = set()
-            real_patient_ids = set()
-            for p in profiles_all:
+            resp_profiles = supabase.table("profiles").select("id,email,is_test_patient,role").execute()
+            profiles_list = resp_profiles.data or []
+            synthetic_ids = set()
+            real_ids = set()
+            for p in profiles_list:
                 if p.get("role") == "patient":
-                    if p.get("is_test_patient") is True or (
+                    if p.get("is_test_patient") or (
                         p.get("email") and any(d in p["email"] for d in synthetic_domains)
                     ):
-                        synthetic_patient_ids.add(p["id"])
+                        synthetic_ids.add(p["id"])
                     else:
-                        real_patient_ids.add(p["id"])
-            real_patients_count = len(real_patient_ids)
-            synthetic_patients_count = len(synthetic_patient_ids)
+                        real_ids.add(p["id"])
+            real_patients_count = len(real_ids)
+            synthetic_patients_count = len(synthetic_ids)
         except Exception as e:
-            logger.warning(f"Error categorizing patients: {e}")
+            logger.warning(f"[AdminStats] Falha classificar pacientes: {e}")
 
+        # Check-ins hoje
         try:
-            today_resp = supabase.table("check_ins").select("*", count=CountMethod.exact, head=True).gte(
-                "checkin_date", today_start.isoformat()
-            ).execute()
+            today_resp = supabase.table("check_ins").select("*", count=CountMethod.exact, head=True)\
+                .gte("checkin_date", today_start.isoformat()).execute()
             checkins_today = today_resp.count or 0
         except Exception as e:
-            logger.warning(f"Error today's checkins: {e}")
+            logger.warning(f"[AdminStats] Falha checkins today: {e}")
 
+        # Últimos 7 dias
         try:
-            last7_resp = supabase.table("check_ins").select("*", count=CountMethod.exact, head=True).gte(
-                "checkin_date", seven_days_ago.isoformat()
-            ).execute()
+            last7_resp = supabase.table("check_ins").select("*", count=CountMethod.exact, head=True)\
+                .gte("checkin_date", seven_days_ago.isoformat()).execute()
             checkins_last_7_days = last7_resp.count or 0
         except Exception as e:
-            logger.warning(f"Error last7 checkins: {e}")
+            logger.warning(f"[AdminStats] Falha last7: {e}")
 
+        # 7 dias anteriores
         try:
-            prev7_resp = supabase.table("check_ins").select("*", count=CountMethod.exact, head=True).gte(
-                "checkin_date", fourteen_days_ago.isoformat()
-            ).lt("checkin_date", seven_days_ago.isoformat()).execute()
+            prev7_resp = supabase.table("check_ins").select("*", count=CountMethod.exact, head=True)\
+                .gte("checkin_date", fourteen_days_ago.isoformat())\
+                .lt("checkin_date", seven_days_ago.isoformat()).execute()
             checkins_last_7_days_previous = prev7_resp.count or 0
         except Exception as e:
-            logger.warning(f"Error previous7 checkins: {e}")
+            logger.warning(f"[AdminStats] Falha prev7: {e}")
 
+        # Últimos 30 dias para métricas agregadas
         try:
-            last30_resp = supabase.table("check_ins").select(
-                "user_id, checkin_date, mood_data, meds_context_data, appetite_impulse_data, symptoms_data"
+            ck30_resp = supabase.table("check_ins").select(
+                "user_id, checkin_date, mood_data, meds_context_data, symptoms_data"
             ).gte("checkin_date", thirty_days_ago.isoformat()).execute()
-            checkins_30d = last30_resp.data or []
-            active_patients = {c["user_id"] for c in checkins_30d}
-            active_patient_count = len(active_patients)
-            avg_checkins_per_active_patient = (
-                len(checkins_30d) / active_patient_count if active_patient_count > 0 else 0.0
-            )
-            adherence_values = []
-            for c in checkins_30d:
+            ck30 = ck30_resp.data or []
+            active_patients = {c["user_id"] for c in ck30}
+            active_count = len(active_patients)
+            avg_checkins_per_active_patient = (len(ck30) / active_count) if active_count else 0.0
+
+            adherence_vals = []
+            mood_vals: List[float] = []
+
+            for c in ck30:
                 meds = c.get("meds_context_data", {})
                 if isinstance(meds, dict):
-                    val = meds.get("medicationAdherence") or meds.get("medication_adherence")
-                    if isinstance(val, (int, float)):
-                        adherence_values.append(val)
-            avg_adherence_last_30d = (
-                sum(adherence_values) / len(adherence_values) if adherence_values else 0.0
-            )
-            mood_values: List[float] = []
-            for c in checkins_30d:
+                    ad = meds.get("medicationAdherence") or meds.get("medication_adherence")
+                    if isinstance(ad, (int, float)):
+                        adherence_vals.append(ad)
+
                 mood = c.get("mood_data", {})
                 if isinstance(mood, dict):
                     elevation = mood.get("elevation", 0)
-                    depression = mood.get("depressedMood", 0)
+                    depressed = mood.get("depressedMood", 0)
                     activation = mood.get("activation", 0)
                     energy = mood.get("energyLevel")
-                    if depression > 7 and elevation > 5:
-                        mood_counts["mixed"] += 1; mood_values.append(3)
+                    if depressed > 7 and elevation > 5:
+                        mood_counts["mixed"] += 1
+                        mood_vals.append(3)
                     elif elevation > 8 or (activation > 8 and (energy or 0) > 7):
-                        mood_counts["mania"] += 1; mood_values.append(4)
+                        mood_counts["mania"] += 1
+                        mood_vals.append(4)
                     elif elevation > 5 or activation > 6:
-                        mood_counts["hypomania"] += 1; mood_values.append(3.5)
-                    elif depression > 7:
-                        mood_counts["depression"] += 1; mood_values.append(2)
+                        mood_counts["hypomania"] += 1
+                        mood_vals.append(3.5)
+                    elif depressed > 7:
+                        mood_counts["depression"] += 1
+                        mood_vals.append(2)
                     else:
-                        mood_counts["euthymic"] += 1; mood_values.append(3)
-            avg_current_mood = sum(mood_values) / len(mood_values) if mood_values else 3.0
-            for c in checkins_30d:
-                md = c.get("mood_data", {})
+                        mood_counts["euthymic"] += 1
+                        mood_vals.append(3)
+
+                # Alertas críticos
+                md = mood
                 sd = c.get("symptoms_data", {})
                 if isinstance(md, dict):
                     if (
@@ -300,14 +289,15 @@ async def get_admin_stats(
                         or (isinstance(sd, dict) and sd.get("thoughtSpeed", 0) >= 9)
                     ):
                         critical_alerts_last_30d += 1
+
+            avg_adherence_last_30d = (sum(adherence_vals) / len(adherence_vals)) if adherence_vals else 0.0
+            avg_current_mood = (sum(mood_vals) / len(mood_vals)) if mood_vals else 3.0
+
         except Exception as e:
-            logger.warning(f"Error analyzing last30: {e}")
+            logger.warning(f"[AdminStats] Falha análise 30d: {e}")
 
         duration_ms = (datetime.now(timezone.utc) - start_ts).total_seconds() * 1000
-        logger.info(
-            "Stats calculadas em %.2fms: users=%d checkins=%d real=%d synthetic=%d",
-            duration_ms, total_users, total_checkins, real_patients_count, synthetic_patients_count
-        )
+        logger.info(f"[AdminStats] calculado em {duration_ms:.2f}ms total_users={total_users}")
 
         return StatsResponse(
             total_users=total_users,
@@ -324,8 +314,9 @@ async def get_admin_stats(
             critical_alerts_last_30d=critical_alerts_last_30d,
             patients_with_recent_radar=0,
         )
+
     except Exception as e:
-        logger.exception("Erro crítico stats")
+        logger.exception("[AdminStats] Erro crítico - retornando parcial")
         return StatsResponse(
             total_users=total_users,
             total_checkins=total_checkins,
@@ -359,38 +350,35 @@ async def cleanup_standard(
         if cleanup_request.dryRun:
             is_dry_run = True
         if not cleanup_request.confirm and not is_dry_run:
-            raise HTTPException(status_code=400, detail="Confirmação necessária ou usar dryRun=true.")
-    logger.info(f"Cleanup request: dryRun={is_dry_run}")
+            raise HTTPException(status_code=400, detail="Confirme ou use dryRun=true.")
 
     synthetic_domains = ["@example.com", "@example.org", "@example.net"]
     try:
-        resp_profiles = supabase.table("profiles").select("id,email").execute()
+        resp = supabase.table("profiles").select("id,email").execute()
         ids_to_remove = []
-        if resp_profiles.data:
+        if resp.data:
             ids_to_remove = [
-                p["id"]
-                for p in resp_profiles.data
+                p["id"] for p in resp.data
                 if p.get("email") and any(d in p["email"] for d in synthetic_domains)
             ]
-
         if (not is_dry_run) and ids_to_remove:
-            chunk_size = 100
-            for i in range(0, len(ids_to_remove), chunk_size):
-                chunk = ids_to_remove[i:i + chunk_size]
-                supabase.table("check_ins").delete().in_("user_id", chunk).execute()
-                supabase.table("profiles").delete().in_("id", chunk).execute()
+            chunk = 100
+            for i in range(0, len(ids_to_remove), chunk):
+                part = ids_to_remove[i:i+chunk]
+                supabase.table("check_ins").delete().in_("user_id", part).execute()
+                supabase.table("profiles").delete().in_("id", part).execute()
 
         return CleanupResponse(
             status="ok",
-            message=f"Cleanup {'simulated' if is_dry_run else 'completed'}",
+            message=f"Cleanup {'simulado' if is_dry_run else 'executado'}",
             removedRecords=len(ids_to_remove),
-            sampleIds=ids_to_remove[:5] if ids_to_remove else [],
+            sampleIds=ids_to_remove[:5],
             dryRun=is_dry_run,
             cleanedAt=datetime.now(timezone.utc).isoformat()
         )
     except Exception as e:
-        logger.exception("Erro no cleanup")
-        raise HTTPException(status_code=500, detail=f"Cleanup error: {e}")
+        logger.exception("Erro cleanup")
+        raise HTTPException(status_code=500, detail=f"Erro cleanup: {e}")
 
 # ----------------------------------------------------------------------
 # Danger zone cleanup
@@ -404,38 +392,35 @@ async def danger_zone_cleanup(
     is_admin: bool = Depends(verify_admin_authorization),
 ):
     MOOD_VARIANCE_THRESHOLD = 2.0
-    logger.info(f"Danger zone cleanup: action={cleanup_request.action}, dryRun={cleanup_request.dryRun}")
+    logger.info(f"[DangerZone] action={cleanup_request.action} dryRun={cleanup_request.dryRun}")
 
     if cleanup_request.action == "delete_last_n" and not cleanup_request.quantity:
-        raise HTTPException(status_code=400, detail="quantity required for delete_last_n")
+        raise HTTPException(status_code=400, detail="quantity requerido")
     if cleanup_request.action == "delete_by_mood" and not cleanup_request.mood_pattern:
-        raise HTTPException(status_code=400, detail="mood_pattern required for delete_by_mood")
+        raise HTTPException(status_code=400, detail="mood_pattern requerido")
     if cleanup_request.action == "delete_before_date" and not cleanup_request.before_date:
-        raise HTTPException(status_code=400, detail="before_date required for delete_before_date")
+        raise HTTPException(status_code=400, detail="before_date requerido")
 
     try:
-        profiles_resp = supabase.table("profiles").select(
+        resp_profiles = supabase.table("profiles").select(
             "id,email,created_at,is_test_patient,deleted_at"
         ).eq("is_test_patient", True).is_("deleted_at", "null").execute()
 
-        test_patients = profiles_resp.data or []
+        test_patients = resp_profiles.data or []
         patients_to_delete = test_patients.copy()
 
         if cleanup_request.action == "delete_last_n":
-            patients_to_delete.sort(key=lambda x: x.get("created_at", ""), reverse=True)
-            patients_to_delete = patients_to_delete[: cleanup_request.quantity]
+            patients_to_delete.sort(key=lambda x: x.get("created_at",""), reverse=True)
+            patients_to_delete = patients_to_delete[:cleanup_request.quantity]
 
         elif cleanup_request.action == "delete_by_mood":
             ids = [p["id"] for p in test_patients]
             if ids:
-                ck_resp = supabase.table("check_ins").select("user_id,mood_data").in_(
-                    "user_id", ids
-                ).execute()
+                ck_resp = supabase.table("check_ins").select("user_id,mood_data").in_("user_id", ids).execute()
                 ck_list = ck_resp.data or []
                 grouped: Dict[str, List[Dict[str, Any]]] = {}
                 for c in ck_list:
                     grouped.setdefault(c["user_id"], []).append(c)
-
                 filtered = []
                 for pt in test_patients:
                     pid = pt["id"]
@@ -445,13 +430,13 @@ async def danger_zone_cleanup(
                     for chk in grouped[pid]:
                         md = chk.get("mood_data", {})
                         if isinstance(md, dict):
-                            elev = md.get("elevation", 0) or md.get("elevatedMood", 0)
+                            elev = md.get("elevation", 0)
                             depr = md.get("depressedMood", 0)
                             mood_score = (elev - depr) / 2.0
                             mood_values.append(mood_score)
                     if mood_values:
-                        mean_mood = sum(mood_values) / len(mood_values)
-                        variance = sum((x - mean_mood) ** 2 for x in mood_values) / len(mood_values)
+                        mean_mood = sum(mood_values)/len(mood_values)
+                        variance = sum((x - mean_mood)**2 for x in mood_values)/len(mood_values)
                         pattern = cleanup_request.mood_pattern
                         if pattern == "stable" and variance < MOOD_VARIANCE_THRESHOLD:
                             filtered.append(pt)
@@ -462,48 +447,35 @@ async def danger_zone_cleanup(
                 patients_to_delete = filtered
 
         elif cleanup_request.action == "delete_before_date":
+            from datetime import datetime as dt
             try:
-                cutoff = datetime.fromisoformat(cleanup_request.before_date.replace("Z", "+00:00"))
+                cutoff = dt.fromisoformat(cleanup_request.before_date.replace("Z","+00:00"))
             except Exception as e:
-                raise HTTPException(status_code=400, detail=f"Invalid date: {e}")
+                raise HTTPException(status_code=400, detail=f"Data inválida: {e}")
             patients_to_delete = [
-                pt
-                for pt in patients_to_delete
-                if pt.get("created_at")
-                and datetime.fromisoformat(pt["created_at"].replace("Z", "+00:00")) < cutoff
+                p for p in patients_to_delete
+                if p.get("created_at") and dt.fromisoformat(p["created_at"].replace("Z","+00:00")) < cutoff
             ]
 
         ids_to_delete = [p["id"] for p in patients_to_delete]
 
         if not cleanup_request.dryRun and ids_to_delete:
-            chunk_size = 100
-            for i in range(0, len(ids_to_delete), chunk_size):
-                chunk = ids_to_delete[i:i + chunk_size]
-                supabase.table("check_ins").delete().in_("user_id", chunk).execute()
+            chunk = 100
+            for i in range(0, len(ids_to_delete), chunk):
+                part = ids_to_delete[i:i+chunk]
+                supabase.table("check_ins").delete().in_("user_id", part).execute()
                 try:
-                    supabase.table("crisis_plan").delete().in_("user_id", chunk).execute()
-                    supabase.table("clinical_notes").delete().in_("patient_id", chunk).execute()
-                    supabase.table("therapist_patients").delete().in_("patient_id", chunk).execute()
-                    supabase.table("user_consent").delete().in_("user_id", chunk).execute()
+                    supabase.table("crisis_plan").delete().in_("user_id", part).execute()
+                    supabase.table("clinical_notes").delete().in_("patient_id", part).execute()
+                    supabase.table("therapist_patients").delete().in_("patient_id", part).execute()
+                    supabase.table("user_consent").delete().in_("user_id", part).execute()
                 except Exception:
                     pass
-                supabase.table("profiles").delete().in_("id", chunk).execute()
-
-            try:
-                supabase.table("audit_log").insert({
-                    "action": "danger_zone_cleanup",
-                    "details": {
-                        "action": cleanup_request.action,
-                        "deleted_count": len(ids_to_delete)
-                    },
-                    "created_at": datetime.now(timezone.utc).isoformat()
-                }).execute()
-            except Exception:
-                pass
+                supabase.table("profiles").delete().in_("id", part).execute()
 
         return CleanupResponse(
             status="ok",
-            message=f"Danger zone cleanup {'simulated' if cleanup_request.dryRun else 'completed'}",
+            message=f"Danger zone {'simulado' if cleanup_request.dryRun else 'executado'}",
             removedRecords=len(ids_to_delete),
             sampleIds=ids_to_delete[:5],
             dryRun=cleanup_request.dryRun,
@@ -511,32 +483,11 @@ async def danger_zone_cleanup(
         )
 
     except Exception as e:
-        logger.exception("Erro no danger-zone-cleanup")
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+        logger.exception("Erro danger zone cleanup")
+        raise HTTPException(status_code=500, detail=f"Erro: {e}")
 
 # ----------------------------------------------------------------------
-# Legacy wrappers
-# ----------------------------------------------------------------------
-@router.post("/cleanup-data", response_model=CleanupResponse)
-async def cleanup_data_legacy(
-    request: Request,
-    cleanup_request: CleanupDataRequest,
-    supabase: Client = Depends(get_supabase_service),
-    is_admin: bool = Depends(verify_admin_authorization),
-):
-    return await cleanup_standard(request, cleanup_request, False, supabase, is_admin)
-
-@router.post("/synthetic-data/clean", response_model=CleanDataResponse)
-async def clean_synthetic_data_legacy(
-    request: Request,
-    clean_request: DangerZoneCleanupRequest,
-    supabase: Client = Depends(get_supabase_service),
-    is_admin: bool = Depends(verify_admin_authorization),
-):
-    return await danger_zone_cleanup(request, clean_request, supabase, is_admin)
-
-# ----------------------------------------------------------------------
-# User Management (idempotente sem inserir perfil duplicado manual)
+# Users/create (endpoint solicitado)
 # ----------------------------------------------------------------------
 @router.post("/users/create", response_model=CreateUserResponse)
 @limiter.limit("10/hour")
@@ -546,25 +497,43 @@ async def create_user(
     supabase: Client = Depends(get_supabase_service),
     is_admin: bool = Depends(verify_admin_authorization),
 ):
+    """
+    Cria um usuário (patient ou therapist).
+
+    Fluxo:
+      1. Verifica duplicata por email em profiles.
+      2. Cria usuário no Supabase Auth (admin).
+      3. Extrai user_id.
+      4. Atualiza perfil criado pelo trigger (fallback insert se não houver trigger).
+      5. Retorna dados básicos.
+    """
     logger.info(f"[AdminCreateUser] email={user_request.email} role={user_request.role}")
 
+    # Validações
     if user_request.role not in ("patient", "therapist"):
-        raise HTTPException(status_code=400, detail="Role inválida (use 'patient' ou 'therapist').")
+        raise HTTPException(status_code=400, detail="Role inválida (patient|therapist).")
     if not user_request.password or len(user_request.password) < 8:
-        raise HTTPException(status_code=400, detail="Senha deve ter ao menos 8 caracteres.")
+        raise HTTPException(status_code=400, detail="Senha mínima 8 caracteres.")
 
     email_lower = user_request.email.strip().lower()
 
+    # Duplicata por email
     try:
-        existing_profile = supabase.table("profiles").select("id,email").eq("email", email_lower).execute()
-        if existing_profile.data:
-            logger.warning(f"[AdminCreateUser] Email já existente em profiles: {email_lower}")
-            raise HTTPException(status_code=409, detail=f"Email {email_lower} já está registrado")
-    except HTTPException:
-        raise
+        existing = supabase.table("profiles").select("id,email,role").eq("email", email_lower).execute()
+        if existing.data:
+            eid = existing.data[0]["id"]
+            logger.info(f"[AdminCreateUser] email já existe -> retorno idempotente id={eid}")
+            return CreateUserResponse(
+                status="success",
+                message="Usuário já existente",
+                user_id=eid,
+                email=email_lower,
+                role=existing.data[0]["role"]
+            )
     except Exception as e:
-        logger.warning(f"[AdminCreateUser] Falha ao verificar duplicata em profiles: {e}")
+        logger.warning(f"[AdminCreateUser] Falha checando duplicata: {e}")
 
+    # Criação Auth
     try:
         auth_resp = supabase.auth.admin.create_user({
             "email": email_lower,
@@ -578,57 +547,49 @@ async def create_user(
         })
     except Exception as e:
         msg = str(e)
+        logger.exception("[AdminCreateUser] Erro Auth")
         if "duplicate" in msg.lower() or "already" in msg.lower():
-            logger.warning(f"[AdminCreateUser] Email já existe no Auth: {email_lower}")
-            raise HTTPException(status_code=409, detail=f"Email {email_lower} já está registrado")
-        logger.exception("[AdminCreateUser] Erro ao criar usuário no Auth")
-        raise HTTPException(status_code=500, detail=f"Erro ao criar usuário no Auth: {msg}")
+            raise HTTPException(status_code=409, detail=f"Email {email_lower} já registrado.")
+        raise HTTPException(status_code=500, detail=f"Erro Auth: {msg}")
 
+    # Extrair user_id
     user_id = None
     try:
         if getattr(auth_resp, "user", None):
-            for attr in ("id", "uuid", "user_id"):
-                val = getattr(auth_resp.user, attr, None)
-                if isinstance(val, str) and val:
-                    user_id = val
-                    break
+            user_id = getattr(auth_resp.user, "id", None) or getattr(auth_resp.user, "uuid", None)
     except Exception:
         pass
     if not user_id and isinstance(auth_resp, dict):
-        section = auth_resp.get("user") or auth_resp.get("data") or auth_resp
-        if isinstance(section, dict):
-            for k in ("id", "uuid", "user_id"):
-                v = section.get(k)
-                if isinstance(v, str) and v:
-                    user_id = v
-                    break
+        part = auth_resp.get("user") or auth_resp
+        if isinstance(part, dict):
+            user_id = part.get("id") or part.get("uuid") or part.get("user_id")
     if not user_id:
-        logger.error(f"[AdminCreateUser] Falha ao extrair user_id; auth_resp={auth_resp}")
-        raise HTTPException(status_code=500, detail="Falha ao extrair user_id do Auth.")
+        logger.error(f"[AdminCreateUser] Falha extraindo user_id. Resp={auth_resp}")
+        raise HTTPException(status_code=500, detail="Falha extraindo user_id.")
 
-    profile_update_payload = {
+    # Atualizar perfil (trigger Supabase cria automaticamente). Fallback insert.
+    profile_update = {
         "role": user_request.role,
-        "is_test_patient": False,
+        "is_test_patient": (user_request.role == "patient"),
         "email": email_lower,
-        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     try:
-        update_resp = supabase.table("profiles").update(profile_update_payload).eq("id", user_id).execute()
-        if not update_resp.data:
-            logger.warning(f"[AdminCreateUser] Perfil não encontrado para id={user_id}, fazendo insert fallback.")
-            insert_payload = {"id": user_id, **profile_update_payload}
-            supabase.table("profiles").insert(insert_payload).execute()
-        else:
-            logger.info(f"[AdminCreateUser] Perfil atualizado para id={user_id}")
+        upd = supabase.table("profiles").update(profile_update).eq("id", user_id).execute()
+        if not upd.data:
+            logger.warning(f"[AdminCreateUser] Perfil não encontrado, insert fallback id={user_id}")
+            supabase.table("profiles").insert({
+                "id": user_id,
+                **profile_update,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }).execute()
     except APIError as e:
-        msg = str(e)
-        logger.exception("[AdminCreateUser] Erro ao sincronizar perfil (APIError)")
-        raise HTTPException(status_code=500, detail=f"Erro ao sincronizar perfil: {msg}")
+        logger.exception("[AdminCreateUser] Erro banco perfis")
+        raise HTTPException(status_code=500, detail=f"Erro perfil: {e}")
     except Exception as e:
-        logger.exception("[AdminCreateUser] Erro inesperado ao sincronizar perfil")
-        raise HTTPException(status_code=500, detail=f"Erro inesperado ao sincronizar perfil: {e}")
+        logger.exception("[AdminCreateUser] Erro inesperado perfil")
+        raise HTTPException(status_code=500, detail=f"Erro inesperado perfil: {e}")
 
-    logger.info(f"[AdminCreateUser] Usuário criado com sucesso id={user_id} email={email_lower}")
+    logger.info(f"[AdminCreateUser] sucesso id={user_id}")
     return CreateUserResponse(
         status="success",
         message=f"Usuário {user_request.role} criado com sucesso",
@@ -638,7 +599,7 @@ async def create_user(
     )
 
 # ----------------------------------------------------------------------
-# Listagem de usuários
+# Listagem
 # ----------------------------------------------------------------------
 @router.get("/users", response_model=ListUsersResponse)
 @limiter.limit("30/minute")
@@ -650,38 +611,33 @@ async def list_users(
     supabase: Client = Depends(get_supabase_service),
     is_admin: bool = Depends(verify_admin_authorization),
 ):
-    logger.info(f"Admin listing users: role={role}, limit={limit}, offset={offset}")
+    if limit > 200:
+        limit = 200
+    query = supabase.table("profiles").select("id,email,role,created_at,is_test_patient")
+    if role:
+        if role not in ["patient", "therapist"]:
+            raise HTTPException(status_code=400, detail="Role deve ser patient ou therapist.")
+        query = query.eq("role", role)
+    query = query.order("created_at", desc=True).range(offset, offset + limit - 1)
     try:
-        if limit > 200:
-            limit = 200
-        query = supabase.table("profiles").select(
-            "id, email, role, created_at, is_test_patient"
-        )
-        if role:
-            if role not in ["patient", "therapist"]:
-                raise HTTPException(status_code=400, detail="Role deve ser 'patient' ou 'therapist'")
-            query = query.eq("role", role)
-        query = query.order("created_at", desc=True).range(offset, offset + limit - 1)
-        response = query.execute()
-        data = response.data or []
+        resp = query.execute()
+        data = resp.data or []
         users = [
             UserListItem(
                 id=u["id"],
                 email=u["email"],
                 role=u["role"],
-                created_at=u["created_at"],
+                created_at=u.get("created_at") or "",
                 is_test_patient=u.get("is_test_patient", False)
             )
             for u in data
         ]
         return ListUsersResponse(status="success", users=users, total=len(users))
-    except HTTPException:
-        raise
     except APIError as e:
-        logger.exception(f"Database error listing users: {e}")
-        raise HTTPException(status_code=500, detail=f"Erro ao listar usuários: {e}")
+        logger.exception("Erro listagem usuários banco")
+        raise HTTPException(status_code=500, detail=f"Erro listar: {e}")
     except Exception as e:
-        logger.exception(f"Unexpected error listing users: {e}")
-        raise HTTPException(status_code=500, detail=f"Erro inesperado ao listar usuários: {e}")
+        logger.exception("Erro inesperado listagem usuários")
+        raise HTTPException(status_code=500, detail=f"Erro inesperado: {e}")
 
 __all__ = ["router"]
