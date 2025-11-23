@@ -20,6 +20,7 @@ from api.dependencies import (
     verify_admin_authorization,
 )
 from api.rate_limiter import limiter
+from api.audit import log_audit_action
 from api.schemas.synthetic_data import (
     StatsResponse,
     CleanupResponse,
@@ -126,6 +127,23 @@ async def generate_synthetic_data(
         }
 
         logger.info(f"[SyntheticGen] done patients={stats_obj['patients_created']} therapists={stats_obj['therapists_created']} checkins={stats_obj['total_checkins']}")
+        
+        # Audit log
+        await log_audit_action(
+            supabase=supabase,
+            action="synthetic_generate",
+            details={
+                "patients_requested": patients_count,
+                "therapists_requested": therapists_count,
+                "patients_created": stats_obj['patients_created'],
+                "therapists_created": stats_obj['therapists_created'],
+                "checkins_created": stats_obj['total_checkins'],
+                "pattern": data_request.moodPattern,
+                "seed": data_request.seed,
+                "checkins_per_user": data_request.checkinsPerUser,
+            },
+        )
+        
         return {
             "status": "success",
             "statistics": stats_obj,
@@ -189,21 +207,31 @@ async def get_admin_stats(
         except Exception as e:
             logger.warning(f"[AdminStats] Falha total_checkins: {e}")
 
-        # Real vs sintético
+        # Real vs sintético (using source field)
         try:
-            synthetic_domains = ["@example.com", "@example.org", "@example.net"]
-            resp_profiles = supabase.table("profiles").select("id,email,is_test_patient,role").execute()
+            resp_profiles = supabase.table("profiles").select("id,email,role,source,is_test_patient").execute()
             profiles_list = resp_profiles.data or []
             synthetic_ids = set()
             real_ids = set()
+            
             for p in profiles_list:
                 if p.get("role") == "patient":
-                    if p.get("is_test_patient") or (
-                        p.get("email") and any(d in p["email"] for d in synthetic_domains)
-                    ):
+                    # Use source field if available, fallback to old heuristics
+                    source = p.get("source", "unknown")
+                    if source == "synthetic":
                         synthetic_ids.add(p["id"])
-                    else:
+                    elif source in ("admin_manual", "signup"):
                         real_ids.add(p["id"])
+                    else:
+                        # Fallback to old heuristics for unknown sources
+                        synthetic_domains = ["@example.com", "@example.org", "@example.net"]
+                        if p.get("is_test_patient") or (
+                            p.get("email") and any(d in p["email"] for d in synthetic_domains)
+                        ):
+                            synthetic_ids.add(p["id"])
+                        else:
+                            real_ids.add(p["id"])
+                            
             real_patients_count = len(real_ids)
             synthetic_patients_count = len(synthetic_ids)
         except Exception as e:
@@ -345,6 +373,10 @@ async def cleanup_standard(
     supabase: Client = Depends(get_supabase_service),
     is_admin: bool = Depends(verify_admin_authorization),
 ):
+    """
+    Remove dados sintéticos baseado no campo 'source'.
+    Mais seguro que baseado em domínios de email.
+    """
     is_dry_run = dryRun
     if cleanup_request:
         if cleanup_request.dryRun:
@@ -352,21 +384,38 @@ async def cleanup_standard(
         if not cleanup_request.confirm and not is_dry_run:
             raise HTTPException(status_code=400, detail="Confirme ou use dryRun=true.")
 
-    synthetic_domains = ["@example.com", "@example.org", "@example.net"]
+    # Use source='synthetic' instead of email domain heuristics
     try:
-        resp = supabase.table("profiles").select("id,email").execute()
+        resp = supabase.table("profiles").select("id,email,source").execute()
         ids_to_remove = []
+        sample_emails = []
+        
         if resp.data:
-            ids_to_remove = [
-                p["id"] for p in resp.data
-                if p.get("email") and any(d in p["email"] for d in synthetic_domains)
-            ]
+            for p in resp.data:
+                # Remove only synthetic data
+                if p.get("source") == "synthetic":
+                    ids_to_remove.append(p["id"])
+                    if len(sample_emails) < 5:
+                        sample_emails.append(p.get("email", ""))
+                        
         if (not is_dry_run) and ids_to_remove:
             chunk = 100
             for i in range(0, len(ids_to_remove), chunk):
                 part = ids_to_remove[i:i+chunk]
                 supabase.table("check_ins").delete().in_("user_id", part).execute()
                 supabase.table("profiles").delete().in_("id", part).execute()
+        
+        # Audit log
+        await log_audit_action(
+            supabase=supabase,
+            action="cleanup",
+            details={
+                "dry_run": is_dry_run,
+                "removed_count": len(ids_to_remove),
+                "sample_ids": ids_to_remove[:5],
+                "sample_emails": sample_emails,
+            },
+        )
 
         return CleanupResponse(
             status="ok",
@@ -567,29 +616,59 @@ async def create_user(
         logger.error(f"[AdminCreateUser] Falha extraindo user_id. Resp={auth_resp}")
         raise HTTPException(status_code=500, detail="Falha extraindo user_id.")
 
-    # Atualizar perfil (trigger Supabase cria automaticamente). Fallback insert.
+    # Wait briefly for Supabase trigger to create profile
+    import asyncio
+    await asyncio.sleep(0.3)
+
+    # Update profile created by trigger (NOT insert - trigger creates it automatically)
     profile_update = {
         "role": user_request.role,
-        "is_test_patient": (user_request.role == "patient"),
+        "is_test_patient": False,  # Manual creation is not test
+        "source": "admin_manual",
         "email": email_lower,
     }
     try:
         upd = supabase.table("profiles").update(profile_update).eq("id", user_id).execute()
         if not upd.data:
-            logger.warning(f"[AdminCreateUser] Perfil não encontrado, insert fallback id={user_id}")
+            # Fallback: if trigger didn't create profile (shouldn't happen), insert it
+            logger.warning(f"[AdminCreateUser] Perfil não encontrado após trigger, insert fallback id={user_id}")
             supabase.table("profiles").insert({
                 "id": user_id,
                 **profile_update,
                 "created_at": datetime.now(timezone.utc).isoformat()
             }).execute()
     except APIError as e:
-        logger.exception("[AdminCreateUser] Erro banco perfis")
-        raise HTTPException(status_code=500, detail=f"Erro perfil: {e}")
+        # Check if it's a duplicate key error (profile already exists but update failed)
+        if "duplicate" in str(e).lower() or "23505" in str(e):
+            logger.info(f"[AdminCreateUser] Perfil já existe (esperado), tentando update novamente id={user_id}")
+            # Try update one more time
+            try:
+                supabase.table("profiles").update(profile_update).eq("id", user_id).execute()
+            except Exception as retry_err:
+                logger.exception("[AdminCreateUser] Falha no retry do update")
+                raise HTTPException(status_code=500, detail=f"Erro atualizando perfil: {retry_err}")
+        else:
+            logger.exception("[AdminCreateUser] Erro banco perfis")
+            raise HTTPException(status_code=500, detail=f"Erro perfil: {e}")
     except Exception as e:
         logger.exception("[AdminCreateUser] Erro inesperado perfil")
         raise HTTPException(status_code=500, detail=f"Erro inesperado perfil: {e}")
 
     logger.info(f"[AdminCreateUser] sucesso id={user_id}")
+    
+    # Audit log
+    await log_audit_action(
+        supabase=supabase,
+        action="user_create",
+        details={
+            "email": email_lower,
+            "role": user_request.role,
+            "source": "admin_manual",
+            "full_name": user_request.full_name or "",
+        },
+        user_id=user_id,
+    )
+    
     return CreateUserResponse(
         status="success",
         message=f"Usuário {user_request.role} criado com sucesso",
@@ -638,6 +717,42 @@ async def list_users(
         raise HTTPException(status_code=500, detail=f"Erro listar: {e}")
     except Exception as e:
         logger.exception("Erro inesperado listagem usuários")
+        raise HTTPException(status_code=500, detail=f"Erro inesperado: {e}")
+
+# ----------------------------------------------------------------------
+# Audit log endpoint
+# ----------------------------------------------------------------------
+@router.get("/audit/recent")
+@limiter.limit("30/minute")
+async def get_recent_audit_logs(
+    request: Request,
+    limit: int = 50,
+    supabase: Client = Depends(get_supabase_service),
+    is_admin: bool = Depends(verify_admin_authorization),
+):
+    """
+    Retrieve recent audit log entries.
+    """
+    if limit > 200:
+        limit = 200
+    
+    try:
+        resp = supabase.table("audit_log").select(
+            "id,action,details,user_id,performed_by,created_at"
+        ).order("created_at", desc=True).limit(limit).execute()
+        
+        logs = resp.data or []
+        
+        return {
+            "status": "success",
+            "logs": logs,
+            "count": len(logs),
+        }
+    except APIError as e:
+        logger.exception("Erro listagem audit logs")
+        raise HTTPException(status_code=500, detail=f"Erro listar audit logs: {e}")
+    except Exception as e:
+        logger.exception("Erro inesperado audit logs")
         raise HTTPException(status_code=500, detail=f"Erro inesperado: {e}")
 
 __all__ = ["router"]
