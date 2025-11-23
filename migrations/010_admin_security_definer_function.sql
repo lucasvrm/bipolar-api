@@ -3,7 +3,7 @@
 --              all admin RLS policies to use this function instead of subselects.
 --              This prevents "infinite recursion detected in policy" errors.
 -- Version: 010
--- Date: 2024-11-23
+-- Date: 2025-11-23
 
 -- ============================================================================
 -- PART 1: CREATE SECURITY DEFINER FUNCTION
