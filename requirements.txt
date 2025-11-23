@@ -18,3 +18,4 @@ redis>=5.0.0
 hiredis
 slowapi>=0.1.9
 faker
+requests
