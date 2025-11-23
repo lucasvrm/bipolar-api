@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch, MagicMock
 import json
 import os
 import sys
+import tempfile
 from datetime import datetime, timezone
 
 # Add tools directory to path
@@ -291,8 +292,9 @@ class TestAdminEndpointTester(unittest.TestCase):
         
         self.assertTrue(result.success)
         self.assertEqual(result.status_code, 200)
-        self.assertEqual(result.user_count, 2)
-        self.assertEqual(result.total_count, 2)
+        # Counts are now stored in response_data
+        self.assertEqual(result.response_data['_user_count'], 2)
+        self.assertEqual(result.response_data['_total_count'], 2)
     
     def test_cross_validation_consistent(self):
         """Test cross-validation with consistent data"""
@@ -374,9 +376,6 @@ class TestAdminEndpointTester(unittest.TestCase):
     
     def test_save_report(self):
         """Test saving report to JSON file"""
-        import tempfile
-        import os
-        
         # Create temp file
         temp_dir = tempfile.mkdtemp()
         temp_file = os.path.join(temp_dir, "test_report.json")
@@ -407,9 +406,6 @@ class TestAdminEndpointTester(unittest.TestCase):
     
     def test_generate_roadmap(self):
         """Test generating ROADMAP markdown file"""
-        import tempfile
-        import os
-        
         # Create temp file
         temp_dir = tempfile.mkdtemp()
         temp_file = os.path.join(temp_dir, "test_roadmap.md")

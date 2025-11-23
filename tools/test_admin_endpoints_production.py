@@ -15,6 +15,7 @@ import json
 import time
 import uuid
 import statistics
+import traceback
 from datetime import datetime, timezone
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass, field, asdict
@@ -145,7 +146,7 @@ class AdminEndpointTester:
             # Try to parse JSON response
             try:
                 response_data = response.json()
-            except:
+            except (ValueError, json.JSONDecodeError):
                 response_data = {"raw": response.text[:500]}  # Truncate long responses
             
             success = 200 <= response.status_code < 300
@@ -281,9 +282,10 @@ class AdminEndpointTester:
                         self.report.structural_issues.append(issue)
                         print(f"  ⚠️  {issue}")
             
-            # Store count for cross-validation
-            result.user_count = len(users)
-            result.total_count = total
+            # Store count for cross-validation (stored in response_data for later access)
+            if result.response_data:
+                result.response_data['_user_count'] = len(users)
+                result.response_data['_total_count'] = total
         else:
             print(f"  ❌ Failed: {result.error_message or result.status_code}")
             if self.report.overall_status == "OK":
@@ -408,7 +410,10 @@ class AdminEndpointTester:
         # Calculate P95 (95th percentile)
         sorted_latencies = sorted(latencies)
         p95_index = int(len(sorted_latencies) * 0.95)
-        p95_ms = sorted_latencies[p95_index] if p95_index < len(sorted_latencies) else max_ms
+        # Ensure we don't go out of bounds
+        if p95_index >= len(sorted_latencies):
+            p95_index = len(sorted_latencies) - 1
+        p95_ms = sorted_latencies[p95_index]
         
         # Standard deviation
         stdev_ms = statistics.stdev(latencies) if len(latencies) > 1 else 0.0
@@ -684,7 +689,6 @@ def main():
         sys.exit(130)
     except Exception as e:
         print(f"\n\n❌ Unexpected error during test execution: {e}")
-        import traceback
         traceback.print_exc()
         sys.exit(3)
 
