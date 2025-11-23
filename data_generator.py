@@ -81,28 +81,57 @@ async def create_user_with_retry(
     max_retries: int = 3,
     backoff_seconds: float = 0.1,
 ) -> Tuple[str, str, str]:
+    """
+    Create user via Supabase Auth admin API.
+    NOTE: Supabase trigger automatically creates profile - do NOT manually insert.
+    """
     password = _random_password()
     last_err_msg: Optional[str] = None
 
     for attempt in range(1, max_retries + 1):
         email = _random_email()
-        logger.debug("Tentativa %d/%d: criando %s → %s", attempt, max_retries, role, email)
+        logger.debug("[SyntheticGen] Tentativa %d/%d: criando %s → %s", attempt, max_retries, role, email)
         try:
-            auth_resp = client.auth.admin.create_user({"email": email, "password": password})
+            # Create user in Auth - trigger will create profile automatically
+            auth_resp = client.auth.admin.create_user({
+                "email": email,
+                "password": password,
+                "email_confirm": True,
+                "user_metadata": {
+                    "role": role,
+                    "created_by_admin": True,
+                }
+            })
             user_id = _extract_user_id_from_auth_resp(auth_resp)
-            logger.debug("Usuário auth criado: %s", user_id)
-            payload = {"id": user_id, "email": email, "role": role}
-            client.table("profiles").insert(payload).execute()
-            # Set test flag for cleanup
-            client.table("profiles").update({"is_test_patient": True}).eq("id", user_id).execute()
+            logger.debug("[SyntheticGen] Usuário auth criado: %s", user_id)
+            
+            # Wait briefly for trigger to create profile
+            await asyncio.sleep(0.2)
+            
+            # Update profile created by trigger (not insert!)
+            update_payload = {
+                "role": role,
+                "is_test_patient": True,
+                "source": "synthetic",
+                "email": email,
+            }
+            upd_resp = client.table("profiles").update(update_payload).eq("id", user_id).execute()
+            
+            if not upd_resp.data:
+                logger.warning("[SyntheticGen] Perfil não encontrado após criação auth id=%s, tentando novamente...", user_id)
+                raise Exception("Profile not found after auth creation")
+            
+            logger.info("[SyntheticGen] Usuário sintético criado: %s (%s)", user_id, email)
             return user_id, email, password
+            
         except Exception as e:
             last_err_msg = str(e)
-            logger.warning("Duplicata/erro na tentativa %d, retry...", attempt)
+            logger.warning("[SyntheticGen] Erro na tentativa %d: %s", attempt, str(e)[:100])
             await asyncio.sleep(backoff_seconds * attempt)
             continue
 
-    detail = f"Falha após todas as tentativas ({last_err_msg or 'duplicate'})"
+    detail = f"Falha após {max_retries} tentativas: {last_err_msg or 'unknown error'}"
+    logger.error("[SyntheticGen] %s", detail)
     raise HTTPException(status_code=500, detail=detail)
 
 
@@ -482,27 +511,63 @@ async def generate_and_populate_data(
     seed: Optional[int] = None,
     **_ignored,
 ) -> Dict[str, Any]:
+    """
+    Generate synthetic users and check-ins.
+    
+    IMPORTANT: Supabase trigger creates profiles automatically when auth users are created.
+    This function only needs to update the profiles, not insert them.
+    
+    Raises HTTPException if requested counts don't match created counts.
+    """
     # Set seed if provided
     if seed is not None:
         random.seed(seed)
-        logger.info(f"Using seed {seed} for synthetic data generation")
+        logger.info("[SyntheticGen] Using seed %d", seed)
 
     if clear_db:
-        logger.info("clear_db=True (simulado)")
+        logger.info("[SyntheticGen] clear_db=True (simulado)")
+    
+    logger.info("[SyntheticGen] Starting: patients=%d therapists=%d checkins_per=%d pattern=%s",
+                patients_count, therapists_count, checkins_per_patient, pattern)
 
     patient_tuples: List[Tuple[str, str, str]] = []
     if patients_count > 0:
+        logger.info("[SyntheticGen] Creating %d patients...", patients_count)
         patient_tuples = await _create_multiple_for_role(supabase, "patient", patients_count, concurrency)
+        
     therapist_tuples: List[Tuple[str, str, str]] = []
     if therapists_count > 0:
+        logger.info("[SyntheticGen] Creating %d therapists...", therapists_count)
         therapist_tuples = await _create_multiple_for_role(supabase, "therapist", therapists_count, concurrency)
 
     patient_ids = [t[0] for t in patient_tuples]
     therapist_ids = [t[0] for t in therapist_tuples]
     all_ids = patient_ids + therapist_ids
+    
+    # Validation: ensure we created what was requested
+    patients_created = len(patient_ids)
+    therapists_created = len(therapist_ids)
+    
+    if patients_count > 0 and patients_created == 0:
+        error_msg = f"Failed to create any patients (requested {patients_count})"
+        logger.error("[SyntheticGen] %s", error_msg)
+        raise HTTPException(status_code=500, detail=error_msg)
+    
+    if therapists_count > 0 and therapists_created == 0:
+        error_msg = f"Failed to create any therapists (requested {therapists_count})"
+        logger.error("[SyntheticGen] %s", error_msg)
+        raise HTTPException(status_code=500, detail=error_msg)
+    
+    # Warn if partial failure
+    if patients_created < patients_count:
+        logger.warning("[SyntheticGen] Created %d/%d patients", patients_created, patients_count)
+    
+    if therapists_created < therapists_count:
+        logger.warning("[SyntheticGen] Created %d/%d therapists", therapists_created, therapists_count)
 
     total_checkins = 0
     if patient_ids and checkins_per_patient > 0:
+        logger.info("[SyntheticGen] Generating check-ins for %d patients...", len(patient_ids))
         batch: List[Dict[str, Any]] = []
         for pid in patient_ids:
             sub = generate_user_checkin_history(
@@ -519,8 +584,9 @@ async def generate_and_populate_data(
                 for i in range(0, len(batch), chunk_size):
                     chunk = batch[i:i + chunk_size]
                     supabase.table("check_ins").insert(chunk).execute()
+                logger.info("[SyntheticGen] Inserted %d check-ins", total_checkins)
             except Exception as e:
-                logger.warning("Falha ao inserir check-ins (prosseguindo): %s", e)
+                logger.warning("[SyntheticGen] Falha ao inserir check-ins: %s", e)
 
     generated_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
