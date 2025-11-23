@@ -67,7 +67,8 @@ def test_generate_data_success(client):
     """Test successful synthetic data generation"""
     with patch("api.dependencies.get_supabase_service_role_client") as mock_get_supabase, \
          patch("api.dependencies.get_supabase_anon_auth_client") as mock_get_anon, \
-         patch("data_generator.generate_and_populate_data") as mock_generate:
+         patch("api.admin.generate_and_populate_data", new_callable=AsyncMock) as mock_generate, \
+         patch("api.audit.log_audit_action", new_callable=AsyncMock):
         
         mock_service = create_mock_supabase()
         mock_anon = create_mock_supabase()

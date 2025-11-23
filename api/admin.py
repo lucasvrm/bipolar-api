@@ -86,8 +86,10 @@ async def generate_synthetic_data(
     if data_request.moodPattern not in patterns:
         raise HTTPException(status_code=400, detail=f"moodPattern inválido. Use: {', '.join(patterns)}")
 
-    patients_count = data_request.patientsCount or 0
-    therapists_count = data_request.therapistsCount or 0
+    # Respect explicit 0 values - only use Pydantic defaults if field is omitted
+    # Don't use 'or 0' pattern as it treats 0 as falsy and would override it
+    patients_count = data_request.patientsCount
+    therapists_count = data_request.therapistsCount
     if patients_count == 0 and therapists_count == 0:
         raise HTTPException(status_code=400, detail="É necessário ao menos 1 patient ou 1 therapist.")
 
