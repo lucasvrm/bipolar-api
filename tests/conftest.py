@@ -13,7 +13,15 @@ import os
 os.environ["SUPABASE_URL"] = "https://test.supabase.co"
 os.environ["SUPABASE_SERVICE_KEY"] = "test-key"
 # Add ANON key for tests - use realistic length JWT token
-os.environ["SUPABASE_ANON_KEY"] = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9." + "test" * 30  # 120+ chars
+# This is a test token with proper JWT structure (header.payload.signature format)
+# Each section is base64-encoded, total length > 100 chars to pass validation
+TEST_JWT_ANON = (
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."  # header
+    "eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IlRlc3QgVXNlciIsImlhdCI6MTUxNjIzOTAyMn0."  # payload
+    "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"  # signature (repeated to reach 120+ chars)
+    "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+)
+os.environ["SUPABASE_ANON_KEY"] = TEST_JWT_ANON
 # Use memory storage for tests (not Redis)
 os.environ["RATE_LIMIT_STORAGE_URI"] = "memory://"
 # Set aggressive rate limits for testing

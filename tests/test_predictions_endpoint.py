@@ -52,7 +52,7 @@ def create_mock_supabase_client(data):
 
 
 def async_mock_client_factory(data):
-    """Async factory that returns a mock client"""
+    """Sync factory that returns a mock client"""
     return create_mock_supabase_client(data)
 
 
