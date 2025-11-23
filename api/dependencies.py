@@ -15,6 +15,7 @@ __all__ = [
     "get_supabase_service",
     "verify_admin_authorization",
     "get_admin_emails",
+    "acreate_client",                   # SHIM para compatibilidade de testes
 ]
 
 # Cache (now using sync Client instead of AsyncClient)
@@ -34,6 +35,21 @@ def get_admin_emails() -> Set[str]:
         _admin_emails_cache = {e.strip().lower() for e in raw.split(",") if e.strip()}
         logger.info("Cache de admin emails inicializado (%d)", len(_admin_emails_cache))
     return _admin_emails_cache
+
+
+# SHIM para compatibilidade com testes que patcham acreate_client
+# Definido antes das funções que o utilizam para evitar referência circular
+def acreate_client(url: str, key: str, options=None):
+    """
+    SHIM: Compatibilidade com testes que patcham acreate_client.
+    
+    Este é um wrapper síncrono que chama create_client internamente.
+    O parâmetro options é ignorado (compatibilidade com async client antigo).
+    
+    TEMPORARY: Manter até que todos os testes sejam migrados para mockar
+    get_supabase_anon_auth_client ou get_supabase_service_role_client diretamente.
+    """
+    return create_client(url, key)
 
 
 def get_supabase_anon_auth_client() -> Client:
@@ -58,7 +74,8 @@ def get_supabase_anon_auth_client() -> Client:
         # Log masked key for debugging
         logger.info(f"Initializing ANON client (sync) with key: {anon_key[:5]}...{anon_key[-5:]}")
 
-        _cached_anon_client = create_client(url, anon_key)
+        # Use acreate_client to allow tests to mock it
+        _cached_anon_client = acreate_client(url, anon_key)
         logger.debug("Cliente ANON síncrono cacheado criado.")
     return _cached_anon_client
 
@@ -85,7 +102,8 @@ def get_supabase_service_role_client() -> Client:
         # Log masked key for debugging
         logger.info(f"Initializing SERVICE client (sync) with key: {service_key[:5]}...{service_key[-5:]}")
 
-        _cached_service_client = create_client(url, service_key)
+        # Use acreate_client to allow tests to mock it
+        _cached_service_client = acreate_client(url, service_key)
         logger.debug("Cliente SERVICE ROLE síncrono cacheado criado.")
     return _cached_service_client
 
@@ -107,13 +125,31 @@ async def verify_admin_authorization(
     authorization: str = Header(None),
 ) -> bool:
     """
-    Verifica token Bearer e se o e-mail está na lista ADMIN_EMAILS.
+    Verifica token Bearer e se o e-mail está na lista ADMIN_EMAILS OU se o user_metadata contém role=admin.
     Usa cliente ANON (correto para /auth/v1/user).
     
     Com fallback HTTP em caso de falha do cliente Supabase.
+    
+    Ordem de validação:
+    1. Verificar configuração (ANON key presente) → 500 se ausente
+    2. Verificar header Authorization → 401 se ausente/malformado
+    3. Verificar token com Supabase (com fallback) → 401 se inválido
+    4. Verificar email OU role admin → 403 se não autorizado
     """
     start_time = time.monotonic()
     
+    # 1. Validar configuração primeiro (antes de validar token)
+    supabase_url = os.getenv("SUPABASE_URL")
+    anon_key = os.getenv("SUPABASE_ANON_KEY", "").strip()
+    
+    if not supabase_url or not anon_key:
+        logger.error("Configuração Supabase incompleta: URL ou ANON_KEY ausente")
+        raise HTTPException(
+            status_code=500, 
+            detail="Configuração Supabase incompleta (ANON)."
+        )
+    
+    # 2. Validar header Authorization
     if not authorization or not authorization.lower().startswith("bearer "):
         # Padrão: 401 para token ausente ou inválido
         raise HTTPException(status_code=401, detail="Missing bearer token")
@@ -128,6 +164,7 @@ async def verify_admin_authorization(
     user = None
     fallback_used = False
     
+    # 3. Validar token com Supabase
     try:
         # Tentativa primária com cliente Supabase
         user_resp = supabase_anon.auth.get_user(token)
@@ -152,6 +189,7 @@ async def verify_admin_authorization(
                     def __init__(self, data):
                         self.email = data.get("email")
                         self.id = data.get("id")
+                        self.user_metadata = data.get("user_metadata", {})
                 
                 user = MockUser(user_data)
                 fallback_used = True
@@ -171,21 +209,34 @@ async def verify_admin_authorization(
         # Padrão: 401 para token sem email (inválido)
         raise HTTPException(status_code=401, detail="Invalid token payload")
 
+    # 4. Verificar autorização: email OU role admin
     admin_emails = get_admin_emails()
-    if not admin_emails:
-        logger.warning("ADMIN_EMAILS vazio.")
-        # Padrão: 403 para erro de configuração/permissão do lado do servidor/admin
-        raise HTTPException(status_code=403, detail="Admin list not configured")
-
-    if email.lower() not in admin_emails:
+    
+    # Check if user has admin role in user_metadata
+    user_metadata = getattr(user, "user_metadata", {}) or {}
+    user_role = user_metadata.get("role", "").lower() if isinstance(user_metadata, dict) else ""
+    
+    is_admin_by_email = email.lower() in admin_emails if admin_emails else False
+    is_admin_by_role = user_role == "admin"
+    
+    if not (is_admin_by_email or is_admin_by_role):
         # Padrão: 403 para usuário autenticado mas não autorizado
+        logger.debug(
+            "User not authorized: email=%s, role=%s, admin_emails=%d",
+            email,
+            user_role,
+            len(admin_emails)
+        )
         raise HTTPException(status_code=403, detail="Not authorized as admin")
 
     # Log timing and success
     duration_ms = (time.monotonic() - start_time) * 1000
     logger.debug(
-        "Auth check completed: email=%s, duration=%.2fms, fallback=%s",
+        "Auth check completed: email=%s, role=%s, by_email=%s, by_role=%s, duration=%.2fms, fallback=%s",
         email,
+        user_role,
+        is_admin_by_email,
+        is_admin_by_role,
         duration_ms,
         fallback_used
     )
