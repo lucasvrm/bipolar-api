@@ -372,12 +372,14 @@ async def cleanup_standard(
                 for p in resp_profiles.data
                 if p.get("email") and any(d in p["email"] for d in synthetic_domains)
             ]
-        if not is_dry_run && ids_to_remove:
+
+        if (not is_dry_run) and ids_to_remove:
             chunk_size = 100
             for i in range(0, len(ids_to_remove), chunk_size):
                 chunk = ids_to_remove[i:i + chunk_size]
                 supabase.table("check_ins").delete().in_("user_id", chunk).execute()
                 supabase.table("profiles").delete().in_("id", chunk).execute()
+
         return CleanupResponse(
             status="ok",
             message=f"Cleanup {'simulated' if is_dry_run else 'completed'}",
@@ -534,7 +536,7 @@ async def clean_synthetic_data_legacy(
     return await danger_zone_cleanup(request, clean_request, supabase, is_admin)
 
 # ----------------------------------------------------------------------
-# User Management (idempotente sem inserir perfil duplicado)
+# User Management (idempotente sem inserir perfil duplicado manual)
 # ----------------------------------------------------------------------
 @router.post("/users/create", response_model=CreateUserResponse)
 @limiter.limit("10/hour")
@@ -553,7 +555,6 @@ async def create_user(
 
     email_lower = user_request.email.strip().lower()
 
-    # Verifica duplicata por email em profiles (idempotência)
     try:
         existing_profile = supabase.table("profiles").select("id,email").eq("email", email_lower).execute()
         if existing_profile.data:
@@ -564,7 +565,6 @@ async def create_user(
     except Exception as e:
         logger.warning(f"[AdminCreateUser] Falha ao verificar duplicata em profiles: {e}")
 
-    # Criação no Auth
     try:
         auth_resp = supabase.auth.admin.create_user({
             "email": email_lower,
@@ -584,7 +584,6 @@ async def create_user(
         logger.exception("[AdminCreateUser] Erro ao criar usuário no Auth")
         raise HTTPException(status_code=500, detail=f"Erro ao criar usuário no Auth: {msg}")
 
-    # Extrair user_id
     user_id = None
     try:
         if getattr(auth_resp, "user", None):
@@ -607,7 +606,6 @@ async def create_user(
         logger.error(f"[AdminCreateUser] Falha ao extrair user_id; auth_resp={auth_resp}")
         raise HTTPException(status_code=500, detail="Falha ao extrair user_id do Auth.")
 
-    # Atualiza perfil criado automaticamente (trigger). Fallback insert se não existir.
     profile_update_payload = {
         "role": user_request.role,
         "is_test_patient": False,
@@ -625,8 +623,6 @@ async def create_user(
     except APIError as e:
         msg = str(e)
         logger.exception("[AdminCreateUser] Erro ao sincronizar perfil (APIError)")
-        if "duplicate" in msg.lower() or "violates unique constraint" in msg.lower():
-            pass
         raise HTTPException(status_code=500, detail=f"Erro ao sincronizar perfil: {msg}")
     except Exception as e:
         logger.exception("[AdminCreateUser] Erro inesperado ao sincronizar perfil")
