@@ -276,7 +276,7 @@ SELECT delete_test_users(p_dry_run := false);
 -- Delete test users created before Jan 1, 2024
 SELECT delete_test_users(
   p_dry_run := false,
-  p_before_date := '2024-01-01T00:00:00Z'
+  p_before_date := '2024-01-01T00:00:00+00:00'
 );
 
 -- Delete up to 50 oldest test users

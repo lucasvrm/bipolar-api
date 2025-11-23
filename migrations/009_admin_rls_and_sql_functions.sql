@@ -289,6 +289,7 @@ BEGIN
   v_start_time := clock_timestamp();
 
   -- Find test users matching criteria
+  -- Use subquery with optional LIMIT to avoid arbitrary large numbers
   SELECT ARRAY_AGG(id)
   INTO v_user_ids
   FROM (
@@ -298,7 +299,7 @@ BEGIN
       AND deleted_at IS NULL  -- Don't delete already soft-deleted users
       AND (p_before_date IS NULL OR created_at < p_before_date)
     ORDER BY created_at
-    LIMIT COALESCE(p_limit, 999999)
+    LIMIT CASE WHEN p_limit IS NULL THEN 2147483647 ELSE p_limit END
   ) subq;
 
   -- If no users found, return empty result
