@@ -193,7 +193,7 @@ python -m pytest tests/test_user_creation_validation.py --cov=tools.test_user_cr
 Each user is created with:
 - **Username**: `{prefix}-{timestamp}-{index}`
 - **Email**: `{username}@example.com`
-- **Full Name**: `Teste Auto {index}`
+- **Full Name**: `Test Auto {index}`
 - **Role**: `patient`
 - **Password**: Auto-generated secure password
 

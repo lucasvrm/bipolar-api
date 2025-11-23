@@ -215,9 +215,13 @@ class UserCreationValidator:
         """
         url = urljoin(self.api_base_url, "/api/admin/users/create")
         
+        # Generate a cryptographically secure random password
+        import secrets
+        secure_password = secrets.token_urlsafe(16)
+        
         payload = {
             "email": email,
-            "password": f"{username}-password-{self.correlation_id[:8]}",  # Secure random password
+            "password": secure_password,
             "role": role,
             "full_name": full_name
         }
@@ -307,7 +311,7 @@ class UserCreationValidator:
             for i in range(1, requested_count + 1):
                 username = f"{prefix}-{timestamp}-{i}"
                 email = f"{username}@example.com"
-                full_name = f"Teste Auto {i}"
+                full_name = f"Test Auto {i}"
                 
                 user_id, latency, error = await self.create_user_single(
                     username=username,
@@ -635,6 +639,51 @@ class UserCreationValidator:
         
         return report
     
+    def _format_checklist_item(self, completed: bool, text: str) -> str:
+        """Format a checklist item with completion status."""
+        check = "x" if completed else " "
+        return f"- [{check}] {text}"
+    
+    def _format_discrepancy_section(self, discrepancy: Dict[str, Any], requested_count: int) -> str:
+        """Format the discrepancy section of the ROADMAP."""
+        if not discrepancy.get("has_discrepancy"):
+            return "**No discrepancies detected.** ✅"
+        
+        section = f"""
+**Discrepancy detected:**
+- **Requested:** {requested_count}
+- **Actually Created:** {discrepancy.get('actual_created', 0)}
+- **Difference:** {discrepancy.get('difference', 0)}
+- **Missing:** {discrepancy.get('missing_count', 0)}
+"""
+        
+        # Add duplicates if any
+        duplicates = discrepancy.get('duplicated_usernames', [])
+        if duplicates:
+            section += "\n### Duplicated Usernames\n"
+            for dup in duplicates:
+                section += f"- {dup.get('username')}: {dup.get('count')} occurrences\n"
+        
+        # Add missing users if any
+        missing = discrepancy.get('missing_ids', [])
+        if missing:
+            section += "\n### Missing/Failed Users\n"
+            for miss in missing[:5]:  # Limit to first 5
+                section += f"- Index {miss.get('index')}: {miss.get('username')} - {miss.get('error')}\n"
+        
+        return section
+    
+    def _format_invariants_section(self, violations: List[str]) -> str:
+        """Format the invariant violations section."""
+        if not violations:
+            return "**All invariants passed.** ✅"
+        
+        section = "⚠️ **Violations detected:**\n"
+        for violation in violations:
+            section += f"- {violation}\n"
+        
+        return section
+    
     def generate_roadmap(
         self,
         report: Dict[str, Any],
@@ -681,12 +730,12 @@ class UserCreationValidator:
 
 ## What Was Requested
 
-- [{"x" if report.get('discrepancy', {}).get('has_discrepancy') == False else " "}] Create {requested_count} test users with prefix `{prefix}`
-- [{"x" if report.get('baseline', {}).get('count_before') >= 0 else " "}] Capture baseline user count before creation
-- [{"x" if report.get('creation', {}).get('total_created') > 0 else " "}] Execute user creation via admin API
-- [{"x" if report.get('verification', {}).get('actual_count_verified') >= 0 else " "}] Verify users persisted in database
-- [{"x" if not report.get('discrepancy', {}).get('has_discrepancy') else " "}] Validate count matches requested amount
-- [{"x" if not report.get('invariant_violations') else " "}] Validate mathematical invariants
+{self._format_checklist_item(not report.get('discrepancy', {}).get('has_discrepancy'), f"Create {requested_count} test users with prefix `{prefix}`")}
+{self._format_checklist_item(report.get('baseline', {}).get('count_before', -1) >= 0, "Capture baseline user count before creation")}
+{self._format_checklist_item(report.get('creation', {}).get('total_created', 0) > 0, "Execute user creation via admin API")}
+{self._format_checklist_item(report.get('verification', {}).get('actual_count_verified', -1) >= 0, "Verify users persisted in database")}
+{self._format_checklist_item(not report.get('discrepancy', {}).get('has_discrepancy'), "Validate count matches requested amount")}
+{self._format_checklist_item(not report.get('invariant_violations'), "Validate mathematical invariants")}
 
 ---
 
@@ -716,32 +765,13 @@ class UserCreationValidator:
 
 ## Discrepancies
 
-{"**No discrepancies detected.** ✅" if not report.get('discrepancy', {}).get('has_discrepancy') else f"""
-**Discrepancy detected:**
-- **Requested:** {requested_count}
-- **Actually Created:** {report.get('discrepancy', {}).get('actual_created', 0)}
-- **Difference:** {report.get('discrepancy', {}).get('difference', 0)}
-- **Missing:** {report.get('discrepancy', {}).get('missing_count', 0)}
-"""}
-
-{"" if not report.get('discrepancy', {}).get('duplicated_usernames') else f"""
-### Duplicated Usernames
-{chr(10).join([f"- {dup.get('username')}: {dup.get('count')} occurrences" for dup in report.get('discrepancy', {}).get('duplicated_usernames', [])])}
-"""}
-
-{"" if not report.get('discrepancy', {}).get('missing_ids') else f"""
-### Missing/Failed Users
-{chr(10).join([f"- Index {miss.get('index')}: {miss.get('username')} - {miss.get('error')}" for miss in report.get('discrepancy', {}).get('missing_ids', [])[:5]])}
-"""}
+{self._format_discrepancy_section(report.get('discrepancy', {}), requested_count)}
 
 ---
 
 ## Invariant Violations
 
-{"**All invariants passed.** ✅" if not report.get('invariant_violations') else f"""
-⚠️ **Violations detected:**
-{chr(10).join([f"- {violation}" for violation in report.get('invariant_violations', [])])}
-"""}
+{self._format_invariants_section(report.get('invariant_violations', []))}
 
 ---
 
@@ -756,9 +786,24 @@ class UserCreationValidator:
 ## Next Steps
 
 ### Immediate Actions
-{"- Investigate and fix discrepancies" if report.get('discrepancy', {}).get('has_discrepancy') else "- None required, validation passed"}
-{"- Review and address invariant violations" if report.get('invariant_violations') else ""}
-{"- Investigate errors and retry failed creations" if report.get('error_summary', {}).get('total_errors', 0) > 0 else ""}
+
+"""
+        
+        # Add immediate actions based on status
+        actions = []
+        if report.get('discrepancy', {}).get('has_discrepancy'):
+            actions.append("- Investigate and fix discrepancies")
+        if report.get('invariant_violations'):
+            actions.append("- Review and address invariant violations")
+        if report.get('error_summary', {}).get('total_errors', 0) > 0:
+            actions.append("- Investigate errors and retry failed creations")
+        
+        if not actions:
+            actions.append("- None required, validation passed")
+        
+        roadmap += "\n".join(actions) + "\n\n"
+        
+        roadmap += """
 
 ### Future Improvements
 - [ ] Implement bulk user creation endpoint (`POST /api/admin/users/bulk`)
