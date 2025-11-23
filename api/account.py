@@ -14,7 +14,7 @@ from typing import Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from supabase import AsyncClient
+from supabase import Client
 from postgrest.exceptions import APIError
 
 from api.dependencies import get_supabase_client
@@ -39,7 +39,7 @@ class UndoDeleteRequest(BaseModel):
     token: str = Field(..., description="Deletion token received via email")
 
 
-async def get_user_from_token(authorization: Optional[str], supabase: AsyncClient) -> Dict[str, Any]:
+def get_user_from_token(authorization: Optional[str], supabase: Client) -> Dict[str, Any]:
     """
     Extract and validate user from JWT token.
     
@@ -63,7 +63,8 @@ async def get_user_from_token(authorization: Optional[str], supabase: AsyncClien
     token = authorization[7:]  # Remove "Bearer " prefix
     
     try:
-        user_response = await supabase.auth.get_user(token)
+        # Sync client's auth.get_user() is synchronous
+        user_response = supabase.auth.get_user(token)
         
         if not user_response or not user_response.user:
             logger.error("Invalid JWT token - user not found")
@@ -85,7 +86,7 @@ async def get_user_from_token(authorization: Optional[str], supabase: AsyncClien
 
 
 async def log_audit_event(
-    supabase: AsyncClient,
+    supabase: Client,
     user_id: str,
     action: str,
     details: Dict[str, Any],
@@ -119,7 +120,7 @@ async def log_audit_event(
 async def export_account_data(
     request: Request,
     anonymize: bool = False,
-    supabase: AsyncClient = Depends(get_supabase_client),
+    supabase: Client = Depends(get_supabase_client),
     authorization: Optional[str] = Header(None)
 ):
     """
@@ -146,7 +147,7 @@ async def export_account_data(
     Raises:
         HTTPException: 401 if unauthorized, 500 for errors
     """
-    user = await get_user_from_token(authorization, supabase)
+    user = get_user_from_token(authorization, supabase)
     user_id = user.id
     
     logger.info(f"Data export requested for user {hash_user_id_for_logging(user_id)}")
@@ -317,7 +318,7 @@ async def export_account_data(
 @limiter.limit("3/hour")
 async def request_account_deletion(
     request: Request,
-    supabase: AsyncClient = Depends(get_supabase_client),
+    supabase: Client = Depends(get_supabase_client),
     authorization: Optional[str] = Header(None)
 ):
     """
@@ -344,7 +345,7 @@ async def request_account_deletion(
     Raises:
         HTTPException: 401 if unauthorized, 403 if therapist has active patients, 500 for errors
     """
-    user = await get_user_from_token(authorization, supabase)
+    user = get_user_from_token(authorization, supabase)
     user_id = user.id
     
     logger.info(f"Deletion request for user {hash_user_id_for_logging(user_id)}")
@@ -457,7 +458,7 @@ async def request_account_deletion(
 @router.post("/undo-delete")
 async def undo_account_deletion(
     undo_request: UndoDeleteRequest,
-    supabase: AsyncClient = Depends(get_supabase_client)
+    supabase: Client = Depends(get_supabase_client)
 ):
     """
     Cancel a pending account deletion using the token received via email.

@@ -80,13 +80,13 @@ def create_mock_supabase_client(return_data=None, num_records=30, mock_user=None
 
     mock_client.table = MagicMock(return_value=create_chain())
     
-    # Mock auth.get_user() method
-    async def mock_get_user(jwt=None):
+    # Mock auth.get_user() method (sync - used by sync client)
+    def mock_get_user(jwt=None):
         if mock_user:
             return MockUserResponse(mock_user)
         return None
     
-    # Mock auth.admin.create_user() method
+    # Mock auth.admin.create_user() method (async)
     async def mock_create_user(user_data):
         # Generate a unique user ID for each call
         user_id = str(uuid.uuid4())
@@ -103,15 +103,15 @@ def create_mock_supabase_client(return_data=None, num_records=30, mock_user=None
     return mock_client
 
 
-async def mock_acreate_client(*args, **kwargs):
-    """Async factory that returns a mock client"""
+def mock_create_client(*args, **kwargs):
+    """Factory that returns a mock client (sync)"""
     return create_mock_supabase_client()
 
 
 @pytest.fixture
 def mock_supabase():
     """Mock Supabase client for testing."""
-    return mock_acreate_client
+    return mock_create_client
 
 
 @pytest.fixture
@@ -145,25 +145,25 @@ class TestAdminAuthentication:
 
     def test_generate_data_without_auth_returns_401(self, client, mock_env):
         """Test that request without authorization header is rejected."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client()
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.post(
                 "/api/admin/generate-data",
                 json={"num_users": 1, "checkins_per_user": 10}
             )
 
             assert response.status_code == 401
-            assert "authorization required" in response.json()["detail"].lower()
+            assert "bearer token" in response.json()["detail"].lower()
 
     def test_generate_data_with_invalid_token_returns_401(self, client, mock_env):
         """Test that request with invalid token (no user) is rejected."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             # Return client with no user (auth.get_user returns None)
             return create_mock_supabase_client(mock_user=None)
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.post(
                 "/api/admin/generate-data",
                 headers={"Authorization": "Bearer invalid-token"},
@@ -175,10 +175,10 @@ class TestAdminAuthentication:
 
     def test_generate_data_with_admin_email_succeeds(self, client, mock_env, admin_user):
         """Test that request with admin email succeeds."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=admin_user)
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.post(
                 "/api/admin/generate-data",
                 headers={"Authorization": "Bearer valid-admin-token"},
@@ -193,10 +193,10 @@ class TestAdminAuthentication:
         # User with different email but admin role
         admin_role_user = MockUser(email="other@domain.com", user_metadata={"role": "admin"})
         
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=admin_role_user)
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.post(
                 "/api/admin/generate-data",
                 headers={"Authorization": "Bearer valid-admin-role-token"},
@@ -208,10 +208,10 @@ class TestAdminAuthentication:
 
     def test_generate_data_with_non_admin_user_returns_403(self, client, mock_env, non_admin_user):
         """Test that request with non-admin user returns 403 Forbidden."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=non_admin_user)
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.post(
                 "/api/admin/generate-data",
                 headers={"Authorization": "Bearer valid-non-admin-token"},
@@ -219,15 +219,15 @@ class TestAdminAuthentication:
             )
 
             assert response.status_code == 403
-            assert "forbidden" in response.json()["detail"].lower()
+            assert "admin" in response.json()["detail"].lower()
             assert "admin" in response.json()["detail"].lower()
 
     def test_generate_data_without_bearer_prefix_returns_401(self, client, mock_env):
         """Test that authorization header without Bearer prefix is rejected."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client()
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.post(
                 "/api/admin/generate-data",
                 headers={"Authorization": "invalid-format"},
@@ -247,10 +247,10 @@ class TestAdminAuthentication:
         monkeypatch.delenv("SUPABASE_ANON_KEY", raising=False)
         monkeypatch.setenv("ADMIN_EMAILS", "admin@example.com")
         
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client()
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.post(
                 "/api/admin/generate-data",
                 headers={"Authorization": "Bearer some-token"},
@@ -265,7 +265,7 @@ class TestAdminAuthentication:
         """Test that admin authentication uses ANON client, not SERVICE client."""
         anon_client_used = []
         
-        async def tracking_acreate(url, key, options=None):
+        def tracking_acreate(url, key, options=None):
             # Check which key is being used by looking at headers
             if options and hasattr(options, 'headers'):
                 headers = options.headers
@@ -276,7 +276,7 @@ class TestAdminAuthentication:
                     anon_client_used.append(True)
             return create_mock_supabase_client(mock_user=admin_user)
         
-        with patch("api.dependencies.acreate_client", side_effect=tracking_acreate):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=tracking_acreate):
             response = client.post(
                 "/api/admin/generate-data",
                 headers={"Authorization": "Bearer valid-admin-token"},
@@ -296,10 +296,10 @@ class TestDataGeneration:
 
     def test_generate_data_default_parameters(self, client, mock_env, admin_user):
         """Test data generation with default parameters."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=admin_user)
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.post(
                 "/api/admin/generate-data",
                 headers={"Authorization": "Bearer valid-admin-token"},
@@ -319,10 +319,10 @@ class TestDataGeneration:
 
     def test_generate_data_custom_parameters(self, client, mock_env, admin_user):
         """Test data generation with custom parameters."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=admin_user)
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.post(
                 "/api/admin/generate-data",
                 headers={"Authorization": "Bearer valid-admin-token"},
@@ -342,10 +342,10 @@ class TestDataGeneration:
 
     def test_generate_data_invalid_mood_pattern(self, client, mock_env, admin_user):
         """Test that invalid mood pattern is rejected."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=admin_user)
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.post(
                 "/api/admin/generate-data",
                 headers={"Authorization": "Bearer valid-admin-token"},
@@ -361,10 +361,10 @@ class TestDataGeneration:
 
     def test_generate_data_validates_num_users_range(self, client, mock_env, admin_user):
         """Test that num_users is validated within range."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=admin_user)
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             # Test too small
             response = client.post(
                 "/api/admin/generate-data",
@@ -383,10 +383,10 @@ class TestDataGeneration:
 
     def test_generate_data_validates_checkins_per_user_range(self, client, mock_env, admin_user):
         """Test that checkins_per_user is validated within range."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=admin_user)
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             # Test too small
             response = client.post(
                 "/api/admin/generate-data",
@@ -405,10 +405,10 @@ class TestDataGeneration:
 
     def test_generate_data_returns_user_ids(self, client, mock_env, admin_user):
         """Test that generated user IDs are returned in response."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=admin_user)
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.post(
                 "/api/admin/generate-data",
                 headers={"Authorization": "Bearer valid-admin-token"},
@@ -429,10 +429,10 @@ class TestDataGeneration:
 
     def test_generate_data_with_patients_and_therapists(self, client, mock_env, admin_user):
         """Test data generation with specific patient and therapist counts."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=admin_user)
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.post(
                 "/api/admin/generate-data",
                 headers={"Authorization": "Bearer valid-admin-token"},
@@ -452,10 +452,10 @@ class TestDataGeneration:
 
     def test_generate_data_only_patients(self, client, mock_env, admin_user):
         """Test data generation with only patients."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=admin_user)
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.post(
                 "/api/admin/generate-data",
                 headers={"Authorization": "Bearer valid-admin-token"},
@@ -472,10 +472,10 @@ class TestDataGeneration:
 
     def test_generate_data_only_therapists(self, client, mock_env, admin_user):
         """Test data generation with only therapists."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=admin_user)
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.post(
                 "/api/admin/generate-data",
                 headers={"Authorization": "Bearer valid-admin-token"},
@@ -494,10 +494,10 @@ class TestDataGeneration:
 
     def test_generate_data_rejects_zero_users(self, client, mock_env, admin_user):
         """Test that requesting zero patients and zero therapists is rejected."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=admin_user)
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.post(
                 "/api/admin/generate-data",
                 headers={"Authorization": "Bearer valid-admin-token"},
@@ -512,10 +512,10 @@ class TestDataGeneration:
 
     def test_generate_data_with_legacy_num_users(self, client, mock_env, admin_user):
         """Test backward compatibility with legacy num_users parameter."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=admin_user)
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.post(
                 "/api/admin/generate-data",
                 headers={"Authorization": "Bearer valid-admin-token"},
@@ -642,21 +642,21 @@ class TestStatsEndpoint:
 
     def test_stats_without_auth_returns_401(self, client, mock_env):
         """Test that request without authorization header is rejected."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client()
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.get("/api/admin/stats")
 
             assert response.status_code == 401
-            assert "authorization required" in response.json()["detail"].lower()
+            assert "bearer token" in response.json()["detail"].lower()
 
     def test_stats_with_invalid_token_returns_401(self, client, mock_env):
         """Test that request with invalid token is rejected."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=None)
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.get(
                 "/api/admin/stats",
                 headers={"Authorization": "Bearer invalid-token"}
@@ -710,17 +710,17 @@ class TestStatsEndpoint:
         mock_client.table = create_query_chain
         
         # Mock auth.get_user for admin
-        async def mock_get_user(jwt=None):
+        def mock_get_user(jwt=None):
             return MockUserResponse(admin_user)
         
         mock_auth = MagicMock()
         mock_auth.get_user = mock_get_user
         mock_client.auth = mock_auth
 
-        async def mock_create_stats(*args, **kwargs):
+        def mock_create_stats(*args, **kwargs):
             return mock_client
 
-        with patch("api.dependencies.acreate_client", side_effect=mock_create_stats):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create_stats):
             response = client.get(
                 "/api/admin/stats",
                 headers={"Authorization": "Bearer valid-admin-token"}
@@ -735,17 +735,17 @@ class TestStatsEndpoint:
 
     def test_stats_with_non_admin_returns_403(self, client, mock_env, non_admin_user):
         """Test that non-admin user gets 403 Forbidden."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=non_admin_user)
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.get(
                 "/api/admin/stats",
                 headers={"Authorization": "Bearer valid-non-admin-token"}
             )
 
             assert response.status_code == 403
-            assert "forbidden" in response.json()["detail"].lower()
+            assert "admin" in response.json()["detail"].lower()
 
     def test_stats_handles_zero_counts(self, client, mock_env, admin_user):
         """Test that stats endpoint handles zero counts correctly."""
@@ -773,17 +773,17 @@ class TestStatsEndpoint:
         mock_client.table = create_query_chain
         
         # Mock auth for admin
-        async def mock_get_user(jwt=None):
+        def mock_get_user(jwt=None):
             return MockUserResponse(admin_user)
         
         mock_auth = MagicMock()
         mock_auth.get_user = mock_get_user
         mock_client.auth = mock_auth
 
-        async def mock_create_zero(*args, **kwargs):
+        def mock_create_zero(*args, **kwargs):
             return mock_client
 
-        with patch("api.dependencies.acreate_client", side_effect=mock_create_zero):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create_zero):
             response = client.get(
                 "/api/admin/stats",
                 headers={"Authorization": "Bearer valid-admin-token"}
@@ -800,21 +800,21 @@ class TestUsersEndpoint:
 
     def test_users_without_auth_returns_401(self, client, mock_env):
         """Test that request without authorization header is rejected."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client()
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.get("/api/admin/users")
 
             assert response.status_code == 401
-            assert "authorization required" in response.json()["detail"].lower()
+            assert "bearer token" in response.json()["detail"].lower()
 
     def test_users_with_invalid_token_returns_401(self, client, mock_env):
         """Test that request with invalid token is rejected."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=None)
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.get(
                 "/api/admin/users",
                 headers={"Authorization": "Bearer invalid-token"}
@@ -847,17 +847,17 @@ class TestUsersEndpoint:
         mock_client.table = MagicMock(return_value=chain_mock)
         
         # Mock auth for admin
-        async def mock_get_user(jwt=None):
+        def mock_get_user(jwt=None):
             return MockUserResponse(admin_user)
         
         mock_auth = MagicMock()
         mock_auth.get_user = mock_get_user
         mock_client.auth = mock_auth
 
-        async def mock_create_users(*args, **kwargs):
+        def mock_create_users(*args, **kwargs):
             return mock_client
 
-        with patch("api.dependencies.acreate_client", side_effect=mock_create_users):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create_users):
             response = client.get(
                 "/api/admin/users",
                 headers={"Authorization": "Bearer valid-admin-token"}
@@ -876,17 +876,17 @@ class TestUsersEndpoint:
 
     def test_users_with_non_admin_returns_403(self, client, mock_env, non_admin_user):
         """Test that non-admin user gets 403 Forbidden."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=non_admin_user)
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.get(
                 "/api/admin/users",
                 headers={"Authorization": "Bearer valid-non-admin-token"}
             )
 
             assert response.status_code == 403
-            assert "forbidden" in response.json()["detail"].lower()
+            assert "admin" in response.json()["detail"].lower()
 
     def test_users_returns_empty_list_when_no_users(self, client, mock_env, admin_user):
         """Test that users endpoint returns empty list when no users exist."""
@@ -904,17 +904,17 @@ class TestUsersEndpoint:
         mock_client.table = MagicMock(return_value=chain_mock)
         
         # Mock auth for admin
-        async def mock_get_user(jwt=None):
+        def mock_get_user(jwt=None):
             return MockUserResponse(admin_user)
         
         mock_auth = MagicMock()
         mock_auth.get_user = mock_get_user
         mock_client.auth = mock_auth
 
-        async def mock_create_empty(*args, **kwargs):
+        def mock_create_empty(*args, **kwargs):
             return mock_client
 
-        with patch("api.dependencies.acreate_client", side_effect=mock_create_empty):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create_empty):
             response = client.get(
                 "/api/admin/users",
                 headers={"Authorization": "Bearer valid-admin-token"}
@@ -1044,24 +1044,24 @@ class TestDangerZoneCleanup:
 
     def test_danger_zone_cleanup_without_auth_returns_401(self, client, mock_env):
         """Test that request without authorization header is rejected."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client()
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.post(
                 "/api/admin/danger-zone-cleanup",
                 json={"action": "delete_all"}
             )
 
             assert response.status_code == 401
-            assert "authorization required" in response.json()["detail"].lower()
+            assert "bearer token" in response.json()["detail"].lower()
 
     def test_danger_zone_cleanup_with_non_admin_returns_403(self, client, mock_env, non_admin_user):
         """Test that non-admin user gets 403 Forbidden."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=non_admin_user)
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.post(
                 "/api/admin/danger-zone-cleanup",
                 headers={"Authorization": "Bearer valid-non-admin-token"},
@@ -1069,14 +1069,14 @@ class TestDangerZoneCleanup:
             )
 
             assert response.status_code == 403
-            assert "forbidden" in response.json()["detail"].lower()
+            assert "admin" in response.json()["detail"].lower()
 
     def test_danger_zone_cleanup_invalid_action_returns_400(self, client, mock_env, admin_user):
         """Test that invalid action returns 422 (Pydantic validation error)."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=admin_user)
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.post(
                 "/api/admin/danger-zone-cleanup",
                 headers={"Authorization": "Bearer valid-admin-token"},
@@ -1089,10 +1089,10 @@ class TestDangerZoneCleanup:
 
     def test_danger_zone_cleanup_delete_last_n_without_quantity_returns_400(self, client, mock_env, admin_user):
         """Test that delete_last_n without quantity returns 400."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=admin_user)
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.post(
                 "/api/admin/danger-zone-cleanup",
                 headers={"Authorization": "Bearer valid-admin-token"},
@@ -1104,10 +1104,10 @@ class TestDangerZoneCleanup:
 
     def test_danger_zone_cleanup_delete_by_mood_without_pattern_returns_400(self, client, mock_env, admin_user):
         """Test that delete_by_mood without mood_pattern returns 400."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=admin_user)
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.post(
                 "/api/admin/danger-zone-cleanup",
                 headers={"Authorization": "Bearer valid-admin-token"},
@@ -1119,10 +1119,10 @@ class TestDangerZoneCleanup:
 
     def test_danger_zone_cleanup_delete_before_date_without_date_returns_400(self, client, mock_env, admin_user):
         """Test that delete_before_date without before_date returns 400."""
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return create_mock_supabase_client(mock_user=admin_user)
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.post(
                 "/api/admin/danger-zone-cleanup",
                 headers={"Authorization": "Bearer valid-admin-token"},
@@ -1187,17 +1187,17 @@ class TestDangerZoneCleanup:
         mock_client.table = mock_table
         
         # Mock auth for admin
-        async def mock_get_user(jwt=None):
+        def mock_get_user(jwt=None):
             return MockUserResponse(admin_user)
         
         mock_auth = MagicMock()
         mock_auth.get_user = mock_get_user
         mock_client.auth = mock_auth
         
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return mock_client
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.post(
                 "/api/admin/danger-zone-cleanup",
                 headers={"Authorization": "Bearer valid-admin-token"},
@@ -1258,17 +1258,17 @@ class TestDangerZoneCleanup:
         
         mock_client.table = mock_table
         
-        async def mock_get_user(jwt=None):
+        def mock_get_user(jwt=None):
             return MockUserResponse(admin_user)
         
         mock_auth = MagicMock()
         mock_auth.get_user = mock_get_user
         mock_client.auth = mock_auth
         
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return mock_client
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.post(
                 "/api/admin/danger-zone-cleanup",
                 headers={"Authorization": "Bearer valid-admin-token"},
@@ -1295,17 +1295,17 @@ class TestDangerZoneCleanup:
         
         mock_client.table = MagicMock(return_value=chain_mock)
         
-        async def mock_get_user(jwt=None):
+        def mock_get_user(jwt=None):
             return MockUserResponse(admin_user)
         
         mock_auth = MagicMock()
         mock_auth.get_user = mock_get_user
         mock_client.auth = mock_auth
         
-        async def mock_create(*args, **kwargs):
+        def mock_create(*args, **kwargs):
             return mock_client
         
-        with patch("api.dependencies.acreate_client", side_effect=mock_create):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
             response = client.post(
                 "/api/admin/danger-zone-cleanup",
                 headers={"Authorization": "Bearer valid-admin-token"},

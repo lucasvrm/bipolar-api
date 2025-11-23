@@ -27,6 +27,19 @@ async def lifespan(app: FastAPI):
     """
     # Startup: Load models
     logger.info("=== Application Startup ===")
+    
+    # Log Supabase configuration (masked keys for security)
+    supabase_url = os.getenv("SUPABASE_URL", "")
+    anon_key = os.getenv("SUPABASE_ANON_KEY", "")
+    service_key = os.getenv("SUPABASE_SERVICE_KEY", "")
+    
+    logger.warning(
+        "SUPABASE_URL=%s ANON_PREFIX=%s SERVICE_PREFIX=%s",
+        supabase_url,
+        anon_key[:16] if anon_key else "(not set)",
+        service_key[:16] if service_key else "(not set)"
+    )
+    
     load_models()
     logger.info("=== Application Ready ===")
     

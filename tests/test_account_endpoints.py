@@ -66,10 +66,10 @@ def create_mock_supabase_client(return_data=None, auth_user=None):
     mock_auth = MagicMock()
     
     if auth_user:
-        async def mock_get_user(token):
+        def mock_get_user(token):
             return MockUserResponse(auth_user)
     else:
-        async def mock_get_user(token):
+        def mock_get_user(token):
             return MockUserResponse(MockUser("test-user-id"))
     
     mock_auth.get_user = mock_get_user
@@ -85,6 +85,8 @@ def test_export_requires_auth():
     with patch.dict(os.environ, {
         "SUPABASE_URL": "https://test.supabase.co",
         "SUPABASE_SERVICE_KEY": "test-service-key"
+   ,
+        "SUPABASE_ANON_KEY": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     }):
         response = client.post("/account/export")
         
@@ -135,14 +137,16 @@ def test_export_patient_data():
     
     mock_client.table = mock_table
     
-    async def mock_client_factory(*args, **kwargs):
+    def mock_client_factory(*args, **kwargs):
         return mock_client
     
     with patch.dict(os.environ, {
         "SUPABASE_URL": "https://test.supabase.co",
         "SUPABASE_SERVICE_KEY": "test-service-key"
+   ,
+        "SUPABASE_ANON_KEY": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     }):
-        with patch("api.dependencies.acreate_client", side_effect=mock_client_factory):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_client_factory):
             response = client.post(
                 "/account/export",
                 headers={"Authorization": "Bearer valid-token"}
@@ -159,6 +163,8 @@ def test_delete_request_requires_auth():
     with patch.dict(os.environ, {
         "SUPABASE_URL": "https://test.supabase.co",
         "SUPABASE_SERVICE_KEY": "test-service-key"
+   ,
+        "SUPABASE_ANON_KEY": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     }):
         response = client.post("/account/delete-request")
         
@@ -211,14 +217,16 @@ def test_delete_request_therapist_with_patients():
     
     mock_client.table = mock_table
     
-    async def mock_client_factory(*args, **kwargs):
+    def mock_client_factory(*args, **kwargs):
         return mock_client
     
     with patch.dict(os.environ, {
         "SUPABASE_URL": "https://test.supabase.co",
         "SUPABASE_SERVICE_KEY": "test-service-key"
+   ,
+        "SUPABASE_ANON_KEY": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     }):
-        with patch("api.dependencies.acreate_client", side_effect=mock_client_factory):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_client_factory):
             response = client.post(
                 "/account/delete-request",
                 headers={"Authorization": "Bearer valid-token"}
@@ -273,14 +281,16 @@ def test_delete_request_patient_success():
     
     mock_client.table = mock_table
     
-    async def mock_client_factory(*args, **kwargs):
+    def mock_client_factory(*args, **kwargs):
         return mock_client
     
     with patch.dict(os.environ, {
         "SUPABASE_URL": "https://test.supabase.co",
         "SUPABASE_SERVICE_KEY": "test-service-key"
+   ,
+        "SUPABASE_ANON_KEY": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     }):
-        with patch("api.dependencies.acreate_client", side_effect=mock_client_factory):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_client_factory):
             response = client.post(
                 "/account/delete-request",
                 headers={"Authorization": "Bearer valid-token"}
@@ -299,14 +309,16 @@ def test_undo_delete_invalid_token():
     """Test undo delete with invalid token"""
     mock_client = create_mock_supabase_client(return_data=[])
     
-    async def mock_client_factory(*args, **kwargs):
+    def mock_client_factory(*args, **kwargs):
         return mock_client
     
     with patch.dict(os.environ, {
         "SUPABASE_URL": "https://test.supabase.co",
         "SUPABASE_SERVICE_KEY": "test-service-key"
+   ,
+        "SUPABASE_ANON_KEY": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     }):
-        with patch("api.dependencies.acreate_client", side_effect=mock_client_factory):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_client_factory):
             response = client.post(
                 "/account/undo-delete",
                 json={"token": "123e4567-e89b-12d3-a456-426614174000"}
@@ -332,14 +344,16 @@ def test_undo_delete_success():
     
     mock_client = create_mock_supabase_client(return_data=profile_data)
     
-    async def mock_client_factory(*args, **kwargs):
+    def mock_client_factory(*args, **kwargs):
         return mock_client
     
     with patch.dict(os.environ, {
         "SUPABASE_URL": "https://test.supabase.co",
         "SUPABASE_SERVICE_KEY": "test-service-key"
+   ,
+        "SUPABASE_ANON_KEY": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     }):
-        with patch("api.dependencies.acreate_client", side_effect=mock_client_factory):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_client_factory):
             response = client.post(
                 "/account/undo-delete",
                 json={"token": test_token}
@@ -367,14 +381,16 @@ def test_undo_delete_expired():
     
     mock_client = create_mock_supabase_client(return_data=profile_data)
     
-    async def mock_client_factory(*args, **kwargs):
+    def mock_client_factory(*args, **kwargs):
         return mock_client
     
     with patch.dict(os.environ, {
         "SUPABASE_URL": "https://test.supabase.co",
         "SUPABASE_SERVICE_KEY": "test-service-key"
+   ,
+        "SUPABASE_ANON_KEY": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     }):
-        with patch("api.dependencies.acreate_client", side_effect=mock_client_factory):
+        with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_client_factory):
             response = client.post(
                 "/account/undo-delete",
                 json={"token": test_token}
@@ -389,6 +405,8 @@ def test_undo_delete_invalid_uuid():
     with patch.dict(os.environ, {
         "SUPABASE_URL": "https://test.supabase.co",
         "SUPABASE_SERVICE_KEY": "test-service-key"
+   ,
+        "SUPABASE_ANON_KEY": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     }):
         response = client.post(
             "/account/undo-delete",

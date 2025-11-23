@@ -6,7 +6,7 @@ import time
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from supabase import AsyncClient
+from supabase import Client
 from postgrest.exceptions import APIError
 from pydantic import ValidationError
 import pandas as pd
@@ -243,7 +243,7 @@ async def get_predictions(
     user_id: str,
     types: Optional[str] = Query(None, description="Comma-separated list of prediction types"),
     window_days: int = Query(3, ge=1, le=30, description="Temporal window in days"),
-    supabase: AsyncClient = Depends(get_supabase_client)
+    supabase: Client = Depends(get_supabase_client)
 ):
     """
     Endpoint para obter predições para um usuário.
@@ -329,7 +329,7 @@ async def get_predictions(
 async def get_prediction_of_day(
     request: Request,
     user_id: str,
-    supabase: AsyncClient = Depends(get_supabase_client)
+    supabase: Client = Depends(get_supabase_client)
 ):
     """
     Endpoint otimizado para dashboard (mood_state apenas).

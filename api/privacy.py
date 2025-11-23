@@ -8,7 +8,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
-from supabase import AsyncClient
+from supabase import Client
 from postgrest.exceptions import APIError
 
 from api.dependencies import get_supabase_client
@@ -69,7 +69,7 @@ def verify_authorization(user_id: str, authorization: Optional[str] = Header(Non
 async def get_user_profile(
     request: Request,
     user_id: str,
-    supabase: AsyncClient = Depends(get_supabase_client)
+    supabase: Client = Depends(get_supabase_client)
 ):
     """
     Get user profile information including admin status.
@@ -144,7 +144,7 @@ async def get_user_profile(
 async def update_consent(
     user_id: str,
     consent_data: Dict[str, Any],
-    supabase: AsyncClient = Depends(get_supabase_client),
+    supabase: Client = Depends(get_supabase_client),
     authorization: Optional[str] = Header(None)
 ):
     """
@@ -211,7 +211,7 @@ async def update_consent(
 @router.get("/{user_id}/export")
 async def export_user_data(
     user_id: str,
-    supabase: AsyncClient = Depends(get_supabase_client),
+    supabase: Client = Depends(get_supabase_client),
     authorization: Optional[str] = Header(None)
 ):
     """
@@ -297,7 +297,7 @@ async def export_user_data(
 @router.post("/{user_id}/erase")
 async def erase_user_data(
     user_id: str,
-    supabase: AsyncClient = Depends(get_supabase_client),
+    supabase: Client = Depends(get_supabase_client),
     authorization: Optional[str] = Header(None)
 ):
     """
