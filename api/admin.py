@@ -617,8 +617,8 @@ async def create_user(
         raise HTTPException(status_code=500, detail="Falha extraindo user_id.")
 
     # Wait briefly for Supabase trigger to create profile
-    import time
-    time.sleep(0.3)
+    import asyncio
+    await asyncio.sleep(0.3)
 
     # Update profile created by trigger (NOT insert - trigger creates it automatically)
     profile_update = {

@@ -83,7 +83,20 @@ async def create_user_with_retry(
 ) -> Tuple[str, str, str]:
     """
     Create user via Supabase Auth admin API.
+    
     NOTE: Supabase trigger automatically creates profile - do NOT manually insert.
+    
+    Args:
+        client: Supabase client (service role)
+        role: User role ('patient' or 'therapist')
+        max_retries: Maximum number of retry attempts (default 3)
+        backoff_seconds: Base backoff time in seconds between retries (default 0.1)
+        
+    Returns:
+        Tuple of (user_id, email, password) for successfully created user
+        
+    Raises:
+        HTTPException: If all retries fail or profile update fails
     """
     password = _random_password()
     last_err_msg: Optional[str] = None

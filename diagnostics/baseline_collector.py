@@ -111,7 +111,7 @@ def collect_baseline() -> Dict[str, Any]:
     )
     
     # 5. Test duplicate creation (idempotence)
-    print("🔄 Testing idempotence (duplicate email)...)
+    print("🔄 Testing idempotence (duplicate email)...")
     baseline["tests"]["create_duplicate"] = safe_request(
         "POST",
         f"{API_BASE_URL}/api/admin/users/create",
