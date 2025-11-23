@@ -6,6 +6,8 @@ from typing import List
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from api import account
+app.include_router(account.router)
 
 # Importa nossos módulos da API
 from api import clinical, behavior, insights, data, predictions, privacy, admin, account
