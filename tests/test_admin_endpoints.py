@@ -136,7 +136,7 @@ def mock_env(monkeypatch):
     mock_anon_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9." + "y" * 80  # 120+ chars, valid JWT prefix
     monkeypatch.setenv("SUPABASE_URL", "https://test.supabase.co")
     monkeypatch.setenv("SUPABASE_SERVICE_KEY", mock_service_key)
-    monkeypatch.setenv("servidor incompleta", mock_anon_key)
+    monkeypatch.setenv("SUPABASE_ANON_KEY", mock_anon_key)
     monkeypatch.setenv("ADMIN_EMAILS", "admin@example.com,superadmin@test.com")
 
 
@@ -171,7 +171,7 @@ class TestAdminAuthentication:
             )
 
             assert response.status_code == 401
-            assert "invalid" in response.json()["detail"].lower()
+            assert "inválido" in response.json()["detail"].lower() or "invalid" in response.json()["detail"].lower()
 
     def test_generate_data_with_admin_email_succeeds(self, client, mock_env, admin_user):
         """Test that request with admin email succeeds."""
@@ -235,7 +235,7 @@ class TestAdminAuthentication:
             )
 
             assert response.status_code == 401
-            assert ("bearer" in response.json()["detail"].lower()
+            assert "bearer" in response.json()["detail"].lower()
 
     def test_admin_auth_missing_anon_key_returns_500(self, client, monkeypatch):
         """Test that missing ANON key raises configuration error."""
@@ -244,7 +244,7 @@ class TestAdminAuthentication:
         monkeypatch.setenv("SUPABASE_URL", "https://test.supabase.co")
         monkeypatch.setenv("SUPABASE_SERVICE_KEY", mock_service_key)
         # Explicitly unset ANON_KEY to simulate missing config
-        monkeypatch.delenv("servidor incompleta", raising=False)
+        monkeypatch.delenv("SUPABASE_ANON_KEY", raising=False)
         monkeypatch.setenv("ADMIN_EMAILS", "admin@example.com")
         
         def mock_create(*args, **kwargs):
@@ -259,7 +259,7 @@ class TestAdminAuthentication:
             
             # Should get 500 due to missing ANON key
             assert response.status_code == 500
-            assert "servidor incompleta" in response.json()["detail"]
+            assert "Configuração do servidor incompleta" in response.json()["detail"]
 
     def test_admin_auth_uses_anon_client_not_service(self, client, mock_env, admin_user):
         """Test that admin authentication uses ANON client, not SERVICE client."""
