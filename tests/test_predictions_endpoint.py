@@ -27,7 +27,7 @@ def create_mock_supabase_client(data):
     """Create a mock Supabase client that returns the given data"""
     mock_client = MagicMock()
     
-    async def mock_execute():
+    def mock_execute():
         return MockSupabaseResponse(data)
     
     # Create the chain
@@ -287,7 +287,7 @@ def test_predictions_endpoint_invalid_api_key_response():
 
     # Create a mock that RAISES an APIError resembling the one in production
     mock_client = MagicMock()
-    async def mock_execute_raising_error():
+    def mock_execute_raising_error():
         from postgrest.exceptions import APIError
         # Create error with the specific details seen in logs
         error = APIError({

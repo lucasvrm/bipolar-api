@@ -88,13 +88,13 @@ async def create_user_with_retry(
         email = _random_email()
         logger.debug("Tentativa %d/%d: criando %s → %s", attempt, max_retries, role, email)
         try:
-            auth_resp = await client.auth.admin.create_user({"email": email, "password": password})
+            auth_resp = client.auth.admin.create_user({"email": email, "password": password})
             user_id = _extract_user_id_from_auth_resp(auth_resp)
             logger.debug("Usuário auth criado: %s", user_id)
             payload = {"id": user_id, "email": email, "role": role}
-            await client.table("profiles").insert(payload).execute()
+            client.table("profiles").insert(payload).execute()
             # Set test flag for cleanup
-            await client.table("profiles").update({"is_test_patient": True}).eq("id", user_id).execute()
+            client.table("profiles").update({"is_test_patient": True}).eq("id", user_id).execute()
             return user_id, email, password
         except Exception as e:
             last_err_msg = str(e)
@@ -518,7 +518,7 @@ async def generate_and_populate_data(
                 chunk_size = 100
                 for i in range(0, len(batch), chunk_size):
                     chunk = batch[i:i + chunk_size]
-                    await supabase.table("check_ins").insert(chunk).execute()
+                    supabase.table("check_ins").insert(chunk).execute()
             except Exception as e:
                 logger.warning("Falha ao inserir check-ins (prosseguindo): %s", e)
 

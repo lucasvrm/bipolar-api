@@ -64,7 +64,7 @@ def test_middleware_works_with_predictions_endpoint():
         mock_response = MagicMock()
         mock_response.data = []
         
-        async def mock_execute():
+        def mock_execute():
             return mock_response
         
         chain = MagicMock()
@@ -76,7 +76,7 @@ def test_middleware_works_with_predictions_endpoint():
         
         mock_client.table = MagicMock(return_value=chain)
         
-        async def mock_get_client(*args, **kwargs):
+        def mock_get_client(*args, **kwargs):
             return mock_client
         
         with patch("api.dependencies.acreate_client", side_effect=mock_get_client):

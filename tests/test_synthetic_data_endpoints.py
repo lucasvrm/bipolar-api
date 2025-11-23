@@ -86,11 +86,11 @@ class TestToggleTestFlag:
         mock_client = MagicMock()
         
         # Mock for select query (get patient)
-        async def mock_get_execute():
+        def mock_get_execute():
             return MockSupabaseResponse(data=[{"id": patient_id, "is_test_patient": False}])
         
         # Mock for update query
-        async def mock_update_execute():
+        def mock_update_execute():
             return MockSupabaseResponse(data=[{"id": patient_id, "is_test_patient": True}])
         
         get_chain = MagicMock()
@@ -132,7 +132,7 @@ class TestToggleTestFlag:
         
         mock_client = MagicMock()
         
-        async def mock_execute():
+        def mock_execute():
             return MockSupabaseResponse(data=[])
         
         mock_chain = MagicMock()
@@ -181,7 +181,7 @@ class TestEnhancedStats:
                       'checkins_data', 'checkins_data', 'checkins_data', 'checkins_30d']
         call_index = [0]
         
-        async def mock_execute():
+        def mock_execute():
             response_key = call_order[call_index[0] % len(call_order)]
             call_index[0] += 1
             return responses[response_key]

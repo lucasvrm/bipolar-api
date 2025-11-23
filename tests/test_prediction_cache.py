@@ -109,7 +109,7 @@ async def test_cache_set_stores_data(mock_redis_client):
 async def test_cache_invalidate_deletes_user_keys(mock_redis_client):
     """Test that cache.invalidate removes all keys for a user."""
     # Create an async generator that returns keys
-    async def mock_scan(*args, **kwargs):
+    def mock_scan(*args, **kwargs):
         for key in ["prediction:user123:3:abc", "prediction:user123:7:def"]:
             yield key
     

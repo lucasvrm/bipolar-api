@@ -70,7 +70,7 @@ class MockQueryBuilder:
     def limit(self, *args, **kwargs):
         return self
     
-    async def execute(self):
+    def execute(self):
         """Return the mocked response."""
         mock_response = MagicMock()
         mock_response.data = self.data
@@ -85,8 +85,13 @@ class MockQueryBuilder:
         objects that can be used as: await supabase.table().select()...
         
         Without this, tests would fail with "object is not awaitable" errors.
+        
+        DEPRECATED: This is no longer needed since we use sync supabase client,
+        but kept for backwards compatibility with old test patterns.
         """
-        return self.execute().__await__()
+        async def _async_execute():
+            return self.execute()
+        return _async_execute().__await__()
 
 
 @pytest.fixture
@@ -94,14 +99,14 @@ def mock_supabase():
     """
     Mock Supabase client to prevent real API calls during tests.
     
-    This fixture properly mocks the async Supabase client and its methods
+    This fixture properly mocks the synchronous Supabase client and its methods
     to avoid network calls and DNS resolution attempts.
     
-    Returns an AsyncMock that simulates the Supabase client with proper
+    Returns a MagicMock (not AsyncMock) that simulates the Supabase client with proper
     query builder chain methods.
     """
-    # Create a proper AsyncMock for the Supabase client
-    mock_client = AsyncMock()
+    # Create a proper MagicMock for the Supabase client (synchronous)
+    mock_client = MagicMock()
     
     # Mock data to return
     mock_data = [{
@@ -146,7 +151,7 @@ def client(mock_supabase):
     app.dependency_overrides.clear()
     
     # Override the dependency to return our mock
-    async def override_get_supabase_client():
+    def override_get_supabase_client():
         return mock_supabase
     
     app.dependency_overrides[get_supabase_client] = override_get_supabase_client

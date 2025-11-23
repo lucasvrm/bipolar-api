@@ -86,13 +86,13 @@ def test_generate_data_invalid_mood_pattern(admin_client, mock_admin_user):
     from main import app
     
     # Override admin verification to always return True
-    async def mock_verify_admin(authorization: str = None):
+    def mock_verify_admin(authorization: str = None):
         return True
     
-    async def mock_service_client():
+    def mock_service_client():
         mock = MagicMock()
         
-        async def mock_execute():
+        def mock_execute():
             return MockSupabaseResponse([])
         
         mock_chain = MagicMock()
@@ -131,11 +131,11 @@ def test_generate_data_success(admin_client, mock_admin_user):
     from main import app
     
     # Override admin verification to always return True
-    async def mock_verify_admin(authorization: str = None):
+    def mock_verify_admin(authorization: str = None):
         return True
     
     # Mock the generate_and_populate_data function
-    async def mock_generate_data(**kwargs):
+    def mock_generate_data(**kwargs):
         return {
             "status": "success",
             "statistics": {
@@ -151,10 +151,10 @@ def test_generate_data_success(admin_client, mock_admin_user):
             "therapist_ids": ["therapist-1"]
         }
     
-    async def mock_service_client():
+    def mock_service_client():
         mock = MagicMock()
         
-        async def mock_execute():
+        def mock_execute():
             return MockSupabaseResponse([])
         
         mock_chain = MagicMock()
@@ -200,7 +200,7 @@ def test_generate_data_non_admin_forbidden(admin_client, mock_non_admin_user):
     from fastapi import HTTPException
     
     # Override admin verification to raise 403
-    async def mock_verify_non_admin(authorization: str = None):
+    def mock_verify_non_admin(authorization: str = None):
         raise HTTPException(status_code=403, detail="Not authorized as admin")
     
     app.dependency_overrides[verify_admin_authorization] = mock_verify_non_admin
@@ -229,16 +229,16 @@ def test_stats_endpoint_with_admin(admin_client, mock_admin_user):
     from main import app
     
     # Override admin verification to always return True
-    async def mock_verify_admin(authorization: str = None):
+    def mock_verify_admin(authorization: str = None):
         return True
     
-    async def mock_service_client():
+    def mock_service_client():
         mock = MagicMock()
         
         # Different data for different queries
         call_count = {'count': 0}
         
-        async def mock_execute():
+        def mock_execute():
             call_count['count'] += 1
             # First few calls are for counts (head=True)
             if call_count['count'] <= 2:

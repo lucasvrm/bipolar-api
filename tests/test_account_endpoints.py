@@ -44,7 +44,7 @@ def create_mock_supabase_client(return_data=None, auth_user=None):
     if return_data is None:
         return_data = []
     
-    async def mock_execute():
+    def mock_execute():
         return MockSupabaseResponse(return_data)
     
     # Create generic chain that works for all operations
@@ -124,7 +124,7 @@ def test_export_patient_data():
         else:
             data = []
         
-        async def mock_execute():
+        def mock_execute():
             return MockSupabaseResponse(data)
         
         for method in ['execute', 'eq', 'select', 'insert']:
@@ -204,7 +204,7 @@ def test_delete_request_therapist_with_patients():
         else:
             data = []
         
-        async def mock_execute():
+        def mock_execute():
             return MockSupabaseResponse(data, count=len(data))
         
         for method in ['execute', 'eq', 'select', 'insert', 'update']:
@@ -266,7 +266,7 @@ def test_delete_request_patient_success():
         else:
             data = []
         
-        async def mock_execute():
+        def mock_execute():
             return MockSupabaseResponse(data)
         
         for method in ['execute', 'eq', 'select', 'insert', 'update']:
