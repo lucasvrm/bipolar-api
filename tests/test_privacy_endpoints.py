@@ -30,7 +30,7 @@ def create_mock_supabase_client(return_data=None):
     if return_data is None:
         return_data = []
     
-    async def mock_execute():
+    def mock_execute():
         return MockSupabaseResponse(return_data)
     
     # Create generic chain that works for all operations
@@ -51,7 +51,7 @@ def create_mock_supabase_client(return_data=None):
     return mock_client
 
 
-async def mock_acreate_client(*args, **kwargs):
+def mock_acreate_client(*args, **kwargs):
     """Async factory that returns a mock client"""
     return create_mock_supabase_client()
 
@@ -86,7 +86,7 @@ def test_consent_endpoint_with_auth():
     
     mock_client = create_mock_supabase_client([consent_record])
     
-    async def mock_client_factory(*args, **kwargs):
+    def mock_client_factory(*args, **kwargs):
         return mock_client
     
     with patch.dict(os.environ, {
@@ -94,6 +94,10 @@ def test_consent_endpoint_with_auth():
         "SUPABASE_SERVICE_KEY": "test-service-key"
     }):
         with patch("api.dependencies.acreate_client", side_effect=mock_client_factory):
+            # Force reset of cached client to ensure mock is used
+            import api.dependencies
+            api.dependencies._cached_anon_client = None
+
             response = client.post(
                 f"/user/{test_user_id}/consent",
                 json={"analytics": True, "research": False},
@@ -177,10 +181,10 @@ def test_export_endpoint_with_auth():
     # Create a mock client that returns different data based on the table
     mock_client = MagicMock()
     
-    async def mock_execute_checkins():
+    def mock_execute_checkins():
         return MockSupabaseResponse([checkin_data])
     
-    async def mock_execute_consent():
+    def mock_execute_consent():
         return MockSupabaseResponse([consent_data])
     
     # Track which table is being queried
@@ -198,7 +202,7 @@ def test_export_endpoint_with_auth():
     
     mock_client.table = mock_table
     
-    async def mock_client_factory(*args, **kwargs):
+    def mock_client_factory(*args, **kwargs):
         return mock_client
     
     with patch.dict(os.environ, {
@@ -206,6 +210,10 @@ def test_export_endpoint_with_auth():
         "SUPABASE_SERVICE_KEY": "test-service-key"
     }):
         with patch("api.dependencies.acreate_client", side_effect=mock_client_factory):
+            # Force reset of cached client to ensure mock is used
+            import api.dependencies
+            api.dependencies._cached_anon_client = None
+
             response = client.get(
                 f"/user/{test_user_id}/export",
                 headers={"Authorization": "Bearer test-service-key"}
@@ -271,10 +279,10 @@ def test_erase_endpoint_with_auth():
     # Create a mock client
     mock_client = MagicMock()
     
-    async def mock_execute_delete_checkins():
+    def mock_execute_delete_checkins():
         return MockSupabaseResponse(deleted_checkins)
     
-    async def mock_execute_delete_consent():
+    def mock_execute_delete_consent():
         return MockSupabaseResponse(deleted_consent)
     
     table_responses = {
@@ -291,7 +299,7 @@ def test_erase_endpoint_with_auth():
     
     mock_client.table = mock_table
     
-    async def mock_client_factory(*args, **kwargs):
+    def mock_client_factory(*args, **kwargs):
         return mock_client
     
     with patch.dict(os.environ, {
@@ -299,6 +307,10 @@ def test_erase_endpoint_with_auth():
         "SUPABASE_SERVICE_KEY": "test-service-key"
     }):
         with patch("api.dependencies.acreate_client", side_effect=mock_client_factory):
+            # Force reset of cached client to ensure mock is used
+            import api.dependencies
+            api.dependencies._cached_anon_client = None
+
             response = client.post(
                 f"/user/{test_user_id}/erase",
                 headers={"Authorization": "Bearer test-service-key"}

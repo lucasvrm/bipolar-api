@@ -87,7 +87,7 @@ def test_latest_checkin_valid_uuid_calls_supabase():
     
     mock_client = create_mock_supabase_client([checkin_data])
     
-    async def mock_acreate_client(*args, **kwargs):
+    def mock_acreate_client(*args, **kwargs):
         return mock_client
     
     with patch.dict(os.environ, {
@@ -95,6 +95,10 @@ def test_latest_checkin_valid_uuid_calls_supabase():
         "SUPABASE_SERVICE_KEY": "test-key"
     }):
         with patch("api.dependencies.acreate_client", side_effect=mock_acreate_client):
+            # Force reset of cached client to ensure mock is used
+            import api.dependencies
+            api.dependencies._cached_anon_client = None
+
             response = client.get(f"/data/latest_checkin/{valid_uuid}")
             
             # Should succeed and return data
@@ -147,7 +151,7 @@ def test_predictions_valid_uuid_calls_supabase():
     
     mock_client = create_mock_supabase_client([checkin_data])
     
-    async def mock_acreate_client(*args, **kwargs):
+    def mock_acreate_client(*args, **kwargs):
         return mock_client
     
     with patch.dict(os.environ, {
@@ -155,6 +159,10 @@ def test_predictions_valid_uuid_calls_supabase():
         "SUPABASE_SERVICE_KEY": "test-key"
     }):
         with patch("api.dependencies.acreate_client", side_effect=mock_acreate_client):
+            # Force reset of cached client to ensure mock is used
+            import api.dependencies
+            api.dependencies._cached_anon_client = None
+
             response = client.get(f"/data/predictions/{valid_uuid}")
             
             # Should succeed
@@ -185,7 +193,7 @@ def test_predictions_valid_uuid_with_query_params():
     
     mock_client = create_mock_supabase_client([checkin_data])
     
-    async def mock_acreate_client(*args, **kwargs):
+    def mock_acreate_client(*args, **kwargs):
         return mock_client
     
     with patch.dict(os.environ, {
@@ -193,6 +201,10 @@ def test_predictions_valid_uuid_with_query_params():
         "SUPABASE_SERVICE_KEY": "test-key"
     }):
         with patch("api.dependencies.acreate_client", side_effect=mock_acreate_client):
+            # Force reset of cached client to ensure mock is used
+            import api.dependencies
+            api.dependencies._cached_anon_client = None
+
             response = client.get(
                 f"/data/predictions/{valid_uuid}?types=mood_state&window_days=7"
             )
@@ -226,10 +238,14 @@ def test_uuid_edge_cases():
         # Nil UUID has valid format, so should pass validation and return 200 with empty predictions
         mock_client = create_mock_supabase_client([])
         
-        async def mock_acreate_client(*args, **kwargs):
+        def mock_acreate_client(*args, **kwargs):
             return mock_client
         
         with patch("api.dependencies.acreate_client", side_effect=mock_acreate_client):
+            # Force reset of cached client to ensure mock is used
+            import api.dependencies
+            api.dependencies._cached_anon_client = None
+
             response = client.get(f"/data/predictions/00000000-0000-0000-0000-000000000000")
             # Should pass validation and return successful response with no predictions
             assert response.status_code == 200
@@ -278,7 +294,7 @@ def test_prediction_of_day_valid_uuid_calls_supabase():
     
     mock_client = create_mock_supabase_client([checkin_data])
     
-    async def mock_acreate_client(*args, **kwargs):
+    def mock_acreate_client(*args, **kwargs):
         return mock_client
     
     with patch.dict(os.environ, {
@@ -286,6 +302,10 @@ def test_prediction_of_day_valid_uuid_calls_supabase():
         "SUPABASE_SERVICE_KEY": "test-key"
     }):
         with patch("api.dependencies.acreate_client", side_effect=mock_acreate_client):
+            # Force reset of cached client to ensure mock is used
+            import api.dependencies
+            api.dependencies._cached_anon_client = None
+
             response = client.get(f"/data/prediction_of_day/{valid_uuid}")
             
             # Should succeed

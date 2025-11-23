@@ -51,7 +51,7 @@ def create_mock_supabase_client(data):
     return mock_client
 
 
-async def async_mock_client_factory(data):
+def async_mock_client_factory(data):
     """Async factory that returns a mock client"""
     return create_mock_supabase_client(data)
 
@@ -61,7 +61,7 @@ def test_predictions_endpoint_no_checkins():
     test_user_id = "123e4567-e89b-12d3-a456-426614174000"
     mock_client = create_mock_supabase_client([])
     
-    async def mock_acreate_client(*args, **kwargs):
+    def mock_acreate_client(*args, **kwargs):
         return mock_client
     
     with patch.dict(os.environ, {
@@ -124,7 +124,7 @@ def test_predictions_endpoint_with_checkin():
     
     mock_client = create_mock_supabase_client([checkin_data])
     
-    async def mock_acreate_client(*args, **kwargs):
+    def mock_acreate_client(*args, **kwargs):
         return mock_client
     
     with patch.dict(os.environ, {
@@ -176,7 +176,7 @@ def test_predictions_endpoint_with_type_filter():
     
     mock_client = create_mock_supabase_client([checkin_data])
     
-    async def mock_acreate_client(*args, **kwargs):
+    def mock_acreate_client(*args, **kwargs):
         return mock_client
     
     with patch.dict(os.environ, {
@@ -221,7 +221,7 @@ def test_predictions_endpoint_with_window_days():
     
     mock_client = create_mock_supabase_client([checkin_data])
     
-    async def mock_acreate_client(*args, **kwargs):
+    def mock_acreate_client(*args, **kwargs):
         return mock_client
     
     with patch.dict(os.environ, {
@@ -311,7 +311,7 @@ def test_predictions_endpoint_invalid_api_key_response():
     mock_table.select.return_value = mock_select
     mock_client.table.return_value = mock_table
 
-    async def mock_acreate_client(*args, **kwargs):
+    def mock_acreate_client(*args, **kwargs):
         return mock_client
 
     with patch.dict(os.environ, {
@@ -334,7 +334,7 @@ def test_prediction_of_day_endpoint_no_checkins():
     valid_uuid = "123e4567-e89b-12d3-a456-426614174000"
     mock_client = create_mock_supabase_client([])
     
-    async def mock_acreate_client(*args, **kwargs):
+    def mock_acreate_client(*args, **kwargs):
         return mock_client
     
     with patch.dict(os.environ, {
@@ -383,7 +383,7 @@ def test_prediction_of_day_endpoint_with_checkin():
     
     mock_client = create_mock_supabase_client([checkin_data])
     
-    async def mock_acreate_client(*args, **kwargs):
+    def mock_acreate_client(*args, **kwargs):
         return mock_client
     
     with patch.dict(os.environ, {
@@ -440,7 +440,7 @@ def test_prediction_of_day_endpoint_probability_normalization():
     
     mock_client = create_mock_supabase_client([checkin_data])
     
-    async def mock_acreate_client(*args, **kwargs):
+    def mock_acreate_client(*args, **kwargs):
         return mock_client
     
     with patch.dict(os.environ, {

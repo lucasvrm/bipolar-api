@@ -108,7 +108,7 @@ async def get_user_profile(
     try:
         # Fetch user profile from profiles table
         # Filter out soft-deleted accounts
-        response = await supabase.table('profiles')\
+        response = supabase.table('profiles')\
             .select('id, email, is_admin, created_at')\
             .eq('id', user_id)\
             .is_('deleted_at', 'null')\
@@ -186,7 +186,7 @@ async def update_consent(
         consent_data["updated_at"] = datetime.now(timezone.utc).isoformat()
         
         # Upsert consent record
-        response = await supabase.table('user_consent')\
+        response = supabase.table('user_consent')\
             .upsert(consent_data, on_conflict="user_id")\
             .execute()
         
@@ -251,7 +251,7 @@ async def export_user_data(
         
         # Fetch check-ins
         try:
-            checkins_response = await supabase.table('check_ins')\
+            checkins_response = supabase.table('check_ins')\
                 .select('*')\
                 .eq('user_id', user_id)\
                 .execute()
@@ -263,7 +263,7 @@ async def export_user_data(
         
         # Fetch consent preferences
         try:
-            consent_response = await supabase.table('user_consent')\
+            consent_response = supabase.table('user_consent')\
                 .select('*')\
                 .eq('user_id', user_id)\
                 .execute()
@@ -339,7 +339,7 @@ async def erase_user_data(
         
         # Delete check-ins
         try:
-            checkins_delete = await supabase.table('check_ins')\
+            checkins_delete = supabase.table('check_ins')\
                 .delete()\
                 .eq('user_id', user_id)\
                 .execute()
@@ -352,7 +352,7 @@ async def erase_user_data(
         
         # Delete consent preferences
         try:
-            consent_delete = await supabase.table('user_consent')\
+            consent_delete = supabase.table('user_consent')\
                 .delete()\
                 .eq('user_id', user_id)\
                 .execute()
