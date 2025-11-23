@@ -43,6 +43,23 @@ class TestEndpointTestResult(unittest.TestCase):
         self.assertIsNone(result.response_data)
         self.assertIsNone(result.error_message)
         self.assertIsNotNone(result.timestamp)
+        # Test default validation_passed
+        self.assertTrue(result.validation_passed)
+    
+    def test_creation_with_validation_passed(self):
+        """Test creating result with validation_passed set to False"""
+        result = EndpointTestResult(
+            endpoint="/api/admin/stats",
+            method="GET",
+            status_code=401,
+            latency_ms=123.45,
+            success=False,
+            validation_passed=True  # Negative test that expects 401
+        )
+        
+        self.assertFalse(result.success)  # HTTP failed
+        self.assertTrue(result.validation_passed)  # But validation passed
+        self.assertEqual(result.status_code, 401)
     
     def test_creation_with_full_data(self):
         """Test creating result with all optional data"""
@@ -218,6 +235,7 @@ class TestAdminEndpointTester(unittest.TestCase):
         result = self.tester.test_authorization_positive()
         
         self.assertTrue(result.success)
+        self.assertTrue(result.validation_passed)
         self.assertEqual(result.status_code, 200)
         self.assertEqual(len(self.tester.results), 1)
         self.assertEqual(len(self.tester.report.structural_issues), 0)
@@ -237,6 +255,7 @@ class TestAdminEndpointTester(unittest.TestCase):
         result = self.tester.test_authorization_positive()
         
         self.assertTrue(result.success)
+        self.assertFalse(result.validation_passed)  # Should fail validation
         # Should have structural issues logged
         self.assertGreater(len(self.tester.report.structural_issues), 0)
     
@@ -251,7 +270,8 @@ class TestAdminEndpointTester(unittest.TestCase):
         
         result = self.tester.test_authorization_negative()
         
-        self.assertFalse(result.success)
+        self.assertFalse(result.success)  # HTTP failed
+        self.assertTrue(result.validation_passed)  # But validation passed
         self.assertEqual(result.status_code, 401)
         self.assertEqual(self.tester.report.authorization_negative_result["status"], "PASS")
     
@@ -267,6 +287,7 @@ class TestAdminEndpointTester(unittest.TestCase):
         result = self.tester.test_authorization_negative()
         
         self.assertTrue(result.success)  # HTTP success
+        self.assertFalse(result.validation_passed)  # But validation failed
         self.assertEqual(result.status_code, 200)
         # But should be marked as security failure
         self.assertIn("FAIL", self.tester.report.authorization_negative_result["status"])
@@ -291,6 +312,7 @@ class TestAdminEndpointTester(unittest.TestCase):
         result = self.tester.test_list_users(limit=50)
         
         self.assertTrue(result.success)
+        self.assertTrue(result.validation_passed)
         self.assertEqual(result.status_code, 200)
         # Counts are now stored in response_data
         self.assertEqual(result.response_data['_user_count'], 2)
