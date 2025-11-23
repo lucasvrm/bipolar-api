@@ -37,7 +37,7 @@ async def get_latest_checkin_for_user(
     try:
         # Note: Using select('*') to retrieve all columns for flexibility
         # The prediction models may require different fields depending on the analysis type
-        response = await supabase.table('check_ins')\
+        response = supabase.table('check_ins')\
             .select('*')\
             .eq('user_id', user_id)\
             .order('checkin_date', desc=True)\

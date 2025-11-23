@@ -62,7 +62,7 @@ def create_mock_supabase_client(return_data=None, num_records=30, mock_user=None
     if return_data is None:
         return_data = [{"id": f"test-checkin-{i}"} for i in range(num_records)]
 
-    async def mock_execute():
+    def mock_execute():
         return MockSupabaseResponse(return_data)
 
     # Create generic chain that works for all operations
@@ -676,7 +676,7 @@ class TestStatsEndpoint:
                 self.count = count_value
                 self.data = data_value if data_value is not None else []
 
-        async def mock_execute_with_count(count_value, data_value=None):
+        def mock_execute_with_count(count_value, data_value=None):
             return MockCountResponse(count_value, data_value)
 
         # Create a flexible chain mock that supports all query builder methods
@@ -756,7 +756,7 @@ class TestStatsEndpoint:
                 self.count = count_value
                 self.data = []
 
-        async def mock_execute():
+        def mock_execute():
             return MockCountResponse(0)
 
         # Create a flexible chain mock
@@ -834,7 +834,7 @@ class TestUsersEndpoint:
             {"id": "user-3", "email": "user3@example.com"},
         ]
 
-        async def mock_execute():
+        def mock_execute():
             return MockSupabaseResponse(users_data)
 
         # Setup the mock chain
@@ -892,7 +892,7 @@ class TestUsersEndpoint:
         """Test that users endpoint returns empty list when no users exist."""
         mock_client = MagicMock()
 
-        async def mock_execute():
+        def mock_execute():
             return MockSupabaseResponse([])
 
         chain_mock = MagicMock()
@@ -1284,7 +1284,7 @@ class TestDangerZoneCleanup:
         """Test when no test patients are found."""
         mock_client = MagicMock()
         
-        async def mock_execute():
+        def mock_execute():
             return MockSupabaseResponse([])
         
         chain_mock = MagicMock()

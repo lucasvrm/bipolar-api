@@ -280,7 +280,7 @@ async def get_predictions(
         logger.warning(f"Cache error (continuing without cache): {e}")
     
     try:
-        response = await supabase.table('check_ins')\
+        response = supabase.table('check_ins')\
             .select('*')\
             .eq('user_id', user_id)\
             .order('checkin_date', desc=True)\
@@ -408,7 +408,7 @@ async def get_prediction_of_day(
     logger.info(f"GET /data/prediction_of_day/{user_id}")
     
     try:
-        response = await supabase.table('check_ins')\
+        response = supabase.table('check_ins')\
             .select('*')\
             .eq('user_id', user_id)\
             .order('checkin_date', desc=True)\

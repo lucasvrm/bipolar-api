@@ -102,7 +102,7 @@ async def generate_synthetic_data(
         if data_request.clearDb:
             logger.info("Limpando dados sintéticos antes de gerar...")
             synthetic_domains = ["@example.com", "@example.org", "@example.net"]
-            resp_profiles = await supabase.table("profiles").select("id,email").execute()
+            resp_profiles = supabase.table("profiles").select("id,email").execute()
             if resp_profiles.data:
                 synthetic_ids = [
                     p["id"]
@@ -114,8 +114,8 @@ async def generate_synthetic_data(
                     chunk_size = 100
                     for i in range(0, len(synthetic_ids), chunk_size):
                         chunk = synthetic_ids[i:i + chunk_size]
-                        await supabase.table("check_ins").delete().in_("user_id", chunk).execute()
-                        await supabase.table("profiles").delete().in_("id", chunk).execute()
+                        supabase.table("check_ins").delete().in_("user_id", chunk).execute()
+                        supabase.table("profiles").delete().in_("id", chunk).execute()
                     logger.info(f"Limpou {len(synthetic_ids)} perfis sintéticos.")
 
         result = await generate_and_populate_data(
@@ -212,7 +212,7 @@ async def get_admin_stats(
 
         # Contagem total de perfis (with error handling)
         try:
-            profiles_head = await supabase.table("profiles").select(
+            profiles_head = supabase.table("profiles").select(
                 "*", count=CountMethod.exact, head=True
             ).execute()
             total_users = profiles_head.count or 0
@@ -221,7 +221,7 @@ async def get_admin_stats(
 
         # Contagem total de check-ins (with error handling)
         try:
-            checkins_head = await supabase.table("check_ins").select(
+            checkins_head = supabase.table("check_ins").select(
                 "*", count=CountMethod.exact, head=True
             ).execute()
             total_checkins = checkins_head.count or 0
@@ -231,7 +231,7 @@ async def get_admin_stats(
         # Perfil completo para separar real vs sintético
         try:
             synthetic_domains = ["@example.com", "@example.org", "@example.net"]
-            profiles_resp = await supabase.table("profiles").select(
+            profiles_resp = supabase.table("profiles").select(
                 "id,email,is_test_patient,role"
             ).execute()
             profiles_all = profiles_resp.data or []
@@ -254,7 +254,7 @@ async def get_admin_stats(
 
         # Check-ins hoje
         try:
-            today_resp = await supabase.table("check_ins").select(
+            today_resp = supabase.table("check_ins").select(
                 "*", count=CountMethod.exact, head=True
             ).gte("checkin_date", today_start.isoformat()).execute()
             checkins_today = today_resp.count or 0
@@ -263,7 +263,7 @@ async def get_admin_stats(
 
         # Últimos 7 dias
         try:
-            last7_resp = await supabase.table("check_ins").select(
+            last7_resp = supabase.table("check_ins").select(
                 "*", count=CountMethod.exact, head=True
             ).gte("checkin_date", seven_days_ago.isoformat()).execute()
             checkins_last_7_days = last7_resp.count or 0
@@ -272,7 +272,7 @@ async def get_admin_stats(
 
         # 7 dias anteriores aos últimos 7
         try:
-            prev7_resp = await supabase.table("check_ins").select(
+            prev7_resp = supabase.table("check_ins").select(
                 "*", count=CountMethod.exact, head=True
             ).gte("checkin_date", fourteen_days_ago.isoformat()).lt(
                 "checkin_date", seven_days_ago.isoformat()
@@ -283,7 +283,7 @@ async def get_admin_stats(
 
         # Check-ins últimos 30 dias (for detailed analysis)
         try:
-            last30_resp = await supabase.table("check_ins").select(
+            last30_resp = supabase.table("check_ins").select(
                 "user_id, checkin_date, mood_data, meds_context_data, appetite_impulse_data"
             ).gte("checkin_date", thirty_days_ago.isoformat()).execute()
             checkins_30d = last30_resp.data or []
@@ -430,7 +430,7 @@ async def cleanup_standard(
     synthetic_domains = ["@example.com", "@example.org", "@example.net"]
 
     try:
-        resp_profiles = await supabase.table("profiles").select("id,email").execute()
+        resp_profiles = supabase.table("profiles").select("id,email").execute()
 
         ids_to_remove = []
         if resp_profiles.data:
@@ -445,8 +445,8 @@ async def cleanup_standard(
             chunk_size = 100
             for i in range(0, len(ids_to_remove), chunk_size):
                 chunk = ids_to_remove[i:i + chunk_size]
-                await supabase.table("check_ins").delete().in_("user_id", chunk).execute()
-                await supabase.table("profiles").delete().in_("id", chunk).execute()
+                supabase.table("check_ins").delete().in_("user_id", chunk).execute()
+                supabase.table("profiles").delete().in_("id", chunk).execute()
 
         return CleanupResponse(
             status="ok",
@@ -485,7 +485,7 @@ async def danger_zone_cleanup(
 
     try:
         # Find candidates (is_test_patient=true)
-        profiles_resp = await supabase.table("profiles").select(
+        profiles_resp = supabase.table("profiles").select(
             "id,email,created_at,is_test_patient,deleted_at"
         ).eq("is_test_patient", True).is_("deleted_at", "null").execute()
 
@@ -500,7 +500,7 @@ async def danger_zone_cleanup(
         elif cleanup_request.action == "delete_by_mood":
             ids = [p["id"] for p in test_patients]
             if ids:
-                ck_resp = await supabase.table("check_ins").select("user_id,mood_data").in_(
+                ck_resp = supabase.table("check_ins").select("user_id,mood_data").in_(
                     "user_id", ids
                 ).execute()
                 ck_list = ck_resp.data or []
@@ -553,19 +553,19 @@ async def danger_zone_cleanup(
             for i in range(0, len(ids_to_delete), chunk_size):
                 chunk = ids_to_delete[i:i + chunk_size]
                 # Child tables
-                await supabase.table("check_ins").delete().in_("user_id", chunk).execute()
+                supabase.table("check_ins").delete().in_("user_id", chunk).execute()
                 try:
-                    await supabase.table("crisis_plan").delete().in_("user_id", chunk).execute()
-                    await supabase.table("clinical_notes").delete().in_("patient_id", chunk).execute()
-                    await supabase.table("therapist_patients").delete().in_("patient_id", chunk).execute()
-                    await supabase.table("user_consent").delete().in_("user_id", chunk).execute()
+                    supabase.table("crisis_plan").delete().in_("user_id", chunk).execute()
+                    supabase.table("clinical_notes").delete().in_("patient_id", chunk).execute()
+                    supabase.table("therapist_patients").delete().in_("patient_id", chunk).execute()
+                    supabase.table("user_consent").delete().in_("user_id", chunk).execute()
                 except Exception:
                     pass
-                await supabase.table("profiles").delete().in_("id", chunk).execute()
+                supabase.table("profiles").delete().in_("id", chunk).execute()
 
             # Audit log
             try:
-                await supabase.table("audit_log").insert({
+                supabase.table("audit_log").insert({
                     "action": "danger_zone_cleanup",
                     "details": {
                         "action": cleanup_request.action,
@@ -648,7 +648,7 @@ async def create_user(
     
     try:
         # 1. Create user in Supabase Auth using admin API
-        auth_response = await supabase.auth.admin.create_user({
+        auth_response = supabase.auth.admin.create_user({
             "email": user_request.email,
             "password": user_request.password,
             "email_confirm": True,  # Auto-confirm email
@@ -676,7 +676,7 @@ async def create_user(
             "created_at": datetime.now(timezone.utc).isoformat()
         }
         
-        await supabase.table("profiles").insert(profile_data).execute()
+        supabase.table("profiles").insert(profile_data).execute()
         
         logger.info(f"User created successfully: id={user_id}, email={user_request.email}")
         
@@ -757,7 +757,7 @@ async def list_users(
         # Apply pagination and ordering
         query = query.order("created_at", desc=True).range(offset, offset + limit - 1)
         
-        response = await query.execute()
+        response = query.execute()
         
         users_data = response.data or []
         

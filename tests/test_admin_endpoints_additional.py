@@ -54,7 +54,7 @@ def create_mock_supabase_client(return_data=None, mock_user=None):
     if return_data is None:
         return_data = []
 
-    async def mock_execute():
+    def mock_execute():
         return MockSupabaseResponse(return_data)
 
     # Create generic chain that works for all operations
