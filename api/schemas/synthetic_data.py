@@ -1,13 +1,14 @@
 """
 Pydantic schemas for synthetic data management endpoints.
 """
-from datetime import datetime
-from typing import Optional, Literal, List, Dict, Any
+from typing import Optional, Literal, List, Dict
 from pydantic import BaseModel, Field
 
-
 class GenerateDataRequest(BaseModel):
-    """Request body for generation of synthetic data."""
+    """
+    Request body para geração de dados sintéticos.
+    Campo testMode removido (não utilizado).
+    """
     model_config = {
         "json_schema_extra": {
             "example": {
@@ -16,25 +17,20 @@ class GenerateDataRequest(BaseModel):
                 "checkinsPerUser": 30,
                 "moodPattern": "stable",
                 "seed": 42,
-                "clearDb": False,
+                "clearDb": False
             }
         },
-        "populate_by_name": True # Allow using field names or aliases
+        "populate_by_name": True
     }
 
-    # Primary fields (camelCase)
-    patientsCount: Optional[int] = Field(default=2, ge=0, le=500, description="Number of patients to generate (max 500)")
-    therapistsCount: Optional[int] = Field(default=1, ge=0, le=50, description="Number of therapists to generate")
-    checkinsPerUser: int = Field(default=30, ge=1, le=365, description="Number of check-ins per patient")
-    moodPattern: str = Field(default="stable", description="Mood pattern: stable, cycling, random, depressive, manic")
-    seed: Optional[int] = Field(default=None, description="Random seed for reproducibility")
-    clearDb: bool = Field(default=False, description="Whether to clear existing synthetic data first")
-
-    # Removed snake_case duplicate fields to avoid Pydantic ConfigError
-
+    patientsCount: Optional[int] = Field(default=2, ge=0, le=500, description="Número de pacientes (max 500)")
+    therapistsCount: Optional[int] = Field(default=1, ge=0, le=50, description="Número de terapeutas")
+    checkinsPerUser: int = Field(default=30, ge=1, le=365, description="Check-ins por paciente")
+    moodPattern: str = Field(default="stable", description="Padrão de humor: stable, cycling, random, depressive, manic")
+    seed: Optional[int] = Field(default=None, description="Seed para reproducibilidade")
+    clearDb: bool = Field(default=False, description="Limpa dados sintéticos existentes antes de gerar")
 
 class SyntheticDataStatistics(BaseModel):
-    """Statistics from synthetic data generation."""
     users_created: int
     patients_created: int
     therapists_created: int
@@ -42,20 +38,17 @@ class SyntheticDataStatistics(BaseModel):
     mood_pattern: str
     checkins_per_user: int
     generated_at: str
-
+    # Campos extras informativos
+    duration_ms: Optional[float] = None
+    limits_applied: Optional[Dict[str, int]] = None
+    domains_used: Optional[List[str]] = None
 
 class SyntheticDataGenerationResponse(BaseModel):
-    """Response body for synthetic data generation endpoint."""
     status: str
     statistics: SyntheticDataStatistics
     generatedAt: str
 
-
 class StatsResponse(BaseModel):
-    """
-    Standardized response for admin stats.
-    Replaces EnhancedStatsResponse.
-    """
     total_users: int
     total_checkins: int
     real_patients_count: int
@@ -70,9 +63,7 @@ class StatsResponse(BaseModel):
     critical_alerts_last_30d: int
     patients_with_recent_radar: int
 
-
 class CleanupResponse(BaseModel):
-    """Standardized response for cleanup operations."""
     status: str
     message: str
     removedRecords: int
@@ -80,22 +71,18 @@ class CleanupResponse(BaseModel):
     dryRun: bool
     cleanedAt: str
 
-
 class CleanupDataRequest(BaseModel):
-    """Request for simple cleanup."""
     confirm: bool = False
     dryRun: bool = False
 
-
 class DangerZoneCleanupRequest(BaseModel):
-    """Request body for danger zone cleanup endpoint."""
     action: Literal["delete_all", "delete_last_n", "delete_by_mood", "delete_before_date"]
     quantity: Optional[int] = Field(default=None, ge=1)
     mood_pattern: Optional[str] = None
     before_date: Optional[str] = None
-    dryRun: bool = Field(default=False, description="If true, only simulates deletion")
+    dryRun: bool = Field(default=False, description="Se true, simula a exclusão")
 
-# Legacy/Alias for compatibility with existing code imports
+# Aliases legacy
 EnhancedStatsResponse = StatsResponse
 CleanDataRequest = DangerZoneCleanupRequest
 CleanDataResponse = CleanupResponse
