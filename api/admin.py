@@ -39,7 +39,6 @@ logger = logging.getLogger("bipolar-api.admin")
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
-
 # ================== CONFIG SINTÉTICO CONTROLADO (PRODUÇÃO) ==================
 SYN_MAX_PATIENTS_PROD = int(os.getenv("SYNTHETIC_MAX_PATIENTS_PROD", "50"))
 SYN_MAX_THERAPISTS_PROD = int(os.getenv("SYNTHETIC_MAX_THERAPISTS_PROD", "10"))
@@ -54,26 +53,25 @@ def _is_production() -> bool:
 
 def _synthetic_generation_enabled() -> bool:
     """
-    Retorna True somente se explicitamente habilitado para produção.
-    Exige variável ALLOW_SYNTHETIC_IN_PROD e APP_ENV=production.
+    Retorna True somente se habilitado em produção (ALLOW_SYNTHETIC_IN_PROD definido).
+    Em ambiente não-prod sempre permite (para facilitar desenvolvimento).
     """
-    return _is_production() and bool(os.getenv("ALLOW_SYNTHETIC_IN_PROD"))
+    if not _is_production():
+        return True
+    return bool(os.getenv("ALLOW_SYNTHETIC_IN_PROD"))
 
 
 # ----------------------------------------------------------------------
 # Utils
 # ----------------------------------------------------------------------
 def _log_db_error(operation: str, error: Exception) -> None:
-    """
-    Log detalhado para erros de acesso ao banco.
-    """
     logger.error(f"Erro em {operation}: {error}")
     if hasattr(error, "response"):
         logger.error(f"Raw response: {error.response}")
 
 
 # ----------------------------------------------------------------------
-# Endpoint: geração de dados sintéticos (CONTROLADO EM PRODUÇÃO)
+# Endpoint: geração de dados sintéticos (sem testMode)
 # ----------------------------------------------------------------------
 @router.post("/generate-data", response_model=SyntheticDataGenerationResponse)
 @limiter.limit("5/hour")
@@ -84,39 +82,20 @@ async def generate_synthetic_data(
     is_admin: bool = Depends(verify_admin_authorization),
 ) -> Dict[str, Any]:
     """
-    Geração controlada de dados sintéticos.
-
-    Regras (produção):
-    - Necessário APP_ENV=production e ALLOW_SYNTHETIC_IN_PROD definido para permitir geração.
-    - Exige testMode=true no payload (campo em GenerateDataRequest).
-    - clearDb é bloqueado em produção.
-    - Limites máximos configuráveis via env:
-        SYNTHETIC_MAX_PATIENTS_PROD, SYNTHETIC_MAX_THERAPISTS_PROD, SYNTHETIC_MAX_CHECKINS_PER_USER_PROD
-    - Emails gerados devem usar domínios em SYNTHETIC_ALLOWED_DOMAINS.
-    - Todos os pacientes gerados terão is_test_patient=true.
-    - Resultado permanece compatível com o schema anterior (status + statistics + generatedAt).
-
-    Sobre SYNTHETIC_ALLOWED_DOMAINS:
-    Lista de domínios válidos para e‑mails sintéticos (ex.: @example.com,@example.org).
-    Serve para:
-      - Diferenciar dados de teste dos reais.
-      - Facilitar limpeza posterior.
-      - Evitar poluição de métricas com e-mails reais.
-
-    Se o campo 'testMode' não existir em GenerateDataRequest, adicione-o como:
-        testMode: bool = False
+    Gera dados sintéticos (pacientes, terapeutas e check-ins).
+    Regras de produção:
+      - Exige ALLOW_SYNTHETIC_IN_PROD setado.
+      - clearDb bloqueado em produção.
+      - Limites máximos controlados via variáveis de ambiente.
+      - Emails devem pertencer a domínios permitidos (SYN_ALLOWED_DOMAINS) se geração interna criar e-mails.
+      - Pacientes devem ser marcados como is_test_patient (ajustar data_generator se ainda não faz isso).
     """
-    # Segurança em produção
+
     if _is_production():
         if not _synthetic_generation_enabled():
             raise HTTPException(
                 status_code=403,
-                detail="Synthetic data generation disabled: defina ALLOW_SYNTHETIC_IN_PROD para habilitar testMode controlado."
-            )
-        if not getattr(data_request, "testMode", False):
-            raise HTTPException(
-                status_code=403,
-                detail="Falta 'testMode=true' para gerar dados sintéticos em produção."
+                detail="Synthetic data generation disabled em produção: defina ALLOW_SYNTHETIC_IN_PROD para habilitar."
             )
         if data_request.clearDb:
             raise HTTPException(
@@ -155,15 +134,14 @@ async def generate_synthetic_data(
         )
 
     logger.info(
-        f"[SyntheticGen] start testMode={getattr(data_request,'testMode',False)} "
-        f"patients={patients_count} therapists={therapists_count} checkinsPerUser={data_request.checkinsPerUser} "
-        f"pattern={data_request.moodPattern} seed={data_request.seed} clearDb={data_request.clearDb}"
+        f"[SyntheticGen] start patients={patients_count} therapists={therapists_count} "
+        f"checkinsPerUser={data_request.checkinsPerUser} pattern={data_request.moodPattern} "
+        f"seed={data_request.seed} clearDb={data_request.clearDb}"
     )
     start_ts = datetime.now(timezone.utc)
 
     try:
-        # Chamamos a função geradora (ajuste sua assinatura se necessário para aceitar novos argumentos)
-        # force_test_patient/allowed_domains/test_mode devem ser suportados pelo data_generator.
+        # Chamada original (mantida assinatura existente)
         result = await generate_and_populate_data(
             supabase=supabase,
             patients_count=patients_count,
@@ -171,16 +149,12 @@ async def generate_synthetic_data(
             checkins_per_patient=data_request.checkinsPerUser,
             pattern=data_request.moodPattern,
             clear_db=data_request.clearDb,
-            seed=data_request.seed,
-            test_mode=getattr(data_request, "testMode", False),
-            force_test_patient=True,
-            allowed_domains=SYN_ALLOWED_DOMAINS
+            seed=data_request.seed
         )
 
         stats = result.get("statistics", {}) if isinstance(result, dict) else {}
         duration_ms = (datetime.now(timezone.utc) - start_ts).total_seconds() * 1000
 
-        # Garantir campos mínimos originais + adicionais
         stats_obj = {
             "users_created": stats.get("users_created", patients_count + therapists_count),
             "patients_created": stats.get("patients_created", patients_count),
@@ -189,8 +163,7 @@ async def generate_synthetic_data(
             "mood_pattern": stats.get("mood_pattern", data_request.moodPattern),
             "checkins_per_user": stats.get("checkins_per_user", data_request.checkinsPerUser),
             "generated_at": stats.get("generated_at", datetime.now(timezone.utc).isoformat()),
-            # Campos extras de controle:
-            "test_mode": getattr(data_request, "testMode", False),
+            # Campos extras informativos:
             "duration_ms": round(duration_ms, 2),
             "limits_applied": {
                 "max_patients_prod": SYN_MAX_PATIENTS_PROD,
@@ -201,8 +174,8 @@ async def generate_synthetic_data(
         }
 
         logger.info(
-            "[SyntheticGen] concluída em %.2fms (patients=%d, therapists=%d, testMode=%s)",
-            duration_ms, patients_count, therapists_count, getattr(data_request, "testMode", False)
+            "[SyntheticGen] concluída em %.2fms (patients=%d, therapists=%d)",
+            duration_ms, patients_count, therapists_count
         )
 
         return {
@@ -230,9 +203,6 @@ async def get_admin_stats(
     supabase: Client = Depends(get_supabase_service),
     is_admin: bool = Depends(verify_admin_authorization),
 ):
-    """
-    Retorna estatísticas completas do sistema para o dashboard admin.
-    """
     logger.info("Requisição de estatísticas avançadas recebida")
     start_ts = datetime.now(timezone.utc)
 
@@ -334,7 +304,7 @@ async def get_admin_stats(
         except Exception as e:
             logger.warning(f"Error fetching previous 7 days checkins: {e}")
 
-        # Últimos 30 dias para métricas agregadas
+        # Últimos 30 dias
         try:
             last30_resp = supabase.table("check_ins").select(
                 "user_id, checkin_date, mood_data, meds_context_data, appetite_impulse_data, symptoms_data"
@@ -447,7 +417,7 @@ async def get_admin_stats(
 
 
 # ----------------------------------------------------------------------
-# Endpoint: cleanup (padronizado)
+# Cleanup simples
 # ----------------------------------------------------------------------
 @router.post("/cleanup", response_model=CleanupResponse)
 @limiter.limit("5/hour")
@@ -458,9 +428,6 @@ async def cleanup_standard(
     supabase: Client = Depends(get_supabase_service),
     is_admin: bool = Depends(verify_admin_authorization),
 ):
-    """
-    Endpoint simples para limpeza de dados sintéticos.
-    """
     is_dry_run = dryRun
     if cleanup_request:
         if cleanup_request.dryRun:
@@ -477,7 +444,6 @@ async def cleanup_standard(
 
     try:
         resp_profiles = supabase.table("profiles").select("id,email").execute()
-
         ids_to_remove = []
         if resp_profiles.data:
             ids_to_remove = [
@@ -508,7 +474,7 @@ async def cleanup_standard(
 
 
 # ----------------------------------------------------------------------
-# Endpoint: danger zone cleanup (avançado)
+# Danger zone cleanup
 # ----------------------------------------------------------------------
 @router.post("/danger-zone-cleanup", response_model=CleanupResponse)
 @limiter.limit("5/hour")
@@ -631,7 +597,7 @@ async def danger_zone_cleanup(
 
 
 # ----------------------------------------------------------------------
-# Legacy support for /cleanup-data
+# Legacy support / wrappers
 # ----------------------------------------------------------------------
 @router.post("/cleanup-data", response_model=CleanupResponse)
 async def cleanup_data_legacy(
@@ -643,9 +609,6 @@ async def cleanup_data_legacy(
     return await cleanup_standard(request, cleanup_request, False, supabase, is_admin)
 
 
-# ----------------------------------------------------------------------
-# Legacy synthetic-data clean wrapper
-# ----------------------------------------------------------------------
 @router.post("/synthetic-data/clean", response_model=CleanDataResponse)
 async def clean_synthetic_data_legacy(
     request: Request,
@@ -657,7 +620,7 @@ async def clean_synthetic_data_legacy(
 
 
 # ----------------------------------------------------------------------
-# User Management Endpoints
+# User Management
 # ----------------------------------------------------------------------
 from api.schemas.admin_users import (
     CreateUserRequest,
@@ -665,7 +628,6 @@ from api.schemas.admin_users import (
     ListUsersResponse,
     UserListItem
 )
-
 
 @router.post("/users/create", response_model=CreateUserResponse)
 @limiter.limit("10/hour")
@@ -675,11 +637,7 @@ async def create_user(
     supabase: Client = Depends(get_supabase_service),
     is_admin: bool = Depends(verify_admin_authorization),
 ):
-    """
-    Cria um novo usuário (paciente ou terapeuta) via admin dashboard.
-    """
     logger.info(f"Admin creating user: email={user_request.email}, role={user_request.role}")
-
     try:
         auth_response = supabase.auth.admin.create_user({
             "email": user_request.email,
@@ -693,13 +651,9 @@ async def create_user(
         })
 
         if not auth_response or not auth_response.user:
-            raise HTTPException(
-                status_code=500,
-                detail="Falha ao criar usuário no sistema de autenticação"
-            )
+            raise HTTPException(status_code=500, detail="Falha ao criar usuário no auth")
 
         user_id = auth_response.user.id
-
         profile_data = {
             "id": user_id,
             "email": user_request.email,
@@ -707,10 +661,7 @@ async def create_user(
             "is_test_patient": False,
             "created_at": datetime.now(timezone.utc).isoformat()
         }
-
         supabase.table("profiles").insert(profile_data).execute()
-
-        logger.info(f"User created successfully: id={user_id}, email={user_request.email}")
 
         return CreateUserResponse(
             status="success",
@@ -724,25 +675,13 @@ async def create_user(
         raise
     except APIError as e:
         logger.exception(f"Database error creating user: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Erro ao criar perfil do usuário: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Erro ao criar perfil: {e}")
     except Exception as e:
         logger.exception(f"Unexpected error creating user: {e}")
-        error_msg = str(e)
-
-        if "already registered" in error_msg.lower() or "duplicate" in error_msg.lower():
-            raise HTTPException(
-                status_code=409,
-                detail=f"Email {user_request.email} já está registrado"
-            )
-
-        raise HTTPException(
-            status_code=500,
-            detail=f"Erro ao criar usuário: {error_msg}"
-        )
-
+        msg = str(e)
+        if "already registered" in msg.lower() or "duplicate" in msg.lower():
+            raise HTTPException(status_code=409, detail=f"Email {user_request.email} já está registrado")
+        raise HTTPException(status_code=500, detail=f"Erro ao criar usuário: {msg}")
 
 @router.get("/users", response_model=ListUsersResponse)
 @limiter.limit("30/minute")
@@ -754,31 +693,20 @@ async def list_users(
     supabase: Client = Depends(get_supabase_service),
     is_admin: bool = Depends(verify_admin_authorization),
 ):
-    """
-    Lista usuários (pagina simples).
-    """
     logger.info(f"Admin listing users: role={role}, limit={limit}, offset={offset}")
-
     try:
         if limit > 200:
             limit = 200
-
         query = supabase.table("profiles").select(
             "id, email, role, created_at, is_test_patient"
         )
-
         if role:
             if role not in ["patient", "therapist"]:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Role deve ser 'patient' ou 'therapist'"
-                )
+                raise HTTPException(status_code=400, detail="Role deve ser 'patient' ou 'therapist'")
             query = query.eq("role", role)
-
         query = query.order("created_at", desc=True).range(offset, offset + limit - 1)
         response = query.execute()
         users_data = response.data or []
-
         users = [
             UserListItem(
                 id=u["id"],
@@ -789,7 +717,6 @@ async def list_users(
             )
             for u in users_data
         ]
-
         return ListUsersResponse(
             status="success",
             users=users,
@@ -800,16 +727,9 @@ async def list_users(
         raise
     except APIError as e:
         logger.exception(f"Database error listing users: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Erro ao listar usuários: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Erro ao listar usuários: {e}")
     except Exception as e:
         logger.exception(f"Unexpected error listing users: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Erro inesperado ao listar usuários: {str(e)}"
-        )
-
+        raise HTTPException(status_code=500, detail=f"Erro inesperado ao listar usuários: {e}")
 
 __all__ = ["router"]
