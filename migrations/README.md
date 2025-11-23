@@ -1,5 +1,15 @@
 # Database Migrations
 
+## 🚨 CRITICAL: Infinite Recursion Error
+
+**If your API is failing with "infinite recursion detected in policy for relation 'profiles'":**
+
+**IMMEDIATE ACTION REQUIRED:** Go to your Supabase SQL Editor and run `010_admin_security_definer_function.sql`
+
+See [URGENT_FIX_INFINITE_RECURSION.md](../URGENT_FIX_INFINITE_RECURSION.md) for detailed instructions.
+
+---
+
 This directory contains SQL migration files for the account deletion and data management features.
 
 ## Migration Order
@@ -15,6 +25,7 @@ These migrations must be executed in the following order:
 7. **007_add_source_column_to_profiles.sql** - Adds source column to distinguish user creation methods
 8. **008_update_audit_log_for_admin.sql** - Makes user_id nullable for bulk admin operations
 9. **009_admin_rls_and_sql_functions.sql** - Adds admin RLS policies and SQL helper functions for safe operations
+10. **010_admin_security_definer_function.sql** - **CRITICAL FIX** - Fixes infinite recursion in admin RLS policies
 
 ## Running Migrations
 
@@ -39,6 +50,7 @@ psql $DATABASE_URL -f migrations/006_security_hardening.sql
 psql $DATABASE_URL -f migrations/007_add_source_column_to_profiles.sql
 psql $DATABASE_URL -f migrations/008_update_audit_log_for_admin.sql
 psql $DATABASE_URL -f migrations/009_admin_rls_and_sql_functions.sql
+psql $DATABASE_URL -f migrations/010_admin_security_definer_function.sql
 ```
 
 ## Verification
@@ -78,7 +90,63 @@ Admin RLS policies allow authenticated users with `role='admin'` in the profiles
 
 These policies complement the existing `service_role` policies and enable admin operations through authenticated requests.
 
-### SQL Helper Functions
+**IMPORTANT:** Migration 009 introduced a critical bug (infinite recursion) which is fixed by Migration 010.
+
+## Migration 010: Fix RLS Infinite Recursion (CRITICAL)
+
+This migration fixes a critical bug introduced in Migration 009 that caused API calls to fail with:
+```
+infinite recursion detected in policy for relation "profiles"
+```
+
+### Problem
+The admin RLS policies in Migration 009 had infinite recursion because they queried the `profiles` table from within policies on the `profiles` table itself:
+
+```sql
+-- BUGGY CODE (from migration 009)
+CREATE POLICY "admin_full_access_profiles" ON public.profiles
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles  -- This causes infinite recursion!
+      WHERE id = auth.uid() AND role = 'admin'
+    )
+  );
+```
+
+When checking access to `profiles`, the policy would trigger, which would query `profiles`, which would trigger the policy again, creating an infinite loop.
+
+### Solution
+Migration 011 creates a `SECURITY DEFINER` function that bypasses RLS to safely check admin status:
+
+```sql
+CREATE FUNCTION public.is_admin(user_id uuid)
+RETURNS boolean
+SECURITY DEFINER  -- Bypasses RLS
+AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.profiles 
+    WHERE id = user_id AND role = 'admin'
+  );
+END;
+$$;
+```
+
+All admin policies are then updated to use this function instead of direct queries:
+
+```sql
+CREATE POLICY "admin_full_access_profiles" ON public.profiles
+  USING (public.is_admin(auth.uid()))  -- No more recursion!
+  WITH CHECK (public.is_admin(auth.uid()));
+```
+
+### Impact
+- **Before Migration 010:** All API calls to `/api/profile`, `/data/latest_checkin`, etc. fail with 500 errors
+- **After Migration 010:** API calls work correctly, admin policies function as intended
+
+**This migration (010) must be applied immediately if Migration 009 has been applied.**
+
+## SQL Helper Functions
 
 #### 1. `log_admin_action(action, performed_by, user_id, details)`
 
