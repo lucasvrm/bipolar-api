@@ -2,12 +2,24 @@
 
 This document provides detailed usage examples for the `test_admin_endpoints_production.py` script.
 
+> **📖 Need help with the admin token?** See **[BIPOLAR_ADMIN_TOKEN_GUIDE.md](BIPOLAR_ADMIN_TOKEN_GUIDE.md)** for a complete guide on obtaining and using the admin token.
+
 ## Quick Start
 
 ### Basic Usage
 
 1. **Set the admin token:**
+   
+   See **[BIPOLAR_ADMIN_TOKEN_GUIDE.md](BIPOLAR_ADMIN_TOKEN_GUIDE.md)** for detailed instructions.
+   
    ```bash
+   # Quick method - login and extract token
+   export BIPOLAR_ADMIN_TOKEN=$(curl -s -X POST https://bipolar-api.onrender.com/api/auth/login \
+     -H "Content-Type: application/json" \
+     -d '{"email":"admin@example.com","password":"your-password"}' \
+     | jq -r '.access_token')
+   
+   # Or use existing token
    export BIPOLAR_ADMIN_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
    ```
 
@@ -264,11 +276,33 @@ jobs:
 ### Issue: "BIPOLAR_ADMIN_TOKEN environment variable not found"
 
 **Solution:**
+
+See the complete guide: **[BIPOLAR_ADMIN_TOKEN_GUIDE.md](BIPOLAR_ADMIN_TOKEN_GUIDE.md)**
+
+**Quick fix:**
 ```bash
-export BIPOLAR_ADMIN_TOKEN="your-actual-jwt-token"
+# Get token via login
+export BIPOLAR_ADMIN_TOKEN=$(curl -s -X POST https://bipolar-api.onrender.com/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@example.com","password":"your-password"}' \
+  | jq -r '.access_token')
+
+# Or set manually
+export BIPOLAR_ADMIN_TOKEN='your-admin-jwt-token'
 ```
 
-Make sure the token is a valid JWT token for an admin user.
+Make sure the token is a valid JWT token for an admin user. The token should:
+- Start with `eyJ` (Base64 encoded JWT)
+- Be obtained from a user with admin privileges
+- Not be expired (JWT tokens have expiration timestamps)
+
+To verify your admin status, check:
+1. Your email is listed in the `ADMIN_EMAILS` environment variable on the server
+2. You can successfully call admin endpoints manually with the token:
+   ```bash
+   curl -H "Authorization: Bearer $BIPOLAR_ADMIN_TOKEN" \
+     https://bipolar-api.onrender.com/api/admin/stats
+   ```
 
 ### Issue: Connection timeouts
 

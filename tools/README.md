@@ -41,6 +41,29 @@ Executes a controlled battery of validations on administrative endpoints in PROD
 pip install requests
 ```
 
+**Required Token:**
+
+You need a valid admin JWT token. See **[BIPOLAR_ADMIN_TOKEN_GUIDE.md](BIPOLAR_ADMIN_TOKEN_GUIDE.md)** for detailed instructions on:
+- What is BIPOLAR_ADMIN_TOKEN
+- How to obtain the token
+- How to validate it
+- Security best practices
+
+**Quick Setup:**
+```bash
+# Option 1: Login via API to get token
+TOKEN=$(curl -s -X POST https://bipolar-api.onrender.com/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@example.com","password":"your-password"}' \
+  | jq -r '.access_token')
+
+# Option 2: Use existing token
+TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+# Export the token
+export BIPOLAR_ADMIN_TOKEN="$TOKEN"
+```
+
 **Usage:**
 ```bash
 export BIPOLAR_ADMIN_TOKEN="your-admin-jwt-token"
