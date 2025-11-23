@@ -37,6 +37,7 @@ class EndpointTestResult:
     response_data: Optional[Dict[str, Any]] = None
     error_message: Optional[str] = None
     timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    validation_passed: bool = True  # Whether the test validation passed (independent of HTTP status)
 
 
 @dataclass
@@ -65,7 +66,7 @@ class AdminEndpointTester:
     """Testador de endpoints administrativos em produção"""
     
     # Production API base URL (can be overridden)
-    BASE_URL = os.getenv("BIPOLAR_API_URL", "https://bipolar-api.onrender.com")
+    BASE_URL = os.getenv("BIPOLAR_API_URL", "https://bipolar-engine.onrender.com")
     TEST_PREFIX = "zz-test"
     
     def __init__(self, admin_token: str):
@@ -204,12 +205,15 @@ class AdminEndpointTester:
                     f"/api/admin/stats: Missing fields: {', '.join(missing_fields)}"
                 )
                 print(f"  ⚠️  Missing fields: {missing_fields}")
+                result.validation_passed = False
             else:
                 print(f"  ✅ Status: {result.status_code}, Latency: {result.latency_ms:.2f}ms")
                 print(f"  📊 total_users={result.response_data.get('total_users', 0)}, "
                       f"total_checkins={result.response_data.get('total_checkins', 0)}")
+                result.validation_passed = True
         else:
             print(f"  ❌ Failed: {result.error_message or result.status_code}")
+            result.validation_passed = False
             self.report.overall_status = "FAIL"
         
         self.results.append(result)
@@ -230,6 +234,7 @@ class AdminEndpointTester:
         
         if result.status_code in expected_statuses:
             print(f"  ✅ Correctly rejected with {result.status_code}")
+            result.validation_passed = True
             self.report.authorization_negative_result = {
                 "expected": expected_statuses,
                 "obtained": result.status_code,
@@ -237,6 +242,7 @@ class AdminEndpointTester:
             }
         elif result.status_code == 200:
             print(f"  ❌ CRITICAL: Accepted invalid token (returned 200)")
+            result.validation_passed = False
             self.report.authorization_negative_result = {
                 "expected": expected_statuses,
                 "obtained": result.status_code,
@@ -245,6 +251,7 @@ class AdminEndpointTester:
             self.report.overall_status = "FAIL"
         else:
             print(f"  ⚠️  Unexpected status: {result.status_code}")
+            result.validation_passed = False
             self.report.authorization_negative_result = {
                 "expected": expected_statuses,
                 "obtained": result.status_code,
@@ -273,6 +280,7 @@ class AdminEndpointTester:
             print(f"  📋 Users returned: {len(users)}, Total: {total}")
             
             # Validar estrutura das primeiras 3 entradas
+            validation_issues = []
             if users:
                 expected_user_fields = ["id", "email", "role", "created_at"]
                 for i, user in enumerate(users[:3]):
@@ -280,7 +288,10 @@ class AdminEndpointTester:
                     if missing_fields:
                         issue = f"/api/admin/users: User #{i} missing fields: {', '.join(missing_fields)}"
                         self.report.structural_issues.append(issue)
+                        validation_issues.append(issue)
                         print(f"  ⚠️  {issue}")
+            
+            result.validation_passed = len(validation_issues) == 0
             
             # Store count for cross-validation (stored in response_data for later access)
             if result.response_data:
@@ -288,6 +299,7 @@ class AdminEndpointTester:
                 result.response_data['_total_count'] = total
         else:
             print(f"  ❌ Failed: {result.error_message or result.status_code}")
+            result.validation_passed = False
             if self.report.overall_status == "OK":
                 self.report.overall_status = "WARN"
         
@@ -349,8 +361,10 @@ class AdminEndpointTester:
         if result_patient.success:
             patient_count = len(result_patient.response_data.get("users", []))
             print(f"    ✅ Returned {patient_count} patients, Latency: {result_patient.latency_ms:.2f}ms")
+            result_patient.validation_passed = True
         else:
             print(f"    ❌ Failed: {result_patient.error_message or result_patient.status_code}")
+            result_patient.validation_passed = False
             if result_patient.status_code == 500:
                 self.report.overall_status = "FAIL"
                 self.report.structural_issues.append(
@@ -369,8 +383,10 @@ class AdminEndpointTester:
         if result_therapist.success:
             therapist_count = len(result_therapist.response_data.get("users", []))
             print(f"    ✅ Returned {therapist_count} therapists, Latency: {result_therapist.latency_ms:.2f}ms")
+            result_therapist.validation_passed = True
         else:
             print(f"    ❌ Failed: {result_therapist.error_message or result_therapist.status_code}")
+            result_therapist.validation_passed = False
         
         self.results.append(result_therapist)
         
@@ -383,10 +399,13 @@ class AdminEndpointTester:
         
         if result_invalid.status_code == 400:
             print(f"    ✅ Correctly rejected with 400")
+            result_invalid.validation_passed = True
         elif result_invalid.status_code == 200:
             print(f"    ⚠️  Accepted invalid role (should validate)")
+            result_invalid.validation_passed = False
         else:
             print(f"    ⚠️  Unexpected status: {result_invalid.status_code}")
+            result_invalid.validation_passed = False
         
         self.results.append(result_invalid)
     
@@ -453,7 +472,7 @@ class AdminEndpointTester:
         self.test_authorization_negative()
         
         # Test 3: List users
-        users_result = self.test_list_users(limit=50)
+        users_result = self.test_list_users(limit=500)
         
         # Test 4: Cross-validation
         self.test_cross_validation_stats_vs_users(stats_result, users_result)
@@ -475,6 +494,7 @@ class AdminEndpointTester:
                 "status_code": r.status_code,
                 "latency_ms": round(r.latency_ms, 2),
                 "success": r.success,
+                "validation_passed": r.validation_passed,
                 "timestamp": r.timestamp
             }
             for r in self.results
@@ -485,8 +505,9 @@ class AdminEndpointTester:
         print("📋 TEST SUMMARY")
         print("=" * 70)
         print(f"Total tests: {len(self.results)}")
-        print(f"Successful: {sum(1 for r in self.results if r.success)}")
-        print(f"Failed: {sum(1 for r in self.results if not r.success)}")
+        print(f"Passed: {sum(1 for r in self.results if r.validation_passed)}")
+        print(f"Failed: {sum(1 for r in self.results if not r.validation_passed)}")
+        print(f"HTTP 2xx responses: {sum(1 for r in self.results if r.success)}")
         print(f"Overall Status: {self.report.overall_status}")
         print(f"Structural Issues: {len(self.report.structural_issues)}")
         print(f"Inconsistencies: {len(self.report.inconsistencies)}")
@@ -533,13 +554,14 @@ class AdminEndpointTester:
         # What was executed
         roadmap.append("## ✅ What Was Executed\n")
         roadmap.append(f"**Total endpoints tested:** {len(self.results)}\n")
-        roadmap.append(f"**Successful requests:** {sum(1 for r in self.results if r.success)}\n")
-        roadmap.append(f"**Failed requests:** {sum(1 for r in self.results if not r.success)}\n")
+        roadmap.append(f"**Tests passed:** {sum(1 for r in self.results if r.validation_passed)}\n")
+        roadmap.append(f"**Tests failed:** {sum(1 for r in self.results if not r.validation_passed)}\n")
+        roadmap.append(f"**HTTP 2xx responses:** {sum(1 for r in self.results if r.success)}\n")
         roadmap.append("\n### Endpoints Tested:\n")
         
         for result in self.results:
-            status_icon = "✅" if result.success else "❌"
-            roadmap.append(f"- {status_icon} `{result.method} {result.endpoint}` "
+            validation_icon = "✅" if result.validation_passed else "❌"
+            roadmap.append(f"- {validation_icon} `{result.method} {result.endpoint}` "
                           f"→ HTTP {result.status_code} ({result.latency_ms:.2f}ms)\n")
         
         roadmap.append("\n")
@@ -622,8 +644,10 @@ class AdminEndpointTester:
             roadmap.append(f"- **Authorization rejection rate:** "
                           f"{'100%' if obtained in expected else '0% (FAILED)'}\n")
         
-        success_rate = (sum(1 for r in self.results if r.success) / len(self.results) * 100) if self.results else 0
-        roadmap.append(f"- **Request success rate:** {success_rate:.2f}%\n")
+        validation_rate = (sum(1 for r in self.results if r.validation_passed) / len(self.results) * 100) if self.results else 0
+        http_success_rate = (sum(1 for r in self.results if r.success) / len(self.results) * 100) if self.results else 0
+        roadmap.append(f"- **Test validation pass rate:** {validation_rate:.2f}%\n")
+        roadmap.append(f"- **HTTP 2xx success rate:** {http_success_rate:.2f}%\n")
         
         roadmap.append("\n---\n")
         roadmap.append(f"\n*Report generated at: {datetime.now(timezone.utc).isoformat()}*\n")
@@ -679,7 +703,7 @@ def main():
     print(f"✅ BIPOLAR_ADMIN_TOKEN found (length: {len(admin_token)} chars)")
     
     # Check optional API URL override
-    api_url = os.getenv("BIPOLAR_API_URL", "https://bipolar-api.onrender.com")
+    api_url = os.getenv("BIPOLAR_API_URL", "https://bipolar-engine.onrender.com")
     print(f"🌐 API URL: {api_url}\n")
     
     # 2. Create tester instance
