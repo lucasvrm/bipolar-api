@@ -128,9 +128,10 @@ If you continue to see errors after applying migration 010:
 
 ## Timeline
 
-- **Migration 009** (2024-11-23): Introduced the bug
-- **Migration 010** (2025-11-23): Fixed the bug
-- **This document**: Created to help you fix production issues ASAP
+- **Migration 009 applied:** 2024-11-23 - Introduced the bug
+- **Migration 010 created:** 2024-11-23 - Contains the fix
+- **Issue reported:** 2024-11-23 21:20 UTC - User reports API failures
+- **This document:** Created to help you fix production issues ASAP
 
 ---
 

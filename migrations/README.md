@@ -25,8 +25,7 @@ These migrations must be executed in the following order:
 7. **007_add_source_column_to_profiles.sql** - Adds source column to distinguish user creation methods
 8. **008_update_audit_log_for_admin.sql** - Makes user_id nullable for bulk admin operations
 9. **009_admin_rls_and_sql_functions.sql** - Adds admin RLS policies and SQL helper functions for safe operations
-10. **010_admin_security_definer_function.sql** - Adds admin security definer function
-11. **011_fix_rls_infinite_recursion.sql** - **CRITICAL FIX** - Fixes infinite recursion in admin RLS policies
+10. **010_admin_security_definer_function.sql** - **CRITICAL FIX** - Fixes infinite recursion in admin RLS policies
 
 ## Running Migrations
 
@@ -52,7 +51,6 @@ psql $DATABASE_URL -f migrations/007_add_source_column_to_profiles.sql
 psql $DATABASE_URL -f migrations/008_update_audit_log_for_admin.sql
 psql $DATABASE_URL -f migrations/009_admin_rls_and_sql_functions.sql
 psql $DATABASE_URL -f migrations/010_admin_security_definer_function.sql
-psql $DATABASE_URL -f migrations/011_fix_rls_infinite_recursion.sql
 ```
 
 ## Verification
@@ -92,9 +90,9 @@ Admin RLS policies allow authenticated users with `role='admin'` in the profiles
 
 These policies complement the existing `service_role` policies and enable admin operations through authenticated requests.
 
-**IMPORTANT:** Migration 009 introduced a critical bug (infinite recursion) which is fixed by Migration 011.
+**IMPORTANT:** Migration 009 introduced a critical bug (infinite recursion) which is fixed by Migration 010.
 
-## Migration 011: Fix RLS Infinite Recursion (CRITICAL)
+## Migration 010: Fix RLS Infinite Recursion (CRITICAL)
 
 This migration fixes a critical bug introduced in Migration 009 that caused API calls to fail with:
 ```
@@ -143,10 +141,10 @@ CREATE POLICY "admin_full_access_profiles" ON public.profiles
 ```
 
 ### Impact
-- **Before Migration 011:** All API calls to `/api/profile`, `/data/latest_checkin`, etc. fail with 500 errors
-- **After Migration 011:** API calls work correctly, admin policies function as intended
+- **Before Migration 010:** All API calls to `/api/profile`, `/data/latest_checkin`, etc. fail with 500 errors
+- **After Migration 010:** API calls work correctly, admin policies function as intended
 
-**This migration must be applied immediately if Migration 009 has been applied.**
+**This migration (010) must be applied immediately if Migration 009 has been applied.**
 
 ## SQL Helper Functions
 

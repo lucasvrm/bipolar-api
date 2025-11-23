@@ -36,8 +36,6 @@ echo ""
 
 echo "🔍 Testing API endpoint for infinite recursion error..."
 
-
-
 # Test the profiles endpoint
 API_RESPONSE=$(curl -s -w "\n%{http_code}" "$SUPABASE_URL/rest/v1/profiles?limit=1" \
     -H "apikey: $SUPABASE_SERVICE_KEY" \

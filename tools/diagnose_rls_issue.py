@@ -57,7 +57,12 @@ def test_api_endpoint(config: Dict[str, str]) -> bool:
             return True
         elif response.status_code == 500:
             print(f"❌ API returning error (HTTP {response.status_code})")
-            error_body = response.json() if response.content else {}
+            
+            # Safely parse JSON response
+            try:
+                error_body = response.json() if response.content else {}
+            except ValueError:
+                error_body = {"message": response.text}
             
             error_msg = error_body.get("message", "").lower()
             error_code = error_body.get("code", "")
