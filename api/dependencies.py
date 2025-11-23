@@ -4,7 +4,6 @@ import time
 from typing import Optional, Set
 from fastapi import HTTPException, Header
 from supabase import create_client, Client
-from api.auth_fallback import supabase_get_user_http, should_use_fallback
 
 logger = logging.getLogger("bipolar-api.dependencies")
 
@@ -128,12 +127,10 @@ async def verify_admin_authorization(
     Verifica token Bearer e se o e-mail está na lista ADMIN_EMAILS OU se o user_metadata contém role=admin.
     Usa cliente ANON (correto para /auth/v1/user).
     
-    Com fallback HTTP em caso de falha do cliente Supabase.
-    
     Ordem de validação:
     1. Verificar configuração (ANON key presente) → 500 se ausente
     2. Verificar header Authorization → 401 se ausente/malformado
-    3. Verificar token com Supabase (com fallback) → 401 se inválido
+    3. Verificar token com Supabase → 401 se inválido
     4. Verificar email OU role admin → 403 se não autorizado
     """
     start_time = time.monotonic()
@@ -146,68 +143,49 @@ async def verify_admin_authorization(
         logger.error("Configuração Supabase incompleta: URL ou ANON_KEY ausente")
         raise HTTPException(
             status_code=500, 
-            detail="Configuração Supabase incompleta (ANON)."
+            detail="Configuração do servidor incompleta. Contate o administrador."
         )
     
     # 2. Validar header Authorization
     if not authorization or not authorization.lower().startswith("bearer "):
-        # Padrão: 401 para token ausente ou inválido
-        raise HTTPException(status_code=401, detail="Missing bearer token")
+        logger.warning("Auth check failed: missing or malformed Authorization header")
+        raise HTTPException(status_code=401, detail="Token de autorização ausente ou inválido")
 
     token = authorization.split(" ", 1)[1].strip()
+    
+    if not token:
+        logger.warning("Auth check failed: empty token")
+        raise HTTPException(status_code=401, detail="Token de autorização vazio")
     
     # Log início da verificação (apenas tamanho do token)
     logger.debug("Auth check start (Bearer token length=%d)", len(token))
 
     supabase_anon = get_supabase_anon_auth_client()
 
-    user = None
-    fallback_used = False
-    
     # 3. Validar token com Supabase
     try:
-        # Tentativa primária com cliente Supabase
         user_resp = supabase_anon.auth.get_user(token)
         user = getattr(user_resp, "user", None)
         
+        if not user:
+            logger.warning("Auth check failed: no user in response")
+            raise HTTPException(status_code=401, detail="Token inválido ou expirado")
+        
+    except HTTPException:
+        raise
     except Exception as e:
         error_str = str(e)
-        
-        # Check if we should use HTTP fallback
-        if should_use_fallback(e):
-            logger.warning(
-                "Fallback HTTP auth.get_user acionado – erro na lib supabase: %s",
-                error_str[:100]  # Only log first 100 chars
-            )
-            
-            try:
-                # TEMPORARY: HTTP fallback para contornar problemas do cliente async
-                user_data = supabase_get_user_http(token)
-                
-                # Create a mock user object compatible with expected structure
-                class MockUser:
-                    def __init__(self, data):
-                        self.email = data.get("email")
-                        self.id = data.get("id")
-                        self.user_metadata = data.get("user_metadata", {})
-                
-                user = MockUser(user_data)
-                fallback_used = True
-                
-            except Exception as fallback_error:
-                logger.error("Fallback HTTP também falhou: %s", fallback_error)
-                # Se fallback também falhar, token é inválido
-                raise HTTPException(status_code=401, detail="Invalid or expired token")
-        else:
-            # Erro não é candidato a fallback (ex.: token realmente inválido)
-            logger.error("Falha auth.get_user (sem fallback): %s", error_str[:100])
-            raise HTTPException(status_code=401, detail="Invalid or expired token")
+        logger.error("Auth check failed with error: %s", error_str[:200])
+        raise HTTPException(
+            status_code=401, 
+            detail="Token inválido ou expirado. Faça login novamente."
+        )
 
     email = getattr(user, "email", None) if user else None
 
     if not email:
-        # Padrão: 401 para token sem email (inválido)
-        raise HTTPException(status_code=401, detail="Invalid token payload")
+        logger.warning("Auth check failed: user has no email")
+        raise HTTPException(status_code=401, detail="Token sem email válido")
 
     # 4. Verificar autorização: email OU role admin
     admin_emails = get_admin_emails()
@@ -220,25 +198,26 @@ async def verify_admin_authorization(
     is_admin_by_role = user_role == "admin"
     
     if not (is_admin_by_email or is_admin_by_role):
-        # Padrão: 403 para usuário autenticado mas não autorizado
-        logger.debug(
-            "User not authorized: email=%s, role=%s, admin_emails=%d",
+        logger.info(
+            "Auth check failed: user not admin - email=%s, role=%s, admin_emails=%d",
             email,
             user_role,
             len(admin_emails)
         )
-        raise HTTPException(status_code=403, detail="Not authorized as admin")
+        raise HTTPException(
+            status_code=403, 
+            detail="Acesso negado. Você não tem permissões de administrador."
+        )
 
     # Log timing and success
     duration_ms = (time.monotonic() - start_time) * 1000
-    logger.debug(
-        "Auth check completed: email=%s, role=%s, by_email=%s, by_role=%s, duration=%.2fms, fallback=%s",
+    logger.info(
+        "Auth check SUCCESS: email=%s, role=%s, by_email=%s, by_role=%s, duration=%.2fms",
         email,
         user_role,
         is_admin_by_email,
         is_admin_by_role,
-        duration_ms,
-        fallback_used
+        duration_ms
     )
     
     return True
