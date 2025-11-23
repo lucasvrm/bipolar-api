@@ -1,0 +1,104 @@
+{
+  "correlation_id": "test-20241123-141500",
+  "timestamp": "2024-11-23T14:15:00.123456Z",
+  "duration_seconds": 12.45,
+  "parameters": {
+    "requested_count": 10,
+    "prefix": "zz-test",
+    "app_env": "development"
+  },
+  "baseline": {
+    "count_before": 0,
+    "count_after": 7,
+    "baseline_timestamp": "2024-11-23T14:14:48.987654Z"
+  },
+  "creation": {
+    "method": "loop",
+    "created_user_ids": [
+      "f1a2b3c4-d5e6-4f7a-8b9c-0d1e2f3a4b5c",
+      "a2b3c4d5-e6f7-4a8b-9c0d-1e2f3a4b5c6d",
+      "b3c4d5e6-f7a8-4b9c-0d1e-2f3a4b5c6d7e",
+      "c4d5e6f7-a8b9-4c0d-1e2f-3a4b5c6d7e8f",
+      "d5e6f7a8-b9c0-4d1e-2f3a-4b5c6d7e8f9a",
+      "e6f7a8b9-c0d1-4e2f-3a4b-5c6d7e8f9a0b",
+      "f7a8b9c0-d1e2-4f3a-4b5c-6d7e8f9a0b1c"
+    ],
+    "created_usernames": [
+      "zz-test-20241123141448-1",
+      "zz-test-20241123141448-2",
+      "zz-test-20241123141448-3",
+      "zz-test-20241123141448-4",
+      "zz-test-20241123141448-5",
+      "zz-test-20241123141448-6",
+      "zz-test-20241123141448-7"
+    ],
+    "total_created": 7
+  },
+  "verification": {
+    "actual_count_verified": 7,
+    "baseline_count_after": 7
+  },
+  "discrepancy": {
+    "has_discrepancy": true,
+    "requested_count": 10,
+    "actual_created": 7,
+    "difference": -3,
+    "missing_count": 3,
+    "duplicated_usernames": [],
+    "missing_ids": [
+      {
+        "index": 8,
+        "username": "zz-test-20241123141448-8",
+        "error": "Network timeout: Timeout after 30.0 seconds"
+      },
+      {
+        "index": 9,
+        "username": "zz-test-20241123141448-9",
+        "error": "Server error 503: Service Unavailable"
+      },
+      {
+        "index": 10,
+        "username": "zz-test-20241123141448-10",
+        "error": "Server error 500: Internal Server Error"
+      }
+    ]
+  },
+  "latencies": {
+    "mean_ms": 1245.6,
+    "max_ms": 30012.3,
+    "min_ms": 123.4,
+    "p95_ms": 28500.0,
+    "p99_ms": 30000.0
+  },
+  "error_summary": {
+    "total_errors": 3,
+    "network_timeouts": 1,
+    "server_errors": 2,
+    "validation_errors": 0,
+    "errors": [
+      {
+        "phase": "creation",
+        "index": 8,
+        "username": "zz-test-20241123141448-8",
+        "error": "Network timeout: Timeout after 30.0 seconds",
+        "latency_ms": 30012.3
+      },
+      {
+        "phase": "creation",
+        "index": 9,
+        "username": "zz-test-20241123141448-9",
+        "error": "Server error 503: Service Unavailable",
+        "latency_ms": 5234.5
+      },
+      {
+        "phase": "creation",
+        "index": 10,
+        "username": "zz-test-20241123141448-10",
+        "error": "Server error 500: Internal Server Error",
+        "latency_ms": 4123.2
+      }
+    ]
+  },
+  "invariant_violations": [],
+  "overall_status": "FAIL"
+}

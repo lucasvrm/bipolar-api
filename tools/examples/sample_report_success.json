@@ -1,0 +1,62 @@
+{
+  "correlation_id": "test-20241123-131700",
+  "timestamp": "2024-11-23T13:17:00.542123Z",
+  "duration_seconds": 5.23,
+  "parameters": {
+    "requested_count": 5,
+    "prefix": "zz-test",
+    "app_env": "development"
+  },
+  "baseline": {
+    "count_before": 0,
+    "count_after": 5,
+    "baseline_timestamp": "2024-11-23T13:16:55.312345Z"
+  },
+  "creation": {
+    "method": "loop",
+    "created_user_ids": [
+      "a1b2c3d4-e5f6-4a5b-9c8d-7e6f5a4b3c2d",
+      "b2c3d4e5-f6a7-4b5c-8d9e-6f5a4b3c2d1e",
+      "c3d4e5f6-a7b8-4c5d-9e8f-5a4b3c2d1e0f",
+      "d4e5f6a7-b8c9-4d5e-8f9a-4b3c2d1e0f1a",
+      "e5f6a7b8-c9d0-4e5f-9a8b-3c2d1e0f1a2b"
+    ],
+    "created_usernames": [
+      "zz-test-20241123131655-1",
+      "zz-test-20241123131655-2",
+      "zz-test-20241123131655-3",
+      "zz-test-20241123131655-4",
+      "zz-test-20241123131655-5"
+    ],
+    "total_created": 5
+  },
+  "verification": {
+    "actual_count_verified": 5,
+    "baseline_count_after": 5
+  },
+  "discrepancy": {
+    "has_discrepancy": false,
+    "requested_count": 5,
+    "actual_created": 5,
+    "difference": 0,
+    "missing_count": 0,
+    "duplicated_usernames": [],
+    "missing_ids": []
+  },
+  "latencies": {
+    "mean_ms": 145.3,
+    "max_ms": 234.5,
+    "min_ms": 98.2,
+    "p95_ms": 201.2,
+    "p99_ms": 220.8
+  },
+  "error_summary": {
+    "total_errors": 0,
+    "network_timeouts": 0,
+    "server_errors": 0,
+    "validation_errors": 0,
+    "errors": []
+  },
+  "invariant_violations": [],
+  "overall_status": "OK"
+}
