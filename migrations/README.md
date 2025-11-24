@@ -26,6 +26,7 @@ These migrations must be executed in the following order:
 8. **008_update_audit_log_for_admin.sql** - Makes user_id nullable for bulk admin operations
 9. **009_admin_rls_and_sql_functions.sql** - Adds admin RLS policies and SQL helper functions for safe operations
 10. **010_admin_security_definer_function.sql** - **CRITICAL FIX** - Fixes infinite recursion in admin RLS policies
+11. **011_performance_indices.sql** - **PERFORMANCE** - Adds indices on check_ins and predictions for faster queries
 
 ## Running Migrations
 
@@ -51,6 +52,7 @@ psql $DATABASE_URL -f migrations/007_add_source_column_to_profiles.sql
 psql $DATABASE_URL -f migrations/008_update_audit_log_for_admin.sql
 psql $DATABASE_URL -f migrations/009_admin_rls_and_sql_functions.sql
 psql $DATABASE_URL -f migrations/010_admin_security_definer_function.sql
+psql $DATABASE_URL -f migrations/011_performance_indices.sql
 ```
 
 ## Verification
