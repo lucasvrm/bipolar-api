@@ -42,7 +42,7 @@ class TestSyntheticDataSchemas:
             status="success",
             message="Deleted 5 patients",
             removedRecords=5,
-            sampleIds=["id1", "id2"],
+            sampleIds=["id1", "id2", "id3", "id4", "id5"],  # Match removedRecords count
             dryRun=False,
             cleanedAt="2024-01-01T00:00:00Z"
         )

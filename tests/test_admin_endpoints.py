@@ -592,7 +592,7 @@ class TestDataGeneratorModule:
 
         # Test euthymic state
         euthymic_checkin = generate_realistic_checkin(user_id, checkin_date, "EUTHYMIC")
-        assert 6.0 <= euthymic_checkin["sleep_data"]["hoursSlept"] <= 8.5  # Normal sleep (adjusted from 6.5 to 6.0 to account for variance)
+        assert 6.0 <= euthymic_checkin["sleep_data"]["hoursSlept"] <= 8.5  # Normal sleep
         assert 5 <= euthymic_checkin["mood_data"]["energyLevel"] <= 8  # Normal energy
 
     def test_generate_user_checkin_history_count(self):
