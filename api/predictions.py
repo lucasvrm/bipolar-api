@@ -51,14 +51,24 @@ SUPPORTED_TYPES = [
 ]
 
 
-def calculate_heuristic_probability(checkin_data: Dict[str, Any], prediction_type: str) -> float:
+def calculate_heuristic_probability(checkin_data: Dict[str, Any], prediction_type: str, user_id: Optional[str] = None) -> Dict[str, Any]:
     """
     Calcula probabilidade baseada em heurísticas quando modelo específico não está disponível.
+    
+    Returns:
+        Dict with 'probability' and 'methodology' keys
     """
+    # Log warning about using unvalidated heuristic
+    logger.warning("Using unvalidated heuristic for prediction user_id=%s, type=%s", user_id or "unknown", prediction_type)
+    
     try:
         if prediction_type == "relapse_risk":
-            sleep = checkin_data.get("hoursSlept", 7)
-            mood = checkin_data.get("depressedMood", 3)
+            # Check for critical fields
+            if "hoursSlept" not in checkin_data or "depressedMood" not in checkin_data:
+                return {"probability": None, "methodology": "HEURISTIC_V1_UNVALIDATED", "error": "Insufficient data"}
+            
+            sleep = checkin_data.get("hoursSlept")
+            mood = checkin_data.get("depressedMood")
             energy = checkin_data.get("energyLevel", 5)
             anxiety = checkin_data.get("anxietyStress", 3)
             sleep_risk = max(0, 1 - (sleep / 8)) if sleep > 0 else 1.0
@@ -66,35 +76,43 @@ def calculate_heuristic_probability(checkin_data: Dict[str, Any], prediction_typ
             energy_risk = abs(energy - 5) / 5
             anxiety_risk = anxiety / 10
             risk = (sleep_risk * 0.3 + mood_risk * 0.3 + energy_risk * 0.2 + anxiety_risk * 0.2)
-            return float(np.clip(risk, 0, 1))
+            return {"probability": float(np.clip(risk, 0, 1)), "methodology": "HEURISTIC_V1_UNVALIDATED"}
             
         elif prediction_type == "suicidality_risk":
-            mood = checkin_data.get("depressedMood", 3)
+            # Check for critical fields
+            if "depressedMood" not in checkin_data:
+                return {"probability": None, "methodology": "HEURISTIC_V1_UNVALIDATED", "error": "Insufficient data"}
+            
+            mood = checkin_data.get("depressedMood")
             anxiety = checkin_data.get("anxietyStress", 3)
             impulsivity = checkin_data.get("compulsionIntensity", 0)
             risk = (mood * 0.5 + anxiety * 0.3 + impulsivity * 0.2) / 10
-            return float(np.clip(risk, 0, 1))
+            return {"probability": float(np.clip(risk, 0, 1)), "methodology": "HEURISTIC_V1_UNVALIDATED"}
             
         elif prediction_type == "medication_adherence_risk":
             adherence = checkin_data.get("medicationAdherence", 1)
             timing = checkin_data.get("medicationTiming", 1)
             risk = 1 - ((adherence + timing) / 2)
-            return float(np.clip(risk, 0, 1))
+            return {"probability": float(np.clip(risk, 0, 1)), "methodology": "HEURISTIC_V1_UNVALIDATED"}
             
         elif prediction_type == "sleep_disturbance_risk":
-            sleep = checkin_data.get("hoursSlept", 7)
+            # Check for critical fields
+            if "hoursSlept" not in checkin_data:
+                return {"probability": None, "methodology": "HEURISTIC_V1_UNVALIDATED", "error": "Insufficient data"}
+            
+            sleep = checkin_data.get("hoursSlept")
             sleep_quality = checkin_data.get("sleepQuality", 5)
             sleep_duration_risk = 1.0 if (sleep < 6 or sleep > 10) else 0.0
             quality_risk = (10 - sleep_quality) / 10
             risk = (sleep_duration_risk * 0.6 + quality_risk * 0.4)
-            return float(np.clip(risk, 0, 1))
+            return {"probability": float(np.clip(risk, 0, 1)), "methodology": "HEURISTIC_V1_UNVALIDATED"}
             
         else:
-            return 0.5
+            return {"probability": 0.5, "methodology": "HEURISTIC_V1_UNVALIDATED"}
             
     except Exception as e:
-        logger.warning(f"Error calculating heuristic for {prediction_type}: {e}")
-        return 0.5
+        logger.warning("Error calculating heuristic for %s (user_id=%s): %s", prediction_type, user_id or "unknown", e)
+        return {"probability": 0.5, "methodology": "HEURISTIC_V1_UNVALIDATED", "error": str(e)}
 
 
 def normalize_probability(prob: float) -> float:
@@ -123,7 +141,8 @@ async def run_prediction_with_timeout(
     checkin_data: Dict[str, Any],
     prediction_type: str,
     window_days: int = 3,
-    timeout_seconds: int = INFERENCE_TIMEOUT_SECONDS
+    timeout_seconds: int = INFERENCE_TIMEOUT_SECONDS,
+    user_id: Optional[str] = None
 ) -> PredictionsMetric:
     """
     Wrapper around run_prediction with timeout protection.
@@ -137,34 +156,37 @@ async def run_prediction_with_timeout(
                 run_prediction,
                 checkin_data,
                 prediction_type,
-                window_days
+                window_days,
+                user_id
             ),
             timeout=timeout_seconds
         )
         return result
     except asyncio.TimeoutError:
-        logger.error(f"Prediction timeout after {timeout_seconds}s for type={prediction_type}")
+        logger.error("Prediction timeout after %ss for type=%s", timeout_seconds, prediction_type)
         return PredictionsMetric(
             name=prediction_type,
             value=0.0,
             label="Timeout",
             riskLevel="unknown",
             confidence=0.0,
-            explanation="Timeout during prediction"
+            explanation="Timeout during prediction",
+            methodology="TIMEOUT"
         )
 
 
 def run_prediction(
     checkin_data: Dict[str, Any],
     prediction_type: str,
-    window_days: int = 3
+    window_days: int = 3,
+    user_id: Optional[str] = None
 ) -> PredictionsMetric:
     """
     Executa uma predição específica para um check-in.
     Returns: PredictionsMetric
     """
     start_time = time.time()
-    logger.info(f"Running prediction: {prediction_type} for window_days={window_days}")
+    logger.info("Running prediction: %s for window_days=%s", prediction_type, window_days)
     
     metric = PredictionsMetric(
         name=prediction_type,
@@ -172,7 +194,8 @@ def run_prediction(
         label="Unknown",
         riskLevel="low",
         confidence=0.0,
-        explanation="Explanation unavailable"
+        explanation="Explanation unavailable",
+        methodology="UNKNOWN"
     )
     
     try:
@@ -190,48 +213,73 @@ def run_prediction(
                 metric.riskLevel = "high" if label in ["Mania", "Depressão", "Estado Misto"] else "low"
                 metric.confidence = prob
                 metric.explanation = f"Predicted state: {label}"
+                metric.methodology = "LGBM_MULTICLASS_V1"
                 
                 # Explanation details could be expanded here
             else:
-                # Heuristic fallback
-                mood = checkin_data.get("depressedMood", 5)
-                energy = checkin_data.get("energyLevel", 5)
-                if mood < 4 and energy < 4:
-                    label = "Depressão"
-                    prob = 0.7
-                elif energy > 7 and mood > 6:
-                    label = "Mania"
-                    prob = 0.6
-                elif mood < 5 and energy > 7:
-                    label = "Estado Misto"
-                    prob = 0.5
-                else:
-                    label = "Eutimia"
-                    prob = 0.8
+                # Heuristic fallback - check for critical fields
+                logger.warning("Using unvalidated heuristic for prediction user_id=%s, type=mood_state", user_id or "unknown")
                 
-                metric.value = prob
-                metric.label = label
-                metric.riskLevel = "high" if label != "Eutimia" else "low"
-                metric.confidence = 0.5  # lower confidence for heuristic
-                metric.explanation = f"Heuristic: {label}"
+                if "depressedMood" not in checkin_data or "energyLevel" not in checkin_data:
+                    metric.value = 0.0
+                    metric.label = "Dados insuficientes"
+                    metric.riskLevel = "unknown"
+                    metric.confidence = 0.0
+                    metric.explanation = "Missing critical fields (mood or energy) for prediction"
+                    metric.methodology = "HEURISTIC_V1_UNVALIDATED"
+                else:
+                    mood = checkin_data.get("depressedMood")
+                    energy = checkin_data.get("energyLevel")
+                    if mood < 4 and energy < 4:
+                        label = "Depressão"
+                        prob = 0.7
+                    elif energy > 7 and mood > 6:
+                        label = "Mania"
+                        prob = 0.6
+                    elif mood < 5 and energy > 7:
+                        label = "Estado Misto"
+                        prob = 0.5
+                    else:
+                        label = "Eutimia"
+                        prob = 0.8
+                    
+                    metric.value = prob
+                    metric.label = label
+                    metric.riskLevel = "high" if label != "Eutimia" else "low"
+                    metric.confidence = 0.5  # lower confidence for heuristic
+                    metric.explanation = f"Heuristic: {label}"
+                    metric.methodology = "HEURISTIC_V1_UNVALIDATED"
                 
         elif prediction_type in ["medication_adherence_risk", "relapse_risk", "suicidality_risk", "sleep_disturbance_risk"]:
-             prob = normalize_probability(calculate_heuristic_probability(checkin_data, prediction_type))
-             metric.value = prob
-             metric.riskLevel = get_risk_level(prob, prediction_type)
-             # Label logic for risks
-             if metric.riskLevel == "critical": metric.label = "Risco Crítico"
-             elif metric.riskLevel == "high": metric.label = "Alto Risco"
-             elif metric.riskLevel == "medium": metric.label = "Risco Médio"
-             else: metric.label = "Baixo Risco"
+             heuristic_result = calculate_heuristic_probability(checkin_data, prediction_type, user_id)
+             
+             if heuristic_result.get("probability") is None:
+                 # Insufficient data
+                 metric.value = 0.0
+                 metric.label = "Dados insuficientes"
+                 metric.riskLevel = "unknown"
+                 metric.confidence = 0.0
+                 metric.explanation = heuristic_result.get("error", "Missing critical fields for prediction")
+                 metric.methodology = heuristic_result.get("methodology", "HEURISTIC_V1_UNVALIDATED")
+             else:
+                 prob = normalize_probability(heuristic_result["probability"])
+                 metric.value = prob
+                 metric.riskLevel = get_risk_level(prob, prediction_type)
+                 # Label logic for risks
+                 if metric.riskLevel == "critical": metric.label = "Risco Crítico"
+                 elif metric.riskLevel == "high": metric.label = "Alto Risco"
+                 elif metric.riskLevel == "medium": metric.label = "Risco Médio"
+                 else: metric.label = "Baixo Risco"
 
-             metric.confidence = 0.6 # heuristic confidence
-             metric.explanation = f"Heuristic based on symptoms patterns"
+                 metric.confidence = 0.6 # heuristic confidence
+                 metric.explanation = f"Heuristic based on symptoms patterns"
+                 metric.methodology = heuristic_result.get("methodology", "HEURISTIC_V1_UNVALIDATED")
 
     except Exception as e:
-        logger.exception(f"Error running prediction {prediction_type}: {e}")
+        logger.exception("Error running prediction %s: %s", prediction_type, e)
         metric.explanation = f"Error: {str(e)}"
         metric.label = "Error"
+        metric.methodology = "ERROR"
     
     return metric
 
@@ -297,7 +345,7 @@ async def get_predictions(
             
             for pred_type in requested_types:
                 try:
-                    metric = await run_prediction_with_timeout(latest_checkin, pred_type, window_days)
+                    metric = await run_prediction_with_timeout(latest_checkin, pred_type, window_days, user_id=user_id)
                     metrics.append(metric)
                 except Exception as e:
                     logger.error(f"Error generating prediction {pred_type}: {e}")
@@ -308,7 +356,8 @@ async def get_predictions(
                         label="Erro",
                         riskLevel="unknown",
                         confidence=0.0,
-                        explanation=f"Erro ao gerar predição: {str(e)[:100]}"
+                        explanation=f"Erro ao gerar predição: {str(e)[:100]}",
+                        methodology="ERROR"
                     ))
         else:
             # Return empty/default metrics if no data
@@ -320,7 +369,8 @@ async def get_predictions(
                     label="Sem dados",
                     riskLevel="unknown",
                     confidence=0.0,
-                    explanation="Nenhum check-in disponível para gerar predições"
+                    explanation="Nenhum check-in disponível para gerar predições",
+                    methodology="NO_DATA"
                 ))
 
         result = PredictionsResponse(
@@ -355,7 +405,8 @@ async def get_predictions(
                 label="Erro no banco de dados",
                 riskLevel="unknown",
                 confidence=0.0,
-                explanation="Erro ao acessar dados do usuário"
+                explanation="Erro ao acessar dados do usuário",
+                methodology="ERROR"
             )
             for pred_type in requested_types
         ]
@@ -376,7 +427,8 @@ async def get_predictions(
                 label="Erro inesperado",
                 riskLevel="unknown",
                 confidence=0.0,
-                explanation="Erro inesperado ao gerar predições"
+                explanation="Erro inesperado ao gerar predições",
+                methodology="ERROR"
             )
             for pred_type in requested_types
         ]
@@ -419,7 +471,7 @@ async def get_prediction_of_day(
         
         if checkins:
             logger.info(f"Generating mood prediction for user {user_id}")
-            metric = await run_prediction_with_timeout(checkins[0], "mood_state", window_days=3)
+            metric = await run_prediction_with_timeout(checkins[0], "mood_state", window_days=3, user_id=user_id)
             
             # Extrair label da explanation ou usar lógica do valor
             label = "Desconhecido"
