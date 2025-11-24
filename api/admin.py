@@ -1547,13 +1547,6 @@ async def bulk_create_checkins(
                     )
                     user_checkins.append(checkin)
             
-            # Enforce production limit per user
-            if _is_production() and len(user_checkins) > SYN_MAX_CHECKINS_PER_USER_PROD:
-                logger.warning(
-                    f"[BulkCheckins] User {user_id}: limiting {len(user_checkins)} to {SYN_MAX_CHECKINS_PER_USER_PROD}"
-                )
-                user_checkins = user_checkins[:SYN_MAX_CHECKINS_PER_USER_PROD]
-            
             all_checkins.extend(user_checkins)
         
         # Insert check-ins in chunks
