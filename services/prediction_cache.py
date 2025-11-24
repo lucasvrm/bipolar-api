@@ -192,7 +192,9 @@ class PredictionCache:
             # Find all keys for this user
             pattern = f"prediction:{user_id}:*"
             keys = []
-            async for key in client.scan_iter(match=pattern, count=100):
+            # scan_iter returns a sync generator, not async
+            cursor = client.scan_iter(match=pattern, count=100)
+            for key in cursor:
                 keys.append(key)
             
             if keys:
