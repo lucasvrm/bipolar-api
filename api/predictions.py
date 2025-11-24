@@ -111,7 +111,7 @@ def calculate_heuristic_probability(checkin_data: Dict[str, Any], prediction_typ
             return {"probability": 0.5, "methodology": "HEURISTIC_V1_UNVALIDATED"}
             
     except Exception as e:
-        logger.warning(f"Error calculating heuristic for {prediction_type}: {e}")
+        logger.warning("Error calculating heuristic for %s: %s", prediction_type, e)
         return {"probability": 0.5, "methodology": "HEURISTIC_V1_UNVALIDATED", "error": str(e)}
 
 
@@ -211,6 +211,7 @@ def run_prediction(
                 metric.riskLevel = "high" if label in ["Mania", "Depressão", "Estado Misto"] else "low"
                 metric.confidence = prob
                 metric.explanation = f"Predicted state: {label}"
+                metric.methodology = "LGBM_MULTICLASS_V1"
                 
                 # Explanation details could be expanded here
             else:
