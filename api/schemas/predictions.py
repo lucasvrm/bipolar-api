@@ -18,6 +18,7 @@ class PredictionsMetric(BaseModel):
         confidence: Confidence score of the prediction (0-1)
         trend: Optional trend indicator (improving, worsening, stable)
         explanation: Optional human-readable explanation
+        methodology: Optional methodology used for prediction (e.g., 'HEURISTIC_V1_UNVALIDATED')
     """
     name: str = Field(..., description="Name of the prediction metric")
     value: float = Field(..., description="Numerical value of the metric")
@@ -26,6 +27,7 @@ class PredictionsMetric(BaseModel):
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score")
     trend: Optional[str] = Field(None, description="Trend direction")
     explanation: Optional[str] = Field(None, description="Explanation of the result")
+    methodology: Optional[str] = Field(None, description="Methodology used for prediction")
 
     # Legacy alias support if needed for inner items (e.g. 'type' instead of 'name')
     type: Optional[str] = Field(None, description="Legacy alias for name")
