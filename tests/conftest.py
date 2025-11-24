@@ -149,7 +149,12 @@ def client(mock_supabase):
     This fixture ensures consistent mocking and rate limiter cleanup.
     Use this fixture in tests that need Supabase mocking and/or rate limiter reset.
     """
-    from api.dependencies import get_supabase_client
+    from api.dependencies import (
+        get_supabase_client, 
+        get_supabase_anon_auth_client,
+        get_supabase_service_role_client,
+        get_supabase_service
+    )
     from api.rate_limiter import limiter
     
     # Clear rate limiter counters before each test
@@ -163,11 +168,14 @@ def client(mock_supabase):
     # Clear any previous dependency overrides
     app.dependency_overrides.clear()
     
-    # Override the dependency to return our mock
-    def override_get_supabase_client():
+    # Override all the Supabase dependency functions to return our mock
+    def override_get_supabase():
         return mock_supabase
     
-    app.dependency_overrides[get_supabase_client] = override_get_supabase_client
+    app.dependency_overrides[get_supabase_client] = override_get_supabase
+    app.dependency_overrides[get_supabase_anon_auth_client] = override_get_supabase
+    app.dependency_overrides[get_supabase_service_role_client] = override_get_supabase
+    app.dependency_overrides[get_supabase_service] = override_get_supabase
     
     # Create test client
     test_client = TestClient(app)
