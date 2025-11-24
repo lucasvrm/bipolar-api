@@ -66,9 +66,10 @@ def _is_production() -> bool:
     return os.getenv("APP_ENV") == "production"
 
 def _synthetic_generation_enabled() -> bool:
-    if not _is_production():
-        return True
-    return bool(os.getenv("ALLOW_SYNTHETIC_IN_PROD"))
+    if _is_production():
+        # CRITICAL: Never allow this in prod, no exceptions.
+        raise HTTPException(status_code=403, detail="Synthetic data generation is strictly forbidden in production environments.")
+    return True
 
 # ----------------------------------------------------------------------
 # Geração de dados sintéticos
@@ -82,17 +83,9 @@ async def generate_synthetic_data(
     is_admin: bool = Depends(verify_admin_authorization),
 ) -> Dict[str, Any]:
 
+    # Block all synthetic data generation in production
     if _is_production():
-        if not _synthetic_generation_enabled():
-            raise HTTPException(status_code=403, detail="Synthetic disabled em produção.")
-        if data_request.clearDb:
-            raise HTTPException(status_code=403, detail="clearDb não permitido em produção.")
-        if (data_request.patientsCount or 0) > SYN_MAX_PATIENTS_PROD:
-            raise HTTPException(status_code=400, detail=f"patientsCount excede limite {SYN_MAX_PATIENTS_PROD}.")
-        if (data_request.therapistsCount or 0) > SYN_MAX_THERAPISTS_PROD:
-            raise HTTPException(status_code=400, detail=f"therapistsCount excede limite {SYN_MAX_THERAPISTS_PROD}.")
-        if (data_request.checkinsPerUser or 0) > SYN_MAX_CHECKINS_PER_USER_PROD:
-            raise HTTPException(status_code=400, detail=f"checkinsPerUser excede limite {SYN_MAX_CHECKINS_PER_USER_PROD}.")
+        _synthetic_generation_enabled()  # Will raise HTTPException(403) - no exceptions
 
     patterns = ["stable", "cycling", "random", "manic", "depressive"]
     if data_request.moodPattern not in patterns:
@@ -1221,13 +1214,9 @@ async def clear_database(
     """
     logger.info("[ClearDatabase] Starting")
     
-    # Check production environment
+    # Block all synthetic data operations in production
     if _is_production():
-        if not _synthetic_generation_enabled():
-            raise HTTPException(
-                status_code=403,
-                detail="Clear database not allowed in production (ALLOW_SYNTHETIC_IN_PROD not set)"
-            )
+        _synthetic_generation_enabled()  # Will raise HTTPException(403) - no exceptions
     
     # Validate confirmation
     if clear_request.confirm_text != "DELETE ALL DATA":
@@ -1375,26 +1364,9 @@ async def bulk_create_users(
     """
     logger.info(f"[BulkUsers] role={bulk_request.role} count={bulk_request.count}")
     
-    # Production environment checks
+    # Block all synthetic data generation in production
     if _is_production():
-        if not _synthetic_generation_enabled():
-            raise HTTPException(
-                status_code=403,
-                detail="Synthetic generation not allowed in production (ALLOW_SYNTHETIC_IN_PROD not set)"
-            )
-        
-        # Enforce production limits
-        if bulk_request.role == "patient" and bulk_request.count > SYN_MAX_PATIENTS_PROD:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Patient count exceeds production limit ({SYN_MAX_PATIENTS_PROD})"
-            )
-        
-        if bulk_request.role == "therapist" and bulk_request.count > SYN_MAX_THERAPISTS_PROD:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Therapist count exceeds production limit ({SYN_MAX_THERAPISTS_PROD})"
-            )
+        _synthetic_generation_enabled()  # Will raise HTTPException(403) - no exceptions
     
     # Import the helper
     from data_generator import create_user_with_retry
@@ -1505,13 +1477,9 @@ async def bulk_create_checkins(
     """
     logger.info(f"[BulkCheckins] Starting")
     
-    # Production environment checks
+    # Block all synthetic data generation in production
     if _is_production():
-        if not _synthetic_generation_enabled():
-            raise HTTPException(
-                status_code=403,
-                detail="Synthetic generation not allowed in production (ALLOW_SYNTHETIC_IN_PROD not set)"
-            )
+        _synthetic_generation_enabled()  # Will raise HTTPException(403) - no exceptions
     
     # Import helpers
     from data_generator import generate_realistic_checkin
@@ -1578,13 +1546,6 @@ async def bulk_create_checkins(
                         mood_state=bulk_request.mood_pattern
                     )
                     user_checkins.append(checkin)
-            
-            # Enforce production limit per user
-            if _is_production() and len(user_checkins) > SYN_MAX_CHECKINS_PER_USER_PROD:
-                logger.warning(
-                    f"[BulkCheckins] User {user_id}: limiting {len(user_checkins)} to {SYN_MAX_CHECKINS_PER_USER_PROD}"
-                )
-                user_checkins = user_checkins[:SYN_MAX_CHECKINS_PER_USER_PROD]
             
             all_checkins.extend(user_checkins)
         
