@@ -66,9 +66,10 @@ def _is_production() -> bool:
     return os.getenv("APP_ENV") == "production"
 
 def _synthetic_generation_enabled() -> bool:
-    if not _is_production():
-        return True
-    return bool(os.getenv("ALLOW_SYNTHETIC_IN_PROD"))
+    if _is_production():
+        # CRITICAL: Never allow this in prod, no exceptions.
+        raise HTTPException(status_code=403, detail="Synthetic data generation is strictly forbidden in production environments.")
+    return True
 
 # ----------------------------------------------------------------------
 # Geração de dados sintéticos
@@ -83,8 +84,7 @@ async def generate_synthetic_data(
 ) -> Dict[str, Any]:
 
     if _is_production():
-        if not _synthetic_generation_enabled():
-            raise HTTPException(status_code=403, detail="Synthetic disabled em produção.")
+        _synthetic_generation_enabled()  # Will raise HTTPException if in production
         if data_request.clearDb:
             raise HTTPException(status_code=403, detail="clearDb não permitido em produção.")
         if (data_request.patientsCount or 0) > SYN_MAX_PATIENTS_PROD:
@@ -1223,11 +1223,7 @@ async def clear_database(
     
     # Check production environment
     if _is_production():
-        if not _synthetic_generation_enabled():
-            raise HTTPException(
-                status_code=403,
-                detail="Clear database not allowed in production (ALLOW_SYNTHETIC_IN_PROD not set)"
-            )
+        _synthetic_generation_enabled()  # Will raise HTTPException if in production
     
     # Validate confirmation
     if clear_request.confirm_text != "DELETE ALL DATA":
@@ -1377,11 +1373,7 @@ async def bulk_create_users(
     
     # Production environment checks
     if _is_production():
-        if not _synthetic_generation_enabled():
-            raise HTTPException(
-                status_code=403,
-                detail="Synthetic generation not allowed in production (ALLOW_SYNTHETIC_IN_PROD not set)"
-            )
+        _synthetic_generation_enabled()  # Will raise HTTPException if in production
         
         # Enforce production limits
         if bulk_request.role == "patient" and bulk_request.count > SYN_MAX_PATIENTS_PROD:
@@ -1507,11 +1499,7 @@ async def bulk_create_checkins(
     
     # Production environment checks
     if _is_production():
-        if not _synthetic_generation_enabled():
-            raise HTTPException(
-                status_code=403,
-                detail="Synthetic generation not allowed in production (ALLOW_SYNTHETIC_IN_PROD not set)"
-            )
+        _synthetic_generation_enabled()  # Will raise HTTPException if in production
     
     # Import helpers
     from data_generator import generate_realistic_checkin
