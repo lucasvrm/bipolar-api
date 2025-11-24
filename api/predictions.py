@@ -111,7 +111,7 @@ def calculate_heuristic_probability(checkin_data: Dict[str, Any], prediction_typ
             return {"probability": 0.5, "methodology": "HEURISTIC_V1_UNVALIDATED"}
             
     except Exception as e:
-        logger.warning("Error calculating heuristic for %s: %s", prediction_type, e)
+        logger.warning("Error calculating heuristic for %s (user_id=%s): %s", prediction_type, user_id or "unknown", e)
         return {"probability": 0.5, "methodology": "HEURISTIC_V1_UNVALIDATED", "error": str(e)}
 
 
@@ -277,6 +277,7 @@ def run_prediction(
         logger.exception(f"Error running prediction {prediction_type}: {e}")
         metric.explanation = f"Error: {str(e)}"
         metric.label = "Error"
+        metric.methodology = "ERROR"
     
     return metric
 
@@ -353,7 +354,8 @@ async def get_predictions(
                         label="Erro",
                         riskLevel="unknown",
                         confidence=0.0,
-                        explanation=f"Erro ao gerar predição: {str(e)[:100]}"
+                        explanation=f"Erro ao gerar predição: {str(e)[:100]}",
+                        methodology="ERROR"
                     ))
         else:
             # Return empty/default metrics if no data
@@ -365,7 +367,8 @@ async def get_predictions(
                     label="Sem dados",
                     riskLevel="unknown",
                     confidence=0.0,
-                    explanation="Nenhum check-in disponível para gerar predições"
+                    explanation="Nenhum check-in disponível para gerar predições",
+                    methodology="NO_DATA"
                 ))
 
         result = PredictionsResponse(
@@ -400,7 +403,8 @@ async def get_predictions(
                 label="Erro no banco de dados",
                 riskLevel="unknown",
                 confidence=0.0,
-                explanation="Erro ao acessar dados do usuário"
+                explanation="Erro ao acessar dados do usuário",
+                methodology="ERROR"
             )
             for pred_type in requested_types
         ]
@@ -421,7 +425,8 @@ async def get_predictions(
                 label="Erro inesperado",
                 riskLevel="unknown",
                 confidence=0.0,
-                explanation="Erro inesperado ao gerar predições"
+                explanation="Erro inesperado ao gerar predições",
+                methodology="ERROR"
             )
             for pred_type in requested_types
         ]
