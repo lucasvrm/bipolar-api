@@ -12,7 +12,7 @@ from pydantic import ValidationError
 import pandas as pd
 import numpy as np
 
-from api.dependencies import get_supabase_client
+from api.dependencies import get_supabase_anon_client
 from api.models import MODELS
 from api.utils import validate_uuid_or_400, handle_postgrest_error
 from api.schemas.predictions import (
@@ -291,7 +291,7 @@ async def get_predictions(
     user_id: str,
     types: Optional[str] = Query(None, description="Comma-separated list of prediction types"),
     window_days: int = Query(3, ge=1, le=30, description="Temporal window in days"),
-    supabase: Client = Depends(get_supabase_client)
+    supabase: Client = Depends(get_supabase_anon_client)
 ):
     """
     Endpoint para obter predições para um usuário.
@@ -447,7 +447,7 @@ async def get_predictions(
 async def get_prediction_of_day(
     request: Request,
     user_id: str,
-    supabase: Client = Depends(get_supabase_client)
+    supabase: Client = Depends(get_supabase_anon_client)
 ):
     """
     Endpoint otimizado para dashboard (mood_state apenas).

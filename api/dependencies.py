@@ -1,6 +1,7 @@
 import os
 import logging
 import time
+import threading
 from typing import Optional, Set
 from fastapi import HTTPException, Header
 from supabase import create_client, Client
@@ -8,7 +9,8 @@ from supabase import create_client, Client
 logger = logging.getLogger("bipolar-api.dependencies")
 
 __all__ = [
-    "get_supabase_client",              # LEGADO: retorna ANON
+    "get_supabase_anon_client",         # Nome explícito para cliente ANON
+    "get_supabase_client",              # LEGADO: retorna ANON (mantido para compatibilidade)
     "get_supabase_anon_auth_client",
     "get_supabase_service_role_client",
     "get_supabase_service",             # Alias para service role
@@ -17,10 +19,14 @@ __all__ = [
     "acreate_client",                   # SHIM para testes
 ]
 
-# Cache de clientes
+# Cache de clientes e locks para thread-safety
 _admin_emails_cache: Optional[Set[str]] = None
 _cached_anon_client: Optional[Client] = None
 _cached_service_client: Optional[Client] = None
+
+# Thread locks para inicialização thread-safe
+_client_lock = threading.Lock()
+_admin_emails_lock = threading.Lock()
 
 # Heurísticas simples de sanidade (ajustáveis conforme formato das keys)
 MIN_SERVICE_KEY_LENGTH = 180
@@ -28,11 +34,17 @@ MIN_ANON_KEY_LENGTH = 100
 
 
 def get_admin_emails() -> Set[str]:
+    """
+    Thread-safe getter para emails de administradores.
+    Usa double-checked locking para performance.
+    """
     global _admin_emails_cache
     if _admin_emails_cache is None:
-        raw = os.getenv("ADMIN_EMAILS", "")
-        _admin_emails_cache = {e.strip().lower() for e in raw.split(",") if e.strip()}
-        logger.info("Cache de admin emails inicializado (%d)", len(_admin_emails_cache))
+        with _admin_emails_lock:
+            if _admin_emails_cache is None:  # Double-check
+                raw = os.getenv("ADMIN_EMAILS", "")
+                _admin_emails_cache = {e.strip().lower() for e in raw.split(",") if e.strip()}
+                logger.info("Cache de admin emails inicializado (%d)", len(_admin_emails_cache))
     return _admin_emails_cache
 
 
@@ -47,23 +59,26 @@ def acreate_client(url: str, key: str, options=None):
 def get_supabase_anon_auth_client() -> Client:
     """
     Cliente ANON (RLS aplicado). Usado para operações que dependem do contexto do usuário (ex.: auth.get_user).
+    Thread-safe com double-checked locking.
     """
     global _cached_anon_client
     if _cached_anon_client is None:
-        url = os.getenv("SUPABASE_URL")
-        anon_key = os.getenv("SUPABASE_ANON_KEY", "").strip()
+        with _client_lock:
+            if _cached_anon_client is None:  # Double-check
+                url = os.getenv("SUPABASE_URL")
+                anon_key = os.getenv("SUPABASE_ANON_KEY", "").strip()
 
-        if not url or not anon_key:
-            logger.error("SUPABASE_URL ou SUPABASE_ANON_KEY ausentes.")
-            raise HTTPException(status_code=500, detail="Configuração Supabase incompleta (ANON).")
+                if not url or not anon_key:
+                    logger.error("SUPABASE_URL ou SUPABASE_ANON_KEY ausentes.")
+                    raise HTTPException(status_code=500, detail="Configuração Supabase incompleta (ANON).")
 
-        if len(anon_key) < MIN_ANON_KEY_LENGTH:
-            logger.error("ANON KEY inválida/truncada (len=%d).", len(anon_key))
-            raise HTTPException(status_code=500, detail="SUPABASE_ANON_KEY inválida ou truncada.")
+                if len(anon_key) < MIN_ANON_KEY_LENGTH:
+                    logger.error("ANON KEY inválida/truncada (len=%d).", len(anon_key))
+                    raise HTTPException(status_code=500, detail="SUPABASE_ANON_KEY inválida ou truncada.")
 
-        logger.info("Inicializando cliente ANON (sync) key=%s...%s", anon_key[:5], anon_key[-5:])
-        _cached_anon_client = acreate_client(url, anon_key)
-        logger.debug("Cliente ANON cacheado.")
+                logger.info("Inicializando cliente ANON (sync) key=%s...%s", anon_key[:5], anon_key[-5:])
+                _cached_anon_client = acreate_client(url, anon_key)
+                logger.debug("Cliente ANON cacheado.")
     return _cached_anon_client
 
 
@@ -71,30 +86,41 @@ def get_supabase_service_role_client() -> Client:
     """
     Cliente SERVICE ROLE (bypass RLS). Usado em endpoints administrativos (/api/admin/...).
     NÃO utilizar para operações sensíveis ao contexto do usuário final (ex.: auth.get_user).
+    Thread-safe com double-checked locking.
     """
     global _cached_service_client
     if _cached_service_client is None:
-        url = os.getenv("SUPABASE_URL")
-        service_key = os.getenv("SUPABASE_SERVICE_KEY", "").strip()
+        with _client_lock:
+            if _cached_service_client is None:  # Double-check
+                url = os.getenv("SUPABASE_URL")
+                service_key = os.getenv("SUPABASE_SERVICE_KEY", "").strip()
 
-        if not url or not service_key:
-            logger.error("SUPABASE_URL ou SUPABASE_SERVICE_KEY ausentes.")
-            raise HTTPException(status_code=500, detail="Configuração Supabase incompleta (SERVICE).")
+                if not url or not service_key:
+                    logger.error("SUPABASE_URL ou SUPABASE_SERVICE_KEY ausentes.")
+                    raise HTTPException(status_code=500, detail="Configuração Supabase incompleta (SERVICE).")
 
-        if len(service_key) < MIN_SERVICE_KEY_LENGTH:
-            logger.error("SERVICE KEY inválida/truncada (len=%d).", len(service_key))
-            raise HTTPException(status_code=500, detail="SUPABASE_SERVICE_KEY inválida ou truncada.")
+                if len(service_key) < MIN_SERVICE_KEY_LENGTH:
+                    logger.error("SERVICE KEY inválida/truncada (len=%d).", len(service_key))
+                    raise HTTPException(status_code=500, detail="SUPABASE_SERVICE_KEY inválida ou truncada.")
 
-        logger.info("Inicializando cliente SERVICE (sync) key=%s...%s", service_key[:5], service_key[-5:])
-        _cached_service_client = acreate_client(url, service_key)
-        logger.debug("Cliente SERVICE ROLE cacheado.")
+                logger.info("Inicializando cliente SERVICE (sync) key=%s...%s", service_key[:5], service_key[-5:])
+                _cached_service_client = acreate_client(url, service_key)
+                logger.debug("Cliente SERVICE ROLE cacheado.")
     return _cached_service_client
+
+
+def get_supabase_anon_client() -> Client:
+    """
+    Nome explícito para cliente ANON (RLS aplicado).
+    Use este para operações de usuários regulares.
+    """
+    return get_supabase_anon_auth_client()
 
 
 def get_supabase_client() -> Client:
     """
     Compatibilidade legado: retorna cliente ANON.
-    Se rotas antigas importarem get_supabase_client, continuam funcionando.
+    DEPRECATED: Use get_supabase_anon_client() para clareza.
     """
     return get_supabase_anon_auth_client()
 

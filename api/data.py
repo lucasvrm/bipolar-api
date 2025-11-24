@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter, Depends, Request
 from supabase import Client
 from postgrest.exceptions import APIError
-from api.dependencies import get_supabase_client
+from api.dependencies import get_supabase_anon_client
 from api.utils import validate_uuid_or_400, handle_postgrest_error
 from api.rate_limiter import limiter, DATA_ACCESS_RATE_LIMIT
 
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/data", tags=["Data Access"])
 async def get_latest_checkin_for_user(
     request: Request,
     user_id: str,
-    supabase: Client = Depends(get_supabase_client)
+    supabase: Client = Depends(get_supabase_anon_client)
 ):
     """
     Busca o check-in mais recente para o usuário especificado.
