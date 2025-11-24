@@ -296,22 +296,28 @@ class TestDataGeneration:
             return create_mock_supabase_client(mock_user=admin_user)
         
         with patch("api.dependencies.get_supabase_anon_auth_client", side_effect=mock_create):
-            response = client.post(
-                "/api/admin/generate-data",
-                headers={"Authorization": "Bearer valid-admin-token"},
-                json={}  # Use defaults
-            )
+            with patch("api.dependencies.get_supabase_service", side_effect=mock_create):
+                # Clear cached clients to ensure mocks are used
+                import api.dependencies
+                api.dependencies._cached_anon_client = None
+                api.dependencies._cached_service_client = None
+                
+                response = client.post(
+                    "/api/admin/generate-data",
+                    headers={"Authorization": "Bearer valid-admin-token"},
+                    json={}  # Use defaults
+                )
 
-            assert response.status_code == 200
-            data = response.json()
-            assert data["status"] == "success"
-            assert "statistics" in data
-            # New defaults: 2 patients + 1 therapist = 3 total users
-            assert data["statistics"]["users_created"] == 3
-            assert data["statistics"]["patients_created"] == 2
-            assert data["statistics"]["therapists_created"] == 1
-            assert data["statistics"]["checkins_per_user"] == 30
-            assert data["statistics"]["mood_pattern"] == "stable"
+                assert response.status_code == 200
+                data = response.json()
+                assert data["status"] == "success"
+                assert "statistics" in data
+                # New defaults: 2 patients + 1 therapist = 3 total users
+                assert data["statistics"]["users_created"] == 3
+                assert data["statistics"]["patients_created"] == 2
+                assert data["statistics"]["therapists_created"] == 1
+                assert data["statistics"]["checkins_per_user"] == 30
+                assert data["statistics"]["mood_pattern"] == "stable"
 
     def test_generate_data_custom_parameters(self, client, mock_env, admin_user):
         """Test data generation with custom parameters."""
@@ -659,7 +665,7 @@ class TestStatsEndpoint:
             )
 
             assert response.status_code == 401
-            assert "invalid" in response.json()["detail"].lower()
+            assert "inválido" in response.json()["detail"].lower()
 
     def test_stats_with_valid_admin_returns_counts(self, client, mock_env, admin_user):
         """Test that stats endpoint returns correct counts for admin user."""
@@ -741,7 +747,7 @@ class TestStatsEndpoint:
             )
 
             assert response.status_code == 403
-            assert "admin" in response.json()["detail"].lower()
+            assert "acesso negado" in response.json()["detail"].lower()
 
     def test_stats_handles_zero_counts(self, client, mock_env, admin_user):
         """Test that stats endpoint handles zero counts correctly."""
@@ -817,7 +823,7 @@ class TestUsersEndpoint:
             )
 
             assert response.status_code == 401
-            assert "invalid" in response.json()["detail"].lower()
+            assert "inválido" in response.json()["detail"].lower()
 
     def test_users_with_valid_admin_returns_users_list(self, client, mock_env, admin_user):
         """Test that users endpoint returns list of users for admin."""
@@ -882,7 +888,7 @@ class TestUsersEndpoint:
             )
 
             assert response.status_code == 403
-            assert "admin" in response.json()["detail"].lower()
+            assert "acesso negado" in response.json()["detail"].lower()
 
     def test_users_returns_empty_list_when_no_users(self, client, mock_env, admin_user):
         """Test that users endpoint returns empty list when no users exist."""
@@ -1065,7 +1071,7 @@ class TestDangerZoneCleanup:
             )
 
             assert response.status_code == 403
-            assert "admin" in response.json()["detail"].lower()
+            assert "acesso negado" in response.json()["detail"].lower()
 
     def test_danger_zone_cleanup_invalid_action_returns_400(self, client, mock_env, admin_user):
         """Test that invalid action returns 422 (Pydantic validation error)."""
