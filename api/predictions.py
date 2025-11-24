@@ -163,14 +163,15 @@ async def run_prediction_with_timeout(
         )
         return result
     except asyncio.TimeoutError:
-        logger.error(f"Prediction timeout after {timeout_seconds}s for type={prediction_type}")
+        logger.error("Prediction timeout after %ss for type=%s", timeout_seconds, prediction_type)
         return PredictionsMetric(
             name=prediction_type,
             value=0.0,
             label="Timeout",
             riskLevel="unknown",
             confidence=0.0,
-            explanation="Timeout during prediction"
+            explanation="Timeout during prediction",
+            methodology="TIMEOUT"
         )
 
 
@@ -185,7 +186,7 @@ def run_prediction(
     Returns: PredictionsMetric
     """
     start_time = time.time()
-    logger.info(f"Running prediction: {prediction_type} for window_days={window_days}")
+    logger.info("Running prediction: %s for window_days=%s", prediction_type, window_days)
     
     metric = PredictionsMetric(
         name=prediction_type,
@@ -193,7 +194,8 @@ def run_prediction(
         label="Unknown",
         riskLevel="low",
         confidence=0.0,
-        explanation="Explanation unavailable"
+        explanation="Explanation unavailable",
+        methodology="UNKNOWN"
     )
     
     try:
@@ -274,7 +276,7 @@ def run_prediction(
                  metric.methodology = heuristic_result.get("methodology", "HEURISTIC_V1_UNVALIDATED")
 
     except Exception as e:
-        logger.exception(f"Error running prediction {prediction_type}: {e}")
+        logger.exception("Error running prediction %s: %s", prediction_type, e)
         metric.explanation = f"Error: {str(e)}"
         metric.label = "Error"
         metric.methodology = "ERROR"
