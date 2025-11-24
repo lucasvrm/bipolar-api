@@ -73,7 +73,6 @@ def mock_env(monkeypatch):
     monkeypatch.setenv("SUPABASE_ANON_KEY", "test-anon-key-" + "x" * 100)
     monkeypatch.setenv("SUPABASE_SERVICE_KEY", "test-service-key-" + "x" * 200)
     monkeypatch.setenv("APP_ENV", "test")
-    monkeypatch.setenv("ALLOW_SYNTHETIC_IN_PROD", "0")
     monkeypatch.setenv("SYNTHETIC_MAX_PATIENTS_PROD", "50")
     monkeypatch.setenv("SYNTHETIC_MAX_THERAPISTS_PROD", "10")
     monkeypatch.setenv("SYNTHETIC_MAX_CHECKINS_PER_USER_PROD", "60")
@@ -124,15 +123,14 @@ class TestBulkUsers:
             assert data["patients_count"] == 3
             assert len(data["user_ids"]) == 3
     
-    def test_bulk_create_exceeds_production_limit(self, client, admin_user):
-        """Test that exceeding production limits is rejected."""
+    def test_bulk_create_blocked_in_production(self, client, admin_user):
+        """Test that synthetic data generation is completely blocked in production."""
         with patch("api.dependencies.get_supabase_anon_auth_client") as mock_anon, \
              patch("api.dependencies.get_supabase_service_role_client") as mock_service:
             
             # Set production environment
             import os
             os.environ["APP_ENV"] = "production"
-            os.environ["ALLOW_SYNTHETIC_IN_PROD"] = "1"
             
             mock_anon.return_value.auth.get_user.return_value = MockUserResponse(admin_user)
             mock_service.return_value = create_mock_supabase()
@@ -142,14 +140,14 @@ class TestBulkUsers:
                 headers={"Authorization": "Bearer test-token"},
                 json={
                     "role": "patient",
-                    "count": 100,  # Exceeds limit of 50
+                    "count": 5,  # Even small counts should be blocked
                     "is_test_patient": True,
                     "source": "synthetic"
                 }
             )
             
-            assert response.status_code == 400
-            assert "limit" in response.json()["detail"].lower()
+            assert response.status_code == 403
+            assert "forbidden" in response.json()["detail"].lower()
             
             # Reset env
             os.environ["APP_ENV"] = "test"
@@ -300,14 +298,13 @@ class TestClearDatabase:
             assert "confirmation" in response.json()["detail"].lower()
     
     def test_clear_database_blocked_in_production(self, client, admin_user):
-        """Test that clear database is blocked in production without flag."""
+        """Test that clear database is blocked in production."""
         with patch("api.dependencies.get_supabase_anon_auth_client") as mock_anon, \
              patch("api.dependencies.get_supabase_service_role_client") as mock_service:
             
-            # Set production environment without synthetic flag
+            # Set production environment
             import os
             os.environ["APP_ENV"] = "production"
-            os.environ["ALLOW_SYNTHETIC_IN_PROD"] = "0"
             
             mock_anon.return_value.auth.get_user.return_value = MockUserResponse(admin_user)
             mock_service.return_value = create_mock_supabase()
@@ -319,7 +316,7 @@ class TestClearDatabase:
             )
             
             assert response.status_code == 403
-            assert "production" in response.json()["detail"].lower()
+            assert "forbidden" in response.json()["detail"].lower()
             
             # Reset env
             os.environ["APP_ENV"] = "test"
