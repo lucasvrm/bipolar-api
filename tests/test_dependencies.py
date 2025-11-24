@@ -12,10 +12,19 @@ from api.dependencies import (
     get_supabase_anon_client,
     get_supabase_anon_auth_client,
     get_supabase_service_role_client,
-    get_admin_emails
+    get_admin_emails,
+    reset_caches_for_testing
 )
 
 # Tests updated to work with sync client
+
+
+@pytest.fixture(autouse=True)
+def reset_dependency_caches():
+    """Fixture to reset all dependency caches before each test."""
+    reset_caches_for_testing()
+    yield
+    reset_caches_for_testing()
 
 
 @pytest.mark.asyncio
@@ -42,10 +51,6 @@ async def test_verify_admin_auth_raises_401_on_invalid_token():
 
 def test_thread_safe_anon_client_initialization():
     """Test that concurrent calls to get_supabase_anon_client are thread-safe."""
-    # Reset the cached client
-    import api.dependencies
-    api.dependencies._cached_anon_client = None
-    
     call_count = [0]
     lock = threading.Lock()
     clients = []
@@ -83,17 +88,10 @@ def test_thread_safe_anon_client_initialization():
     
     # Verify all threads got the same client instance
     assert len(set(id(c) for c in clients)) == 1, "All threads should get the same client instance"
-    
-    # Reset for other tests
-    api.dependencies._cached_anon_client = None
 
 
 def test_thread_safe_service_client_initialization():
     """Test that concurrent calls to get_supabase_service_role_client are thread-safe."""
-    # Reset the cached client
-    import api.dependencies
-    api.dependencies._cached_service_client = None
-    
     call_count = [0]
     lock = threading.Lock()
     clients = []
@@ -131,17 +129,10 @@ def test_thread_safe_service_client_initialization():
     
     # Verify all threads got the same client instance
     assert len(set(id(c) for c in clients)) == 1, "All threads should get the same client instance"
-    
-    # Reset for other tests
-    api.dependencies._cached_service_client = None
 
 
 def test_thread_safe_admin_emails_initialization():
     """Test that concurrent calls to get_admin_emails are thread-safe."""
-    # Reset the cached emails
-    import api.dependencies
-    api.dependencies._admin_emails_cache = None
-    
     email_sets = []
     
     # Mock environment variables
@@ -168,16 +159,10 @@ def test_thread_safe_admin_emails_initialization():
     
     # Verify the content is correct
     assert email_sets[0] == {'admin1@test.com', 'admin2@test.com', 'admin3@test.com'}
-    
-    # Reset for other tests
-    api.dependencies._admin_emails_cache = None
 
 
 def test_get_supabase_anon_client_is_alias():
     """Test that get_supabase_anon_client returns the same as get_supabase_anon_auth_client."""
-    import api.dependencies
-    api.dependencies._cached_anon_client = None
-    
     with patch.dict(os.environ, {
         'SUPABASE_URL': 'https://test.supabase.co',
         'SUPABASE_ANON_KEY': 'a' * 150
@@ -188,7 +173,5 @@ def test_get_supabase_anon_client_is_alias():
             
             # Both should return the same cached instance
             assert client1 is client2
-    
-    # Reset for other tests
-    api.dependencies._cached_anon_client = None
+
 

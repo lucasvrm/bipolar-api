@@ -17,6 +17,7 @@ __all__ = [
     "verify_admin_authorization",
     "get_admin_emails",
     "acreate_client",                   # SHIM para testes
+    "reset_caches_for_testing",         # Utility para testes
 ]
 
 # Cache de clientes e locks para thread-safety
@@ -25,8 +26,8 @@ _cached_anon_client: Optional[Client] = None
 _cached_service_client: Optional[Client] = None
 
 # Thread locks para inicialização thread-safe
-_client_lock = threading.Lock()
-_admin_emails_lock = threading.Lock()
+_client_initialization_lock = threading.Lock()
+_admin_emails_initialization_lock = threading.Lock()
 
 # Heurísticas simples de sanidade (ajustáveis conforme formato das keys)
 MIN_SERVICE_KEY_LENGTH = 180
@@ -40,12 +41,24 @@ def get_admin_emails() -> Set[str]:
     """
     global _admin_emails_cache
     if _admin_emails_cache is None:
-        with _admin_emails_lock:
+        with _admin_emails_initialization_lock:
             if _admin_emails_cache is None:  # Double-check
                 raw = os.getenv("ADMIN_EMAILS", "")
                 _admin_emails_cache = {e.strip().lower() for e in raw.split(",") if e.strip()}
                 logger.info("Cache de admin emails inicializado (%d)", len(_admin_emails_cache))
     return _admin_emails_cache
+
+
+def reset_caches_for_testing():
+    """
+    Utility para resetar caches globais em testes.
+    NÃO usar em código de produção.
+    """
+    global _admin_emails_cache, _cached_anon_client, _cached_service_client
+    _admin_emails_cache = None
+    _cached_anon_client = None
+    _cached_service_client = None
+
 
 
 def acreate_client(url: str, key: str, options=None):
@@ -63,7 +76,7 @@ def get_supabase_anon_auth_client() -> Client:
     """
     global _cached_anon_client
     if _cached_anon_client is None:
-        with _client_lock:
+        with _client_initialization_lock:
             if _cached_anon_client is None:  # Double-check
                 url = os.getenv("SUPABASE_URL")
                 anon_key = os.getenv("SUPABASE_ANON_KEY", "").strip()
@@ -90,7 +103,7 @@ def get_supabase_service_role_client() -> Client:
     """
     global _cached_service_client
     if _cached_service_client is None:
-        with _client_lock:
+        with _client_initialization_lock:
             if _cached_service_client is None:  # Double-check
                 url = os.getenv("SUPABASE_URL")
                 service_key = os.getenv("SUPABASE_SERVICE_KEY", "").strip()
