@@ -18,6 +18,7 @@ class ModelRegistry:
     Models are loaded on-demand when first accessed and cached for reuse.
     This improves startup time by deferring model loading until needed.
     """
+    # Class variables are intentional for singleton pattern - shared across all instances
     _instance = None
     _lock = threading.Lock()
     _models: Dict[str, Any] = {}
